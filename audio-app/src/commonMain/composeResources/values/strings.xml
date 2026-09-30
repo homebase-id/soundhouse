@@ -3,4 +3,13 @@
     <string name="app_name">Homebase Simple Audio</string>
     <string name="sign_out">Sign out</string>
     <string name="library_empty">Your library is empty</string>
+    <string name="library_no_matches">No tracks match your search</string>
+    <string name="library_search_hint">Search by title</string>
+    <string name="library_search_clear">Clear search</string>
+    <string name="library_sort">Sort</string>
+    <string name="library_sort_newest">Newest first</string>
+    <string name="library_sort_title_ascending">Title A–Z</string>
+    <string name="library_sort_title_descending">Title Z–A</string>
+    <string name="track_subtitle">%1$s · %2$s</string>
+    <string name="track_duration_unknown">–:––</string>
 </resources>

@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 1 done (app shell). Next: Phase 2.1 Library (service layer + liveTest first).
+- **Current phase:** Phase 2.1 Library done. Next: Phase 2.2 Import.
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -17,9 +17,19 @@
   `HomebaseSimpleAudioDev` for `run`, `HomebaseSimpleAudio` for packaged builds), CLAUDE.md. Desktop smoke-launched to
   the login screen. iOS framework `AudioApp` compiles.
 
+- Phase 2.1 Library: `AudioDriveApi` (query/upload/rename/delete/range read/download on the Audio drive),
+  `TrackStore` (local drive index, reloads on websocket `BatchReceived`, sync `Stopped`, own writes; clears on
+  `SessionEnded`), Library screen (title, duration, date added; newest/title A–Z/Z–A; search by title).
+  jvmTests: track mapping, range decryption at every offset through the real cached provider, TrackStore on an
+  in-memory index, sort/search, formatting. **liveTest (green):** mp3 upload with progress → query-batch → decrypted
+  ranges from byte 0, mid-file and tail → full download byte-identical → rename (+ range read after rename) →
+  soft delete; plus drive sync pulling an upload into the local index and dropping it after delete.
+
 ## Next
 
-- Phase 2.1 Library: drive service layer + jvmTests, then liveTest, then the list UI.
+- Phase 2.2 Import: file picker (mp3, m4a/aac, wav, ogg, flac), metadata (title/duration), upload with progress.
+- Phase 2.3 needs JVM ffmpeg binaries: they lived in chat-kmp `homebase-chat/src/jvmMain/resources/ffmpeg/`
+  (not copied); `JvmAudioPlayer` can't decode without them.
 
 ## Decisions
 
@@ -58,6 +68,37 @@
 - **Android release build** is unminified and debug-signed for now (no store listing yet); debug build type has the
   `.debug` suffix as required.
 - **AudioPlayer is a Koin `factory`** (one player per playback owner) rather than the chat app's single.
+
+- **Streaming approach (researched, not guessed).** chat-kmp's video path (`VideoPayloadProcessor`) transcodes with
+  ffmpeg, and above 5 MB segments into HLS with every `.ts` segment in ONE payload; players then fetch byte ranges
+  of that payload through `DriveFileProviderCached.getPayloadBytesDecrypted(chunkStart, chunkLength)` (desktop:
+  a loopback `HttpServer` that decrypts each VLC range request; Android: ExoPlayer data source; iOS: a local
+  server). HLS exists there for video's reasons: re-encoding/compression, MP4 `moov` placement, segment-sized
+  cache entries and AVPlayer's resource-loader model. The key insight is that the decryption itself doesn't need
+  segments: payloads are AES-CBC, and any 16-byte-aligned ciphertext range decrypts on its own given the preceding
+  ciphertext block as IV (`DriveFileHelpers.getRangeHeader` + `decryptChunkedBytes`). So audio is uploaded as-is
+  (no transcode, no HLS) as one encrypted payload, and playback reads decrypted ranges through that same
+  existing, disk-cached range path. Proven by `RangeDecryptTest` (every offset, incl. tail) and liveTest (byte 0,
+  mid-file seek, tail, after rename). Players consume it via a loopback HTTP server (Phase 2.3).
+- **Payload IV ≠ header IV.** Rename must send a fresh key-header IV (server: `400
+  mustRotateKeyHeaderIvWhenUpdating`, found by liveTest), so the payload is always decrypted with
+  `KeyHeader(payload descriptor iv, file aesKey)` (`AudioTrack.payloadKeyHeader`) — same as chat-kmp's media code.
+- **Track file shape:** fileType 4410, payload key `audiotrack`, `AudioTrackContent` JSON (title, sizeBytes,
+  mimeType, durationMs, fileName, origin) encrypted in `appData.content`. The plaintext size is stored because
+  range reads need it and the server only knows the ciphertext size.
+- **Uploads are direct** (`DriveUploadProvider.uploadFile` with progress), not via the outbox: the UI needs byte
+  progress, and chat's outbox-based `UploadService` lives in the uncopied `homebase-upload`. The file is
+  stream-encrypted into an upload temp first (same as `VideoPayloadProcessor.encryptVideoFile`).
+- **Delete is a soft delete** (other devices see `fileState=deleted` through sync); live tests hard-delete their own
+  tagged files (`LIVE_TEST_TAG`) at start and end.
+
+### Fixes to the copied layer
+
+- `DriveFileHttpProvider.decryptChunkedBytes`: ranges starting at bytes 1–15 decrypted garbage-shifted output
+  (the fetch starts at 0 but the "middle block" branch keyed off the original start ≠ 0, so ciphertext block 0 was
+  used as IV and the first 16 bytes dropped). Now keyed on `chunkStart < 16` with the right slice. Found by
+  `RangeDecryptTest`; the same logic in `DriveFileProvider.decryptChunkedBytes` (header-key variant, unused here) is
+  left untouched.
 
 ### Tests changed in Phase 0
 

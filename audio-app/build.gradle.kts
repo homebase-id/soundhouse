@@ -92,6 +92,7 @@ kotlin {
         jvmTest.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.sqldelight.sqlite.driver)
+            implementation(libs.ktor.client.mock)
         }
     }
 
@@ -103,5 +104,28 @@ kotlin {
                 }
             }
         }
+    }
+}
+
+val liveTestPackage = "id.homebase.audio.live.*"
+
+tasks.withType<Test>().matching { it.name == "jvmTest" }.configureEach {
+    filter { excludeTestsMatching(liveTestPackage) }
+}
+
+// Talks to a real identity with ~/.config/homebase-audio-test/session.json; skipped without it and
+// never part of jvmTest.
+val liveTest by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Round-trips against the live Audio drive of the test identity."
+    val testCompilation = kotlin.jvm().compilations.getByName("test")
+    testClassesDirs = testCompilation.output.classesDirs
+    classpath = files(testCompilation.output.allOutputs, testCompilation.runtimeDependencyFiles)
+    useJUnit()
+    filter { includeTestsMatching(liveTestPackage) }
+    outputs.upToDateWhen { false }
+    testLogging {
+        events("passed", "skipped", "failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
 }

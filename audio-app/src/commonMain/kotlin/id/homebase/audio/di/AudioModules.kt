@@ -10,6 +10,8 @@ import id.homebase.api.file.FileOperationsProvider
 import id.homebase.api.file.wipeOutboxStaging
 import id.homebase.api.sync.DriveSyncManager
 import id.homebase.api.youauth.YouAuthFlowManager
+import id.homebase.audio.data.AudioDriveApi
+import id.homebase.audio.data.TrackStore
 import id.homebase.audio.ui.library.LibraryViewModel
 import id.homebase.audio.ui.loading.AppLoadingViewModel
 import id.homebase.auth.login.LoginViewModel
@@ -102,6 +104,9 @@ val audioAppModule = module {
             identitySession = get(),
         )
     }
+
+    single { AudioDriveApi(get(), get(), get(), get()) }
+    single { TrackStore(get(), get(), get(), get()) }
 
     viewModelOf(::AppLoadingViewModel)
     viewModelOf(::LoginViewModel)

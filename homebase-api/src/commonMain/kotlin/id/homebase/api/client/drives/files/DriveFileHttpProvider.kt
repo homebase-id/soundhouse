@@ -498,7 +498,9 @@ public class DriveFileHttpProvider(
                         )
                     ).copyOfRange(0, 16)
 
-                if (chunkStart == 0) {
+                // getRangeHeader fetches from 0 for any start below 16, so those reads begin at
+                // the first block and need the file IV, not a preceding ciphertext block.
+                if (chunkStart < 16) {
                     // First block
                     Pair(
                         keyHeader.iv,
@@ -525,7 +527,7 @@ public class DriveFileHttpProvider(
             // Match TS behavior:
             // decryptedBytes.slice(startOffset ? startOffset - 16 : 0)
             val sliceStart =
-                if (startOffset > 0) maxOf(startOffset - 16, 0) else 0
+                if (chunkStart < 16) startOffset else maxOf(startOffset - 16, 0)
 
             return decryptedBytes.copyOfRange(sliceStart, decryptedBytes.size)
 
