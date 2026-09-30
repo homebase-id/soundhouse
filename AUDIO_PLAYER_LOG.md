@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 0 done (import committed on `main`). Next: Phase 1 app shell on branch `audio-player`.
+- **Current phase:** Phase 1 done (app shell). Next: Phase 2.1 Library (service layer + liveTest first).
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -12,9 +12,14 @@
   New `settings.gradle.kts` and `.gitignore`. Gate: `scripts/gate.sh` (JVM + Android + iOS-sim compile of main and
   test, all jvmTests) green.
 
+- Phase 1: `audio-app` (Koin modules, Compose Navigation host with Loading → Login → Library auth gate, placeholder
+  library screen), `androidApp` (`id.homebase.audio`, debug `.debug`), `desktopApp` (data dir
+  `HomebaseSimpleAudioDev` for `run`, `HomebaseSimpleAudio` for packaged builds), CLAUDE.md. Desktop smoke-launched to
+  the login screen. iOS framework `AudioApp` compiles.
+
 ## Next
 
-- Phase 1: `audio-app` (shared UI, Koin, Compose Navigation) + `androidApp` + `desktopApp`, login gate, CLAUDE.md.
+- Phase 2.1 Library: drive service layer + jvmTests, then liveTest, then the list UI.
 
 ## Decisions
 
@@ -37,6 +42,22 @@
 - **Big binaries kept:** `homebase-api/libs/ffmpegkit-bundled.xcframework` (iOS test cinterop) and
   `gradle/local-repo` ffmpeg-kit AAR (Android dep of homebase-api). Both are needed for the copied modules to build.
 - **Gate script:** `scripts/gate.sh [--apps]` runs the whole commit gate in one Gradle call.
+
+- **App shell (Phase 1):** reuses the copied `AuthConnectionCoordinator` (mounts the Audio drive, opens the notify
+  websocket, runs `DriveSyncManager`), `YouAuthFlowManager` and `LoginViewModel`/`LoginScreen`. Coordinator is built
+  with `startsHeadless = false` and no push fallback on every platform: this app has no background wake, so it
+  connects as soon as the session is authenticated. `DriveRegistry` is still constructed (the coordinator needs it);
+  it lives on the Chat drive, which this app never requests, so its server reconcile fails and it keeps the mandatory
+  Audio drive only.
+- **No push notifications:** `NoPushNotificationBackend` (no token, no local notifications). The copied
+  `NotificationService` still exists because `LoginViewModel` depends on it.
+- **Desktop Java Preferences node** renamed `/id/homebase/app/window` → `/id/homebase/audio/window` (would have shared
+  theme/settings with Chat on the same machine).
+- **Desktop release vs dev data dir:** `Main.kt` sets `app.rdns.name=id.homebase.audio` only when running under a
+  jpackage launcher (`jpackage.app-version` is set), so `desktopApp:run` uses `HomebaseSimpleAudioDev`.
+- **Android release build** is unminified and debug-signed for now (no store listing yet); debug build type has the
+  `.debug` suffix as required.
+- **AudioPlayer is a Koin `factory`** (one player per playback owner) rather than the chat app's single.
 
 ### Tests changed in Phase 0
 

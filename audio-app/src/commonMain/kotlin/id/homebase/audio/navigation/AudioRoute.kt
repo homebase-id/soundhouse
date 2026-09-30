@@ -1,0 +1,14 @@
+package id.homebase.audio.navigation
+
+import kotlinx.serialization.Serializable
+
+sealed interface AudioRoute {
+    @Serializable
+    data object Loading : AudioRoute
+
+    @Serializable
+    data object Login : AudioRoute
+
+    @Serializable
+    data object Library : AudioRoute
+}
