@@ -1,0 +1,391 @@
+package id.homebase.api.client.profile
+
+import co.touchlab.kermit.Logger
+import coil3.disk.DiskCache
+import id.homebase.api.client.cache.CacheStats
+import id.homebase.api.client.contacts.PublicAvatarRevisions
+import id.homebase.api.common.OdinId
+import id.homebase.api.common.publicImageUrl
+import id.homebase.api.serialization.OdinSystemSerializer
+import id.homebase.api.file.FileOperationsProvider
+import id.homebase.api.file.safeDeleteRecursively
+import id.homebase.api.file.systemFileSystem
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.bodyAsText
+import kotlin.concurrent.Volatile
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import okio.ByteString.Companion.encodeUtf8
+import okio.Path
+import okio.Path.Companion.toPath
+import kotlin.time.Clock
+
+/**
+ * Disk-backed cache for a peer identity's *public* profile data — the
+ * unauthenticated JSON and avatar image served at `https://{odinId}/pub/profile`
+ * and `https://{odinId}/pub/image`. Both endpoints are public HTTPS, so their
+ * responses are stored on disk unencrypted.
+ *
+ * Two underlying [coil3.disk.DiskCache] instances back the two
+ * Storage-screen rows:
+ * - `public_profiles` — serialized [ProfileCard] JSON (display name, bio,
+ *   links, email list, avatar URL, etc.). Directory
+ *   `homebase-public-profiles-v2`, cap 10 MB.
+ * - `public_images`   — raw avatar image bytes. Directory
+ *   `homebase-public-images-v2`, cap 200 MB.
+ *
+ * The split is deliberate, not incidental. Profile JSON is small (~1–10 KB)
+ * and used as a sparse fallback for identities without a local contact-drive
+ * record — push senders, forward-sheet targets, unmet-peer [id.homebase.core.widget.ContactName]
+ * renders. Avatar bytes are an order of magnitude larger. A single merged
+ * DiskCache would let a burst of avatar loads evict profile JSON entries
+ * under shared-pool LRU pressure; separate caps (10 MB profiles, 200 MB
+ * images) protect the small tier from the large one regardless of relative
+ * request rates. It also lets the two caps be tuned independently and
+ * shows up as two distinct rows on the Storage settings screen.
+ *
+ * A separate in-memory [notFoundCache] records 404 responses so repeated
+ * lookups of missing identities skip the network. Transient failures
+ * (5xx, network errors) are never cached.
+ *
+ * Both DiskCache instances are constructed eagerly. Coil's DiskCache
+ * (a Kotlin port of OkHttp's DiskLruCache) is thread-safe by contract,
+ * so concurrent get/put/clear are all safe and no lifecycle mutex is
+ * needed. See also [id.homebase.api.client.drives.cache.DriveFileProviderCached]
+ * which follows the same shape.
+ */
+internal class PublicProfileProviderCached(
+    private val httpClient: HttpClient,
+    fileOperationsProvider: FileOperationsProvider,
+    private val scope: CoroutineScope
+) {
+
+    private val serializer = OdinSystemSerializer
+    private val clock = Clock.System
+
+    private val fileSystem = systemFileSystem
+    private val directory = fileOperationsProvider.getCacheDirectory()
+
+    private val lock = Mutex()
+    // TODO: unbounded growth — keyLocks gains one entry per unique cacheKey
+    //  ever touched and never drops any. Over a long session this leaks
+    //  memory. Same shape in DriveFileProviderCached. Fix with a
+    //  weak-valued map or a periodic prune keyed on last-use timestamp.
+    private val keyLocks = mutableMapOf<String, Mutex>()
+
+    // Immutable set — always replaced, never mutated in-place.
+    // @Volatile ensures lock-free reads always see the latest reference.
+    // Writes are serialized via notFoundCacheMutex (rare: only on 404 responses).
+    @Volatile private var notFoundCache: Set<String> = emptySet()
+    private val notFoundCacheMutex = Mutex()
+
+    private val profileDir = "$directory/homebase-public-profiles-v2"
+    private val imageDir = "$directory/homebase-public-images-v2"
+
+    // fileSystem() is not optional decoration: coil's Builder defaults to okio
+    // FileSystem.SYSTEM, which on wasmJs is the throwing stub ("Javascript does
+    // not have access to the device's file system") - every cache read then
+    // errored on web and fell through to the network. The platform
+    // systemFileSystem (in-memory on web) is what the entry reads/writes below
+    // already use; the cache must live in the same one. Same shape as
+    // DriveFileProviderCached, which had it right.
+    private val profileDiskCache: DiskCache = DiskCache.Builder()
+        .directory(profileDir.toPath())
+        .fileSystem(fileSystem)
+        .maxSizeBytes(10L * 1024L * 1024L)
+        .build()
+
+    private val imageDiskCache: DiskCache = DiskCache.Builder()
+        .directory(imageDir.toPath())
+        .fileSystem(fileSystem)
+        .maxSizeBytes(200L * 1024L * 1024L)
+        .build()
+
+    init {
+        // Fire-and-forget reclaim of the pre-migration mayakapps/kache cache
+        // directories — see DriveFileProviderCached.init for rationale.
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            safeDeleteRecursively(directory, "homebase-public-profiles")
+            safeDeleteRecursively(directory, "homebase-public-images")
+        }
+    }
+
+    // Coil's DiskLruCache enforces `[a-z0-9_-]{1,120}` on keys; SHA-256 hex
+    // gives a 64-char compliant digest with no collision risk in practice.
+    private fun String.toDiskKey(): String = encodeUtf8().sha256().hex()
+
+    // =========================================================
+    // PUBLIC API
+    // =========================================================
+
+    suspend fun getPublicProfile(odinId: OdinId): ProfileCard? =
+        getCached(
+            cacheKey = "profile:$odinId",
+            disk = profileDiskCache,
+            ttlMillis = PROFILE_TTL_MILLIS,
+            fetch = { httpClient.get("https://${odinId}/pub/profile") },
+            transform = { response ->
+                serializer.deserialize<ProfileCard>(response.bodyAsText())
+            },
+            readFromDisk = { path ->
+                fileSystem.read(path) {
+                    val expiry = readLong()
+                    val json = readUtf8()
+                    CachedEntry(expiry, serializer.deserialize<ProfileCard>(json))
+                }
+            },
+            writeToDisk = { path, expiry, value ->
+                fileSystem.write(path) {
+                    writeLong(expiry)
+                    writeUtf8(serializer.serialize(value))
+                }
+            }
+        )
+
+    suspend fun getPublicImage(odinId: OdinId): ByteArray? =
+        getCached(
+            cacheKey = "image:$odinId",
+            disk = imageDiskCache,
+            ttlMillis = IMAGE_TTL_MILLIS,
+            fetch = { httpClient.get(odinId.publicImageUrl()) },
+            transform = { response ->
+                response.bodyAsBytes()
+            },
+            readFromDisk = { path ->
+                fileSystem.read(path) {
+                    val expiry = readLong()
+                    val size = readInt()
+                    val bytes = readByteArray(size.toLong())
+                    CachedEntry(expiry, bytes)
+                }
+            },
+            writeToDisk = { path, expiry, value ->
+                fileSystem.write(path) {
+                    writeLong(expiry)
+                    writeInt(value.size)
+                    write(value)
+                }
+            }
+        )
+
+    /**
+     * Drops the cached `/pub/profile` entry for [odinId] so the next [getPublicProfile] call
+     * re-fetches instead of serving up to a week-old data — used when a
+     * `publicProfileContentPublished(ProfileCard)` notification says this identity's card was
+     * just republished server-side.
+     */
+    suspend fun invalidateProfile(odinId: OdinId) {
+        val cacheKey = "profile:$odinId"
+        try {
+            profileDiskCache.remove(cacheKey.toDiskKey())
+        } catch (e: Exception) {
+            Logger.w(tag = "PublicProfileIO", throwable = e) { "invalidate profile failed key=$cacheKey" }
+        }
+        notFoundCacheMutex.withLock { notFoundCache = notFoundCache - cacheKey }
+    }
+
+    /** Same as [invalidateProfile] but for the `/pub/image` entry — see `ProfileImage` artifact. */
+    suspend fun invalidateImage(odinId: OdinId) {
+        val cacheKey = "image:$odinId"
+        try {
+            imageDiskCache.remove(cacheKey.toDiskKey())
+        } catch (e: Exception) {
+            Logger.w(tag = "PublicProfileIO", throwable = e) { "invalidate image failed key=$cacheKey" }
+        }
+        notFoundCacheMutex.withLock { notFoundCache = notFoundCache - cacheKey }
+        // Last: a reader racing an earlier bump would refill Coil from the entry just dropped.
+        PublicAvatarRevisions.bump(odinId)
+    }
+
+    suspend fun clearCaches() {
+        try {
+            profileDiskCache.clear()
+        } catch (e: Exception) {
+            Logger.w(tag = "PublicProfileIO", throwable = e) { "profile cache clear failed" }
+        }
+        try {
+            imageDiskCache.clear()
+        } catch (e: Exception) {
+            Logger.w(tag = "PublicProfileIO", throwable = e) { "image cache clear failed" }
+        }
+
+        notFoundCache = emptySet()
+    }
+
+    // Per-cache try/catch — see DriveFileProviderCached.getCacheStats for the
+    // rationale. Same shape here for symmetry.
+    suspend fun getCacheStats(): List<CacheStats> {
+        val out = ArrayList<CacheStats>(2)
+        try {
+            out.add(CacheStats(id = "public_profiles", sizeBytes = profileDiskCache.size, maxBytes = profileDiskCache.maxSize))
+        } catch (e: Throwable) {
+            Logger.w(tag = "PublicProfileIO", throwable = e) { "public_profiles stats unavailable" }
+            out.add(CacheStats(id = "public_profiles", sizeBytes = CacheStats.UNAVAILABLE, maxBytes = 0L))
+        }
+        try {
+            out.add(CacheStats(id = "public_images", sizeBytes = imageDiskCache.size, maxBytes = imageDiskCache.maxSize))
+        } catch (e: Throwable) {
+            Logger.w(tag = "PublicProfileIO", throwable = e) { "public_images stats unavailable" }
+            out.add(CacheStats(id = "public_images", sizeBytes = CacheStats.UNAVAILABLE, maxBytes = 0L))
+        }
+        return out
+    }
+
+    // =========================================================
+    // CORE CACHE ENGINE
+    // =========================================================
+
+    private suspend fun <T> getCached(
+        cacheKey: String,
+        disk: DiskCache,
+        ttlMillis: Long,
+        fetch: suspend () -> HttpResponse,
+        transform: suspend (HttpResponse) -> T,
+        readFromDisk: (Path) -> CachedEntry<T>,
+        writeToDisk: (Path, Long, T) -> Unit
+    ): T? {
+
+        if (cacheKey in notFoundCache) return null
+
+        readCachedOrLog(disk, cacheKey, readFromDisk)?.let { cached ->
+            if (cached.isExpired(clock)) {
+                refreshInBackground(cacheKey, disk, ttlMillis, fetch, transform, writeToDisk)
+            }
+            return cached.value
+        }
+
+        val mutex = getMutex(cacheKey)
+
+        return mutex.withLock {
+
+            if (cacheKey in notFoundCache) return@withLock null
+
+            readCachedOrLog(disk, cacheKey, readFromDisk)?.let { return@withLock it.value }
+
+            fetchAndStore(cacheKey, disk, ttlMillis, fetch, transform, writeToDisk, cacheNotFound = true)
+        }
+    }
+
+    private fun <T> refreshInBackground(
+        cacheKey: String,
+        disk: DiskCache,
+        ttlMillis: Long,
+        fetch: suspend () -> HttpResponse,
+        transform: suspend (HttpResponse) -> T,
+        writeToDisk: (Path, Long, T) -> Unit
+    ) {
+        scope.launch {
+            val mutex = getMutex(cacheKey)
+            // tryLock dedupes concurrent refreshes but leaves no handle to await;
+            // swap in a per-key Deferred map if a caller ever needs to join one.
+            if (!mutex.tryLock()) return@launch
+            try {
+                fetchAndStore(cacheKey, disk, ttlMillis, fetch, transform, writeToDisk, cacheNotFound = false)
+            } catch (e: Exception) {
+                Logger.w(tag = "PublicProfileIO", throwable = e) { "background refresh failed key=$cacheKey" }
+            } finally {
+                mutex.unlock()
+            }
+        }
+    }
+
+    // Caller owns the per-key mutex; this never takes it.
+    private suspend fun <T> fetchAndStore(
+        cacheKey: String,
+        disk: DiskCache,
+        ttlMillis: Long,
+        fetch: suspend () -> HttpResponse,
+        transform: suspend (HttpResponse) -> T,
+        writeToDisk: (Path, Long, T) -> Unit,
+        cacheNotFound: Boolean
+    ): T? {
+        val response = fetch()
+
+        return when (response.status.value) {
+
+            200 -> {
+                val expiry = now() + ttlMillis
+
+                val value = transform(response)
+
+                val editor = disk.openEditor(cacheKey.toDiskKey())
+                if (editor != null) {
+                    try {
+                        writeToDisk(editor.data, expiry, value)
+                        editor.commit()
+                    } catch (e: Exception) {
+                        try { editor.abort() } catch (_: Exception) {}
+                        Logger.w(tag = "PublicProfileIO", throwable = e) { "cache-write failed key=$cacheKey" }
+                    }
+                }
+
+                value
+            }
+
+            404 -> {
+                // Only a total miss may poison the key: notFoundCache has no TTL, so
+                // a background 404 would blank a working avatar for the whole session.
+                if (cacheNotFound) {
+                    notFoundCacheMutex.withLock { notFoundCache = notFoundCache + cacheKey }
+                }
+                null
+            }
+
+            else -> {
+                Logger.w(tag = "PublicProfileIO") {
+                    "unexpected status=${response.status.value} key=$cacheKey"
+                }
+                throw Exception("Fetch failed: ${response.status}")
+            }
+        }
+    }
+
+    /**
+     * Read a cached entry from [disk]. Returns null on cache miss OR when
+     * [readFromDisk] fails (corrupted/truncated entry). Any failure is logged
+     * so the caller can fall through to the network cleanly.
+     */
+    private fun <T> readCachedOrLog(
+        disk: DiskCache,
+        cacheKey: String,
+        readFromDisk: (Path) -> CachedEntry<T>
+    ): CachedEntry<T>? {
+        return try {
+            disk.openSnapshot(cacheKey.toDiskKey())?.use { snap -> readFromDisk(snap.data) }
+        } catch (e: Exception) {
+            Logger.e(tag = "PublicProfileIO", throwable = e) { "cache-read FAILED key=$cacheKey" }
+            null
+        }
+    }
+
+    // =========================================================
+    // HELPERS
+    // =========================================================
+
+    private fun now(): Long =
+        clock.now().toEpochMilliseconds()
+
+    private suspend fun getMutex(key: String): Mutex =
+        lock.withLock { keyLocks.getOrPut(key) { Mutex() } }
+
+    private data class CachedEntry<T>(
+        val expiry: Long,
+        val value: T
+    ) {
+        fun isExpired(clock: Clock): Boolean =
+            clock.now().toEpochMilliseconds() > expiry
+    }
+
+    private companion object {
+        // The client owns cache lifetime; a peer's Cache-Control never sets it.
+        const val PROFILE_TTL_MILLIS = 7L * 24 * 60 * 60 * 1000
+        const val IMAGE_TTL_MILLIS = 30L * 24 * 60 * 60 * 1000
+    }
+}

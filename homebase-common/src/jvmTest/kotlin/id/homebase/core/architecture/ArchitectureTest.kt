@@ -1,0 +1,184 @@
+package id.homebase.core.architecture
+
+import androidx.compose.runtime.Composable
+import com.lemonappdev.konsist.api.Konsist
+import com.lemonappdev.konsist.api.ext.list.classes
+import com.lemonappdev.konsist.api.ext.list.functions
+import com.lemonappdev.konsist.api.ext.list.properties
+import com.lemonappdev.konsist.api.ext.list.withAnnotationOf
+import com.lemonappdev.konsist.api.ext.list.withNameEndingWith
+import com.lemonappdev.konsist.api.verify.assertFalse
+import com.lemonappdev.konsist.api.verify.assertTrue
+import kotlin.test.Test
+import kotlin.test.assertTrue
+
+class ArchitectureTest {
+    @Test
+    fun `UiState classes should be data classes`() {
+        Konsist.scopeFromProject()
+            .classes()
+            .withNameEndingWith("UiState")
+            .assertTrue { it.hasDataModifier }
+    }
+
+    @Test
+    fun `No hardcoded strings in Composables`() {
+        Konsist.scopeFromProject()
+            .files
+            .filter { !it.hasNameEndingWith("Test") && !it.hasNameEndingWith("Example") && !it.hasNameStartingWith("Developer") }
+            .functions()
+            .withAnnotationOf(Composable::class)
+            .assertFalse {
+                it.text.contains(Regex("""Text\s*\(\s*"[^"]*"""")) ||
+                        it.text.contains(Regex("""Text\s*\(\s*text\s*=\s*"[^"]*""""))
+            }
+    }
+
+    /**
+     * Single-upload-path guard (#844). Payload encryption for an upload must go through the shared
+     * pipeline — `UploadService.upload`/`updateFile` — so the payload-cache/fail-soft/seed policies
+     * live in exactly one place. `encryptBundle` is the true "I'm doing a payload upload" signal, so
+     * calling it anywhere else is the violation. (The two-request-type rule was unworkable: header-only
+     * system records and the outbox rekey plumbing legitimately build UploadFileRequest /
+     * UpdateFileByUniqueIdRequest, and a text rule can't tell payload-bearing from header-only.)
+     *
+     * The regex matches CALLS (`.encryptBundle(`); the interface/impl `fun encryptBundle(` definitions
+     * have no leading dot and don't match. `UploadService` is excluded (it owns the one allowed call).
+     * Three functions are documented exceptions — each re-encrypts an in-memory text-overflow mixed
+     * with already-encrypted payloads (recovery plumbing) or is a hot multi-purpose mutation whose
+     * encrypt branch is rare, so routing them through UploadService adds risk without payoff:
+     *   - `updateMessage` (chat edit / amend-pending-create), `resendAsCreate` (chat resend),
+     *   - `updateConversationInternal` (conversation update: archival/participants/leaveGroup/heal).
+     * Adding a NEW `encryptBundle` call anywhere else — or a new media-send function — fails here.
+     */
+    @Test
+    fun `encryptBundle is confined to the shared upload pipeline`() {
+        val documentedExceptions = setOf("updateMessage", "resendAsCreate", "updateConversationInternal")
+        Konsist.scopeFromProject()
+            .files
+            .filter { !it.hasNameEndingWith("Test") }
+            .filter { !it.hasNameEndingWith("UploadService") }
+            .functions()
+            .filter { it.name !in documentedExceptions }
+            .assertFalse(
+                additionalMessage = "Payload encryption for an upload must go through " +
+                    "UploadService.upload/updateFile (issue #844), not a direct encryptBundle call. " +
+                    "If this is a genuine recovery/plumbing exception, add it to documentedExceptions " +
+                    "with a comment explaining why it can't route through UploadService."
+            ) {
+                it.text.contains(Regex("""\.\s*encryptBundle\s*\("""))
+            }
+    }
+
+    /**
+     * Efficacy guard for the non-blocking login (#1231). The connect sequence must resolve the
+     * drive registry from the local index and let [AuthConnectionCoordinator]'s background
+     * reconcile do the server half — otherwise every login, warm restores included, queues the
+     * WebSocket connect and profile load behind a `getFileHeaderByUid` round-trip.
+     *
+     * This is a source-level rule because the invariant lives in a call-site ARGUMENT, and the
+     * first attempt at this fix passed `deferServerReconcile = !headless` — which is `false` for
+     * an ordinary Android launcher launch (`startsHeadless = supportsBackgroundWake`, corrected
+     * only once `promoteToForeground()` runs) and so blocked exactly as before. Every unit test
+     * still passed against that no-op. Any condition here reintroduces that bug.
+     */
+    @Test
+    fun `AuthConnectionCoordinator never blocks the connect sequence on the registry server fetch`() {
+        Konsist.scopeFromProject()
+            .files
+            .filter { it.hasNameEndingWith("AuthConnectionCoordinator") }
+            .assertFalse(
+                additionalMessage = "The connect sequence must call " +
+                    "driveRegistry.bootstrap(deferServerReconcile = true) unconditionally (issue #1231). " +
+                    "A bare bootstrap() or a conditional argument blocks login on a server round-trip; " +
+                    "`headless` in particular cannot distinguish a launcher launch from an FCM wake at " +
+                    "this point. Callers needing the authoritative set use awaitRegistryReconcile()."
+            ) { file ->
+                file.text.contains(Regex("""bootstrap\s*\((?!\s*deferServerReconcile\s*=\s*true\s*\))"""))
+            }
+    }
+
+    /**
+     * Session-lifetime guard (#1237). Each background reconcile in [AuthConnectionCoordinator] can
+     * mount or prune drives, so one still in flight at logout would act on a session being torn
+     * down — and a second login could inherit the first user's work. The cancels must sit at the
+     * top of `disconnect()`, before `refreshWsSubscription.cancel()` and `driveRegistry.stop()`
+     * remove what those jobs depend on.
+     *
+     * Source-level because [AuthConnectionCoordinator] isn't constructible in a JVM test (its own
+     * `AwaitAuthRestoredTest` documents that). The empty-match guard keeps a renamed field from
+     * turning the rule into a silent pass.
+     */
+    @Test
+    fun `AuthConnectionCoordinator cancels every reconcile job in disconnect`() {
+        Konsist.scopeFromProject()
+            .files
+            .filter { it.hasNameEndingWith("AuthConnectionCoordinator") }
+            .assertTrue(
+                additionalMessage = "Every *ReconcileJob field must be cancelled in disconnect() " +
+                    "(issue #1237), before the collaborators it uses are stopped — otherwise an " +
+                    "in-flight reconcile outlives the session and mounts/prunes drives into a dead one."
+            ) { file ->
+                val jobs = Regex("""\bvar\s+(\w+ReconcileJob)\b""")
+                    .findAll(file.text)
+                    .map { it.groupValues[1] }
+                    .toSet()
+                val disconnect = file.functions().firstOrNull { it.name == "disconnect" }?.text.orEmpty()
+                jobs.isNotEmpty() && jobs.all { disconnect.contains("$it?.cancel()") }
+            }
+    }
+
+    /**
+     * Single-gateway guard (#1447). A peer's name, avatar and profile card come from
+     * `ContactInfoGateway`, which serves a known contact from the synced Contacts drive and is the
+     * one place allowed to fall back to the peer's `/pub/profile` + `/pub/image`. `internal`
+     * already hides both providers from every other Gradle module; this rule additionally polices
+     * homebase-api, where they are visible.
+     *
+     * Matched as an import of either provider plus `.getPublicProfile(` / `.getPublicImage(` call
+     * shapes. A rule on the `/pub/profile` / `/pub/image` strings, or on the bare type name, only
+     * finds the ~15 files that name them in KDoc. The allowed files are the gateway, the two
+     * providers themselves, the DI wiring, and the two lifecycle owners that sit below the gateway
+     * (logout cache teardown, and the websocket publicProfileContentPublished invalidation).
+     */
+    @Test
+    fun `Public profile fetching is confined to the contact gateway`() {
+        val gatewayAndBelow = setOf(
+            "ContactInfoGateway",
+            "PublicProfileProvider",
+            "PublicProfileProviderCached",
+            "ApiModule",
+            "YouAuthFlowManager",
+            "OwnerSessionRepository",
+        )
+        Konsist.scopeFromProject()
+            .files
+            .filter { !it.hasNameEndingWith("Test") }
+            .filter { it.name !in gatewayAndBelow }
+            .assertFalse(
+                additionalMessage = "Contact name/avatar/profile must be read through " +
+                    "ContactInfoGateway (issue #1447), never through PublicProfileProvider / " +
+                    "PublicProfileProviderCached. Use displayName(), avatarBytes() or " +
+                    "profileCard(); the peer /pub/profile + /pub/image fallback lives inside the " +
+                    "gateway and nowhere else."
+            ) { file ->
+                file.text.contains(
+                    Regex("""import\s+id\.homebase\.api\.client\.profile\.PublicProfileProvider"""),
+                ) ||
+                    file.text.contains(Regex("""\.\s*getPublicProfile\s*\(""")) ||
+                    file.text.contains(Regex("""\.\s*getPublicImage\s*\("""))
+            }
+    }
+
+    @Test
+    fun `Do not allow calling close on httpClient`() {
+        Konsist.scopeFromProject()
+            .files
+            .filter { !it.hasNameEndingWith("Test") }
+            .assertFalse(
+                additionalMessage = "HttpClient is managed by Koin DI and should not be manually closed"
+            ) { file ->
+                file.text.contains(Regex("""httpClient\s*\.\s*close\s*\("""))
+            }
+    }
+}

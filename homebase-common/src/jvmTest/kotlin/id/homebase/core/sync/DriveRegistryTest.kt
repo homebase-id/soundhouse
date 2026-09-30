@@ -1,0 +1,1168 @@
+package id.homebase.core.sync
+
+import id.homebase.api.client.ClientException
+import id.homebase.api.client.ForbiddenException
+import id.homebase.api.client.NetworkException
+import id.homebase.api.client.OdinClientErrorCode
+import id.homebase.api.client.ProblemDetails
+import id.homebase.api.client.UnauthorizedException
+import id.homebase.api.client.auth.ApiCredentials
+import id.homebase.api.client.auth.CredentialsManager
+import id.homebase.api.client.drives.HomebaseFile
+import id.homebase.api.client.drives.SystemDriveConstants
+import id.homebase.api.client.drives.upload.UpdateFileByUniqueIdRequest
+import id.homebase.api.client.drives.upload.UploadFileRequest
+import id.homebase.api.client.eventbus.BackendEvent
+import id.homebase.api.client.eventbus.EventBus
+import id.homebase.api.common.OdinId
+import id.homebase.api.common.SecureByteArray
+import id.homebase.api.common.time.UnixTimeUtc
+import id.homebase.api.serialization.OdinSystemSerializer
+import id.homebase.api.sync.database.DatabaseManager
+import id.homebase.api.sync.database.MainIndexMetaHelpers
+import id.homebase.core.config.LabeledDrive
+import id.homebase.core.config.feedLabeledDrive
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import java.nio.channels.UnresolvedAddressException
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.uuid.Uuid
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class DriveRegistryTest {
+
+    // ---------- loadDrives (read path) ----------
+
+    @Test
+    fun loadDrivesReturnsEmptyWhenSingletonFileAbsent() = runTest {
+        val db = createTestDatabaseManager()
+        val registry = buildRegistry(db)
+        assertTrue(registry.loadDrives().isEmpty())
+        db.close()
+    }
+
+    @Test
+    fun loadDrivesReturnsAllDrivesFromSingletonFileContent() = runTest {
+        val db = createTestDatabaseManager()
+        val vaultDrive = makeLabeledDrive("Vault")
+        seedRegistryFile(db, listOf(feedLabeledDrive, vaultDrive))
+
+        val registry = buildRegistry(db)
+        val drives = registry.loadDrives()
+
+        assertEquals(2, drives.size)
+        assertTrue(drives.any { it.drive.alias == feedLabeledDrive.drive.alias && it.label == "Feed" })
+        assertTrue(drives.any { it.drive.alias == vaultDrive.drive.alias && it.label == "Vault" })
+        db.close()
+    }
+
+    @Test
+    fun loadDrivesReturnsEmptyWhenContentIsNull() = runTest {
+        val db = createTestDatabaseManager()
+        seedRegistryFileWithRawContent(db, rawContent = null)
+        val registry = buildRegistry(db)
+        assertTrue(registry.loadDrives().isEmpty())
+        db.close()
+    }
+
+    @Test
+    fun loadDrivesReturnsEmptyOnCorruptContent() = runTest {
+        val db = createTestDatabaseManager()
+        seedRegistryFileWithRawContent(db, rawContent = "not valid json")
+        val registry = buildRegistry(db)
+        // Corrupt content logs a warning but must not throw.
+        assertTrue(registry.loadDrives().isEmpty())
+        db.close()
+    }
+
+    // ---------- hasDrive ----------
+
+    @Test
+    fun hasDriveReturnsTrueForRegisteredDrive() = runTest {
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val registry = buildRegistry(db)
+        assertTrue(registry.hasDrive(feedLabeledDrive.drive.alias))
+        db.close()
+    }
+
+    @Test
+    fun hasDriveReturnsFalseForUnknownDrive() = runTest {
+        val db = createTestDatabaseManager()
+        val registry = buildRegistry(db)
+        assertFalse(registry.hasDrive(Uuid.random()))
+        db.close()
+    }
+
+    // ---------- addDrive / removeDrive (write path) ----------
+
+    @Test
+    fun addDriveCreatesSingletonFileWhenAbsent() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder()
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.addDrive(feedLabeledDrive)
+
+        assertEquals(0, recorder.updates.size)
+        assertEquals(1, recorder.uploads.size)
+        val upload = recorder.uploads.single()
+        assertEquals(SystemDriveConstants.chatDrive.alias, upload.driveId)
+        assertEquals(REGISTRY_UNIQUE_ID, upload.metadata.appData.uniqueId)
+        assertEquals(RegistryDriveFileType, upload.metadata.appData.fileType)
+        assertNull(upload.metadata.versionTag)
+        assertEquals(false, upload.metadata.allowDistribution)
+        db.close()
+    }
+
+    @Test
+    fun addDriveUpdatesSingletonFileWhenPresent() = runTest {
+        val db = createTestDatabaseManager()
+        val vaultDrive = makeLabeledDrive("Vault")
+        val existing = buildRegistryFile(listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(existingServerFile = existing)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.addDrive(vaultDrive)
+
+        assertEquals(0, recorder.uploads.size)
+        assertEquals(1, recorder.updates.size)
+        val update = recorder.updates.single()
+        assertEquals(REGISTRY_UNIQUE_ID, update.uniqueId)
+        assertEquals(existing.fileMetadata.versionTag, update.metadata.versionTag)
+        db.close()
+    }
+
+    @Test
+    fun addDriveIsIdempotentWhenDriveAlreadyInList() = runTest {
+        val db = createTestDatabaseManager()
+        val existing = buildRegistryFile(listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(existingServerFile = existing)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.addDrive(feedLabeledDrive)
+
+        // No writes: mutate() returned an identical list.
+        assertEquals(0, recorder.uploads.size)
+        assertEquals(0, recorder.updates.size)
+        db.close()
+    }
+
+    @Test
+    fun addDriveRetriesOnVersionTagMismatch() = runTest {
+        val db = createTestDatabaseManager()
+        val vaultDrive = makeLabeledDrive("Vault")
+        val staleFile = buildRegistryFile(listOf(feedLabeledDrive))
+        // Second fetch returns a file where another device already added the community drive.
+        val communityDrive = makeLabeledDrive("Community")
+        val freshFile = buildRegistryFile(listOf(feedLabeledDrive, communityDrive))
+        val fetchesToReturn = ArrayDeque(listOf(staleFile, freshFile))
+        val updatesToThrow = ArrayDeque(listOf(OdinClientErrorCode.VersionTagMismatch))
+
+        val recorder = WriteRecorder(
+            fetchResolver = { fetchesToReturn.removeFirst() },
+            updateErrorOnCall = { updatesToThrow.removeFirstOrNull() },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.addDrive(vaultDrive)
+
+        assertEquals(2, recorder.updates.size)
+        // The retry read the FRESH file and appended our delta to its list —
+        // final payload should hold feed + community + vault, not feed + vault.
+        val aliases = decryptedAliases(recorder.updates.last())
+        assertEquals(3, aliases.size)
+        assertTrue(feedLabeledDrive.drive.alias in aliases)
+        assertTrue(communityDrive.drive.alias in aliases)
+        assertTrue(vaultDrive.drive.alias in aliases)
+        db.close()
+    }
+
+    @Test
+    fun addDriveRetriesOnExistingFileWithUniqueIdDuringCreate() = runTest {
+        val db = createTestDatabaseManager()
+        // First fetch returns null (no file yet); the initial upload races against
+        // another device which wrote the file first — ExistingFileWithUniqueId.
+        // Second fetch returns the file the other device just created.
+        val otherDeviceFile = buildRegistryFile(listOf(feedLabeledDrive))
+        val fetchesToReturn = ArrayDeque(listOf<HomebaseFile?>(null, otherDeviceFile))
+        val uploadsToThrow = ArrayDeque(listOf(OdinClientErrorCode.ExistingFileWithUniqueId))
+
+        val vaultDrive = makeLabeledDrive("Vault")
+        val recorder = WriteRecorder(
+            fetchResolver = { fetchesToReturn.removeFirst() },
+            uploadErrorOnCall = { uploadsToThrow.removeFirstOrNull() },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.addDrive(vaultDrive)
+
+        assertEquals(1, recorder.uploads.size)
+        assertEquals(1, recorder.updates.size)
+        val aliases = decryptedAliases(recorder.updates.single())
+        assertTrue(feedLabeledDrive.drive.alias in aliases)
+        assertTrue(vaultDrive.drive.alias in aliases)
+        db.close()
+    }
+
+    @Test
+    fun addDriveThrowsAfterExhaustingRetries() = runTest {
+        val db = createTestDatabaseManager()
+        val existing = buildRegistryFile(listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(
+            fetchResolver = { existing },  // always stale
+            updateErrorOnCall = { OdinClientErrorCode.VersionTagMismatch },  // always conflict
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        assertFailsWith<IllegalStateException> {
+            registry.addDrive(makeLabeledDrive("Vault"))
+        }
+        db.close()
+    }
+
+    @Test
+    fun addDrivePropagatesNonRetryableErrors() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder(
+            uploadErrorOnCall = { OdinClientErrorCode.UnhandledScenario },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        assertFailsWith<ClientException> {
+            registry.addDrive(feedLabeledDrive)
+        }
+        db.close()
+    }
+
+    // CIO throws UnresolvedAddressException, an IllegalArgumentException — a catch on IOException
+    // misses it.
+    @Test
+    fun addDriveBestEffortSwallowsOfflineTransportFailure() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder(
+            fetchResolver = { throw NetworkException(UnresolvedAddressException()) },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.addDriveBestEffort(feedLabeledDrive)
+
+        assertTrue(recorder.uploads.isEmpty(), "nothing should have been written")
+        assertTrue(recorder.updates.isEmpty(), "nothing should have been written")
+        db.close()
+    }
+
+    /** Same, for a path that reaches the registry without the API layer's wrap. */
+    @Test
+    fun addDriveBestEffortSwallowsRawCioConnectFailure() = runTest {
+        val db = createTestDatabaseManager()
+        val registry = buildRegistry(
+            db,
+            recorder = WriteRecorder(fetchResolver = { throw UnresolvedAddressException() }),
+        )
+
+        registry.addDriveBestEffort(feedLabeledDrive)
+
+        db.close()
+    }
+
+    @Test
+    fun addDriveBestEffortPropagatesNonTransportFailures() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder(
+            uploadErrorOnCall = { OdinClientErrorCode.UnhandledScenario },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        assertFailsWith<ClientException> {
+            registry.addDriveBestEffort(feedLabeledDrive)
+        }
+        db.close()
+    }
+
+    // ---------- addDriveBestEffort: the 403 crash loop ----------
+    //
+    // With the app token's drive grants revoked server-side, `updateRegistry` finds no registry
+    // file (the by-uid header GET answers 404), tries to CREATE one on the Chat drive, and the
+    // server answers 403. Because `addDriveBestEffort` only contained *transport* failures, the
+    // 403 propagated out of `AuthConnectionCoordinator.mountDrive` — whose own contract says
+    // "Must not throw: callers activate add-ons from a viewModelScope with no handler" — and
+    // straight into the platform uncaught handler. Four process deaths in 72 seconds.
+
+    @Test
+    fun addDriveBestEffortSwallowsPermissionDenied() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder(
+            uploadThrowsOnCall = { forbiddenOnChatDrive() },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        // Must return normally. Throwing here is the crash.
+        registry.addDriveBestEffort(feedLabeledDrive)
+
+        assertEquals(1, recorder.uploads.size, "the write was attempted, and denied")
+        db.close()
+    }
+
+    /**
+     * The production shape, modelled on `NoteToSelfBootstrapCrashTest`: an add-on activates from
+     * a `viewModelScope`-shaped scope (SupervisorJob, no CoroutineExceptionHandler) with no local
+     * try/catch. The handler here stands in for the uncaught path so the test can observe an
+     * escape without killing the test JVM; on the real scope there is none, so an escape lands on
+     * `Thread.setDefaultUncaughtExceptionHandler` and the process dies.
+     */
+    @Test
+    fun permissionDeniedDoesNotEscapeAViewModelScopedActivation() = runTest {
+        val db = createTestDatabaseManager()
+        val registry = buildRegistry(
+            db,
+            recorder = WriteRecorder(uploadThrowsOnCall = { forbiddenOnChatDrive() }),
+        )
+
+        var escaped: Throwable? = null
+        val viewModelLikeScope = CoroutineScope(
+            SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> escaped = e },
+        )
+
+        // What AuthConnectionCoordinator.mountDrive does first, launched the way every add-on
+        // ViewModel launches it.
+        viewModelLikeScope.launch { registry.addDriveBestEffort(feedLabeledDrive) }.join()
+
+        assertNull(escaped, "a 403 on the registry write must not reach the uncaught path; was: $escaped")
+        db.close()
+    }
+
+    // A 401 means the write was never going to land. Rethrowing it here only added a process
+    // death — mountDrive's contract is "must not throw".
+    @Test
+    fun addDriveBestEffortContainsUnauthorized() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder(uploadThrowsOnCall = { UnauthorizedException() })
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.addDriveBestEffort(feedLabeledDrive)
+
+        assertEquals(1, recorder.uploads.size, "the write was attempted, and refused")
+        db.close()
+    }
+
+    @Test
+    fun unauthorizedDoesNotEscapeAViewModelScopedActivation() = runTest {
+        val db = createTestDatabaseManager()
+        val registry = buildRegistry(
+            db,
+            recorder = WriteRecorder(uploadThrowsOnCall = { UnauthorizedException() }),
+        )
+
+        var escaped: Throwable? = null
+        val viewModelLikeScope = CoroutineScope(
+            SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> escaped = e },
+        )
+
+        viewModelLikeScope.launch { registry.addDriveBestEffort(feedLabeledDrive) }.join()
+
+        assertNull(escaped, "a 401 on the registry write must not reach the uncaught path; was: $escaped")
+        db.close()
+    }
+
+    @Test
+    fun addDriveBestEffortPropagatesProgrammingErrors() = runTest {
+        val db = createTestDatabaseManager()
+        val registry = buildRegistry(
+            db,
+            recorder = WriteRecorder(uploadThrowsOnCall = { IllegalStateException("bug") }),
+        )
+
+        assertFailsWith<IllegalStateException> {
+            registry.addDriveBestEffort(feedLabeledDrive)
+        }
+        db.close()
+    }
+
+    @Test
+    fun removeDriveUpdatesSingletonFileRemovingDrive() = runTest {
+        val db = createTestDatabaseManager()
+        val vaultDrive = makeLabeledDrive("Vault")
+        val existing = buildRegistryFile(listOf(feedLabeledDrive, vaultDrive))
+        val recorder = WriteRecorder(existingServerFile = existing)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.removeDrive(feedLabeledDrive.drive.alias)
+
+        assertEquals(1, recorder.updates.size)
+        val aliases = decryptedAliases(recorder.updates.single())
+        assertEquals(listOf(vaultDrive.drive.alias), aliases)
+        db.close()
+    }
+
+    @Test
+    fun removeDriveIsNoOpWhenDriveNotInList() = runTest {
+        val db = createTestDatabaseManager()
+        val existing = buildRegistryFile(listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(existingServerFile = existing)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.removeDrive(Uuid.random())
+
+        assertEquals(0, recorder.uploads.size)
+        assertEquals(0, recorder.updates.size)
+        db.close()
+    }
+
+    @Test
+    fun removeDriveIsNoOpWhenSingletonFileAbsent() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder()  // no existing file
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.removeDrive(feedLabeledDrive.drive.alias)
+
+        assertEquals(0, recorder.uploads.size)
+        assertEquals(0, recorder.updates.size)
+        db.close()
+    }
+
+    // ---------- bootstrap ----------
+
+    @Test
+    fun bootstrapReconcilesLocalWithServerMountingDriveActivatedElsewhere() = runTest {
+        // Regression: local index has only the drive activated on this device, but the
+        // server registry also lists a drive activated on ANOTHER device. bootstrap must
+        // fetch the server and return the union so the other drive is mounted at login —
+        // it used to short-circuit on the non-empty local cache and never reconcile.
+        val activatedElsewhere = makeLabeledDrive("activated-elsewhere")
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive, activatedElsewhere))
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val drives = registry.bootstrap()
+
+        assertEquals(
+            listOf(feedLabeledDrive.drive.alias, activatedElsewhere.drive.alias),
+            drives.map { it.drive.alias },
+        )
+        assertEquals(1, recorder.fetchCount, "bootstrap must reconcile against the server even when local has the file")
+        db.close()
+    }
+
+    @Test
+    fun bootstrapFallsBackToLocalWhenServerFetchThrowsAndLocalPresent() = runTest {
+        // Offline-safe: a failed server fetch must never drop the user's already-activated
+        // drives — fall back to the local cache rather than returning empty.
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(
+            fetchResolver = { throw RuntimeException("simulated network failure") },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val drives = registry.bootstrap()
+
+        assertEquals(listOf(feedLabeledDrive.drive.alias), drives.map { it.drive.alias })
+        assertEquals(1, recorder.fetchCount)
+        db.close()
+    }
+
+    @Test
+    fun bootstrapFallsBackToServerWhenLocalEmpty() = runTest {
+        val db = createTestDatabaseManager()
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val drives = registry.bootstrap()
+
+        assertEquals(listOf(feedLabeledDrive.drive.alias), drives.map { it.drive.alias })
+        assertEquals(1, recorder.fetchCount)
+        db.close()
+    }
+
+    @Test
+    fun bootstrapStoresTheServerRegistryLocallyWhenTheLocalRowIsMissing() = runTest {
+        val db = createTestDatabaseManager()
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        registry.bootstrap()
+
+        assertEquals(listOf(feedLabeledDrive.drive.alias), registry.loadDrives().map { it.drive.alias })
+        db.close()
+    }
+
+    @Test
+    fun bootstrapReturnsEmptyWhenLocalEmptyAndServerHasNoFile() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder()  // existingServerFile = null
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val drives = registry.bootstrap()
+
+        assertTrue(drives.isEmpty())
+        assertEquals(1, recorder.fetchCount)
+        db.close()
+    }
+
+    @Test
+    fun bootstrapFallsBackToEmptyWhenServerFetchThrows() = runTest {
+        val db = createTestDatabaseManager()
+        val recorder = WriteRecorder(
+            fetchResolver = { throw RuntimeException("simulated network failure") },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        // Must NOT throw — bootstrap is best-effort. Caller proceeds with empty;
+        // observer picks up the file on the next chat-drive sync.
+        val drives = registry.bootstrap()
+
+        assertTrue(drives.isEmpty())
+        assertEquals(1, recorder.fetchCount)
+        db.close()
+    }
+
+    // ---------- deferred bootstrap + background reconcile ----------
+
+    @Test
+    fun bootstrapWithDeferredReconcileServesLocalWithoutTouchingTheServer() = runTest {
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val activatedElsewhere = makeLabeledDrive("activated-elsewhere")
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive, activatedElsewhere))
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val drives = registry.bootstrap(deferServerReconcile = true)
+
+        assertEquals(listOf(feedLabeledDrive.drive.alias), drives.map { it.drive.alias })
+        assertEquals(0, recorder.fetchCount, "deferred bootstrap must not block the caller on a server round-trip")
+        db.close()
+    }
+
+    @Test
+    fun bootstrapWithDeferredReconcileStillFetchesServerWhenLocalEmpty() = runTest {
+        // Genuine first run: there is no local set to serve, so the server fetch still blocks.
+        val db = createTestDatabaseManager()
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val drives = registry.bootstrap(deferServerReconcile = true)
+
+        assertEquals(listOf(feedLabeledDrive.drive.alias), drives.map { it.drive.alias })
+        assertEquals(1, recorder.fetchCount)
+        db.close()
+    }
+
+    @Test
+    fun reconcileWithServerMountsDriveActivatedElsewhereAfterALocalOnlyBootstrap() = runTest {
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val activatedElsewhere = makeLabeledDrive("activated-elsewhere")
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive, activatedElsewhere))
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val local = registry.bootstrap(deferServerReconcile = true)
+        registry.start(
+            onMount = {},
+            onUnmount = {},
+            initialBaseline = local.mapTo(HashSet()) { it.drive.alias },
+        )
+
+        val mounted = mutableListOf<LabeledDrive>()
+        registry.reconcileWithServer(local.mapTo(HashSet()) { it.drive.alias }) { mounted += it }
+
+        assertEquals(listOf(activatedElsewhere.drive.alias), mounted.map { it.drive.alias })
+        assertEquals(1, recorder.fetchCount)
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun reconcileWithServerDoesNotReMountDrivesAlreadyInTheBaseline() = runTest {
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val local = registry.bootstrap(deferServerReconcile = true)
+        registry.start(
+            onMount = {},
+            onUnmount = {},
+            initialBaseline = local.mapTo(HashSet()) { it.drive.alias },
+        )
+
+        val mounted = mutableListOf<LabeledDrive>()
+        registry.reconcileWithServer(local.mapTo(HashSet()) { it.drive.alias }) { mounted += it }
+
+        assertTrue(mounted.isEmpty(), "warm restore with an unchanged registry must mount nothing")
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun reconcileWithServerFoldsDiscoveredDrivesIntoTheObserverBaseline() = runTest {
+        // The chat-drive sync that later lands the same registry file locally must not
+        // re-emit onMount for a drive the background reconcile already surfaced.
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val activatedElsewhere = makeLabeledDrive("activated-elsewhere")
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive, activatedElsewhere))
+        val eventBus = EventBus()
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, eventBus = eventBus, recorder = recorder)
+
+        val local = registry.bootstrap(deferServerReconcile = true)
+        val observed = mutableListOf<LabeledDrive>()
+        val unmounted = mutableListOf<Uuid>()
+        registry.start(
+            onMount = { observed += it },
+            onUnmount = { unmounted += it },
+            initialBaseline = local.mapTo(HashSet()) { it.drive.alias },
+        )
+        advanceUntilIdle()
+
+        val reconciled = mutableListOf<LabeledDrive>()
+        registry.reconcileWithServer(local.mapTo(HashSet()) { it.drive.alias }) { reconciled += it }
+        assertEquals(listOf(activatedElsewhere.drive.alias), reconciled.map { it.drive.alias })
+
+        seedRegistryFile(db, listOf(feedLabeledDrive, activatedElsewhere))
+        launch {
+            eventBus.emit(
+                BackendEvent.DataEvent.BatchReceived(
+                    driveId = SystemDriveConstants.chatDrive.alias,
+                    batchData = listOf(serverFile),
+                )
+            )
+        }.join()
+        advanceUntilIdle()
+
+        assertTrue(observed.isEmpty(), "observer must not double-mount a drive the reconcile already surfaced")
+        assertTrue(unmounted.isEmpty())
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun reconcileWithServerHonoursKnownWhenStartWasNeverCalled() = runTest {
+        // The headless wake shape: drives are mounted straight off the deferred bootstrap and
+        // start() never runs, so the observer baseline is empty. Only the elsewhere-activated
+        // drive may be emitted — re-emitting the already-mounted ones would churn the WS.
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val activatedElsewhere = makeLabeledDrive("activated-elsewhere")
+        val serverFile = buildRegistryFile(listOf(feedLabeledDrive, activatedElsewhere))
+        val recorder = WriteRecorder(existingServerFile = serverFile)
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val local = registry.bootstrap(deferServerReconcile = true)
+
+        val mounted = mutableListOf<LabeledDrive>()
+        registry.reconcileWithServer(local.mapTo(HashSet()) { it.drive.alias }) { mounted += it }
+
+        assertEquals(listOf(activatedElsewhere.drive.alias), mounted.map { it.drive.alias })
+        db.close()
+    }
+
+    @Test
+    fun reconcileWithServerIsANoOpWhenTheFetchFails() = runTest {
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val recorder = WriteRecorder(
+            fetchResolver = { throw RuntimeException("simulated network failure") },
+        )
+        val registry = buildRegistry(db, recorder = recorder)
+
+        val local = registry.bootstrap(deferServerReconcile = true)
+        registry.start(
+            onMount = {},
+            onUnmount = {},
+            initialBaseline = local.mapTo(HashSet()) { it.drive.alias },
+        )
+
+        val mounted = mutableListOf<LabeledDrive>()
+        // Must not throw — the local set already in play stands.
+        registry.reconcileWithServer(local.mapTo(HashSet()) { it.drive.alias }) { mounted += it }
+
+        assertTrue(mounted.isEmpty())
+        assertEquals(1, recorder.fetchCount)
+
+        registry.stop()
+        db.close()
+    }
+
+    // ---------- observer ----------
+
+    @Test
+    fun startInitializesDiffBaselineWithoutEmittingOnMountForExistingDrives() = runTest {
+        val db = createTestDatabaseManager()
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val eventBus = EventBus()
+        val registry = buildRegistry(db, eventBus = eventBus)
+
+        val mounted = mutableListOf<LabeledDrive>()
+        val unmounted = mutableListOf<Uuid>()
+
+        registry.start(
+            onMount = { mounted += it },
+            onUnmount = { unmounted += it },
+        )
+        advanceUntilIdle()
+
+        assertTrue(mounted.isEmpty(), "start() must not emit onMount for already-present drives")
+        assertTrue(unmounted.isEmpty())
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun startUsesExplicitInitialBaselineWhenProvided() = runTest {
+        // Models the fresh-login flow: bootstrap fetched the registry from the server,
+        // mounted the drives, but the local DB doesn't have the file yet. start() is
+        // given the bootstrapped baseline. When the chat-drive sync later writes the
+        // same file into the local index and emits BatchReceived, the diff against the
+        // baseline is empty — no spurious onMount.
+        val db = createTestDatabaseManager()
+        val eventBus = EventBus()
+        val registry = buildRegistry(db, eventBus = eventBus)
+
+        val mounted = mutableListOf<LabeledDrive>()
+        val unmounted = mutableListOf<Uuid>()
+        registry.start(
+            onMount = { mounted += it },
+            onUnmount = { unmounted += it },
+            initialBaseline = setOf(feedLabeledDrive.drive.alias),
+        )
+        advanceUntilIdle()
+
+        // First chat-drive sync delivers the registry file into the local DB. Without
+        // an explicit baseline this would be diff'd against an empty set and onMount
+        // would fire — the regression we're guarding against.
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val registryFile = buildRegistryFile(listOf(feedLabeledDrive))
+        launch {
+            eventBus.emit(
+                BackendEvent.DataEvent.BatchReceived(
+                    driveId = SystemDriveConstants.chatDrive.alias,
+                    batchData = listOf(registryFile),
+                )
+            )
+        }.join()
+        advanceUntilIdle()
+
+        assertTrue(mounted.isEmpty(), "onMount must not fire — feed was already in the explicit baseline")
+        assertTrue(unmounted.isEmpty())
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun observerEmitsMountWhenBatchCarriesRegistryFileWithNewDrive() = runTest {
+        val db = createTestDatabaseManager()
+        val eventBus = EventBus()
+        val registry = buildRegistry(db, eventBus = eventBus)
+
+        val mounted = mutableListOf<LabeledDrive>()
+        val unmounted = mutableListOf<Uuid>()
+        registry.start(
+            onMount = { mounted += it },
+            onUnmount = { unmounted += it },
+        )
+        advanceUntilIdle()
+
+        // Simulate another device activating Feed: chat-drive WS push delivers the
+        // updated registry file via a BatchReceived event.
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val registryFile = buildRegistryFile(listOf(feedLabeledDrive))
+        launch {
+            eventBus.emit(
+                BackendEvent.DataEvent.BatchReceived(
+                    driveId = SystemDriveConstants.chatDrive.alias,
+                    batchData = listOf(registryFile),
+                )
+            )
+        }.join()
+        advanceUntilIdle()
+
+        assertEquals(listOf(feedLabeledDrive.drive.alias), mounted.map { it.drive.alias })
+        assertTrue(unmounted.isEmpty())
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun observerEmitsUnmountWhenBatchCarriesShrunkList() = runTest {
+        val db = createTestDatabaseManager()
+        val vaultDrive = makeLabeledDrive("Vault")
+        seedRegistryFile(db, listOf(feedLabeledDrive, vaultDrive))
+        val eventBus = EventBus()
+        val registry = buildRegistry(db, eventBus = eventBus)
+
+        val mounted = mutableListOf<LabeledDrive>()
+        val unmounted = mutableListOf<Uuid>()
+        registry.start(
+            onMount = { mounted += it },
+            onUnmount = { unmounted += it },
+        )
+        advanceUntilIdle()
+
+        // Another device calls removeDrive(vault) — WS push delivers the shrunk
+        // registry file via a BatchReceived event.
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val updatedFile = buildRegistryFile(listOf(feedLabeledDrive))
+        launch {
+            eventBus.emit(
+                BackendEvent.DataEvent.BatchReceived(
+                    driveId = SystemDriveConstants.chatDrive.alias,
+                    batchData = listOf(updatedFile),
+                )
+            )
+        }.join()
+        advanceUntilIdle()
+
+        assertEquals(listOf(vaultDrive.drive.alias), unmounted)
+        assertTrue(mounted.isEmpty())
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun observerKeepsBaselineWhenChatSyncLandsWithoutTheRegistryFile() = runTest {
+        // Windowed chat sync skips a registry file older than its window. Bootstrap served the
+        // server list; a Chat Stopped with no local row must not read as "every drive removed".
+        val db = createTestDatabaseManager()
+        val eventBus = EventBus()
+        val registry = buildRegistry(db, eventBus = eventBus)
+
+        val unmounted = mutableListOf<Uuid>()
+        registry.start(
+            onMount = {},
+            onUnmount = { unmounted += it },
+            initialBaseline = setOf(feedLabeledDrive.drive.alias),
+        )
+        advanceUntilIdle()
+
+        launch {
+            eventBus.emit(
+                BackendEvent.DriveEvent.Stopped(
+                    SystemDriveConstants.chatDrive.alias,
+                    1014,
+                    BackendEvent.DriveResult.Completed,
+                )
+            )
+        }.join()
+        advanceUntilIdle()
+
+        assertTrue(unmounted.isEmpty())
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun observerIgnoresBatchesOnOtherDrives() = runTest {
+        val db = createTestDatabaseManager()
+        val eventBus = EventBus()
+        val registry = buildRegistry(db, eventBus = eventBus)
+
+        val mounted = mutableListOf<LabeledDrive>()
+        val unmounted = mutableListOf<Uuid>()
+        registry.start(
+            onMount = { mounted += it },
+            onUnmount = { unmounted += it },
+        )
+        advanceUntilIdle()
+
+        seedRegistryFile(db, listOf(feedLabeledDrive))
+        val registryFile = buildRegistryFile(listOf(feedLabeledDrive))
+        launch {
+            eventBus.emit(
+                BackendEvent.DataEvent.BatchReceived(
+                    driveId = Uuid.random(),  // not the chat drive
+                    batchData = listOf(registryFile),
+                )
+            )
+        }.join()
+        advanceUntilIdle()
+
+        assertTrue(mounted.isEmpty())
+        assertTrue(unmounted.isEmpty())
+
+        registry.stop()
+        db.close()
+    }
+
+    @Test
+    fun observerIgnoresChatDriveBatchesNotCarryingTheRegistryFile() = runTest {
+        val db = createTestDatabaseManager()
+        val eventBus = EventBus()
+        val registry = buildRegistry(db, eventBus = eventBus)
+
+        val mounted = mutableListOf<LabeledDrive>()
+        val unmounted = mutableListOf<Uuid>()
+        registry.start(
+            onMount = { mounted += it },
+            onUnmount = { unmounted += it },
+        )
+        advanceUntilIdle()
+
+        // Chat-drive batch with an unrelated file (e.g. a message) — short-circuit hit,
+        // no local DB re-read.
+        val otherFile = buildFile(
+            fileType = 8888,
+            uniqueId = Uuid.random(),
+            content = "{}",
+        )
+        launch {
+            eventBus.emit(
+                BackendEvent.DataEvent.BatchReceived(
+                    driveId = SystemDriveConstants.chatDrive.alias,
+                    batchData = listOf(otherFile),
+                )
+            )
+        }.join()
+        advanceUntilIdle()
+
+        assertTrue(mounted.isEmpty())
+        assertTrue(unmounted.isEmpty())
+
+        registry.stop()
+        db.close()
+    }
+
+    // ---------- test helpers ----------
+
+    /**
+     * Captures write-path calls and answers the read-before-write fetches.
+     * All fields are mutable-by-lambda so tests can vary behavior across attempts
+     * (see [addDriveRetriesOnVersionTagMismatch]).
+     */
+    private class WriteRecorder(
+        existingServerFile: HomebaseFile? = null,
+        // Lambda form lets a single recorder answer multiple fetches with different
+        // files across retries. Default: always return the fixed [existingServerFile].
+        val fetchResolver: suspend () -> HomebaseFile? = { existingServerFile },
+        // Returning a non-null error code on a call makes that call throw a ClientException.
+        // Returning null (or omitting) → success (the request is captured).
+        val uploadErrorOnCall: (() -> OdinClientErrorCode?)? = null,
+        val updateErrorOnCall: (() -> OdinClientErrorCode?)? = null,
+        // For failures that are not ClientExceptions (a 403, say).
+        val uploadThrowsOnCall: (() -> Throwable?)? = null,
+    ) {
+        val uploads = mutableListOf<UploadFileRequest>()
+        val updates = mutableListOf<UpdateFileByUniqueIdRequest>()
+        var fetchCount = 0
+            private set
+
+        suspend fun fetch(): HomebaseFile? {
+            fetchCount++
+            return fetchResolver()
+        }
+    }
+
+    private fun TestScope.buildRegistry(
+        db: DatabaseManager,
+        eventBus: EventBus = EventBus(),
+        recorder: WriteRecorder = WriteRecorder(),
+        credentialsManager: CredentialsManager = CredentialsManager(),
+    ): DriveRegistry {
+        kotlinx.coroutines.runBlocking {
+            credentialsManager.setActiveCredentials(
+                ApiCredentials.create(
+                    domain = OdinId("test.homebase.id"),
+                    clientAccessToken = "fake-token",
+                    sharedSecret = SecureByteArray(ByteArray(16)),
+                )
+            )
+        }
+        return DriveRegistry(
+            credentialsManager = credentialsManager,
+            databaseManager = db,
+            getFileHeaderByUid = { _, _ -> recorder.fetch() },
+            uploadFile = { request ->
+                // Record the attempt regardless of outcome so retries are observable.
+                recorder.uploads += request
+                recorder.uploadThrowsOnCall?.invoke()?.let { throw it }
+                val err = recorder.uploadErrorOnCall?.invoke()
+                if (err != null) throw buildClientException(err)
+            },
+            updateFileByUniqueId = { request ->
+                recorder.updates += request
+                val err = recorder.updateErrorOnCall?.invoke()
+                if (err != null) throw buildClientException(err)
+            },
+            eventBus = eventBus,
+            scope = backgroundScope,
+        )
+    }
+
+    private fun forbiddenOnChatDrive(): ForbiddenException = ForbiddenException(
+        ProblemDetails(
+            status = 403,
+            title = "No access permitted to drive ${SystemDriveConstants.chatDrive.alias}",
+        ),
+    )
+
+    private fun buildClientException(code: OdinClientErrorCode): ClientException =
+        ClientException(
+            status = 400,
+            errorCode = code,
+            message = "test-induced $code",
+            correlationId = null,
+            problem = ProblemDetails(
+                status = 400,
+                title = "test",
+            ),
+        )
+
+    private fun makeLabeledDrive(label: String): LabeledDrive {
+        val drive = feedLabeledDrive.drive.copy(alias = Uuid.random())
+        return LabeledDrive(drive = drive, label = label)
+    }
+
+    private fun buildRegistryFile(drives: List<LabeledDrive>): HomebaseFile {
+        val serialized = OdinSystemSerializer.serialize(drives)
+        return buildFile(
+            fileType = RegistryDriveFileType,
+            uniqueId = REGISTRY_UNIQUE_ID,
+            content = serialized,
+        )
+    }
+
+    private fun buildFile(
+        fileType: Int,
+        uniqueId: Uuid,
+        content: String?,
+    ): HomebaseFile {
+        val now = UnixTimeUtc.now().milliseconds
+        val contentField = if (content == null) "null" else "\"${escape(content)}\""
+        val json = """{
+              "fileId": "${Uuid.random()}",
+              "driveId": "${SystemDriveConstants.chatDrive.alias}",
+              "fileState": "active",
+              "fileSystemType": "standard",
+              "serverFileIsEncrypted": "false",
+              "keyHeader": {
+                "iv": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                "aesKey": {"bytes": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}
+              },
+              "fileMetadata": {
+                "globalTransitId": "${Uuid.random()}",
+                "created": $now,
+                "updated": $now,
+                "transitCreated": 0,
+                "transitUpdated": 0,
+                "isEncrypted": false,
+                "senderOdinId": null,
+                "originalAuthor": null,
+                "appData": {
+                  "uniqueId": "$uniqueId",
+                  "tags": null,
+                  "fileType": $fileType,
+                  "dataType": 0,
+                  "groupId": null,
+                  "userDate": $now,
+                  "content": $contentField,
+                  "previewThumbnail": null,
+                  "archivalStatus": 0
+                },
+                "localAppData": null,
+                "referencedFile": null,
+                "reactionPreview": null,
+                "versionTag": "${Uuid.random()}",
+                "payloads": [],
+                "dataSource": null
+              },
+              "serverMetadata": {
+                "accessControlList": {
+                  "requiredSecurityGroup": "owner",
+                  "circleIdList": null,
+                  "odinIdList": null
+                },
+                "doNotIndex": false,
+                "allowDistribution": false,
+                "fileSystemType": "standard",
+                "fileByteCount": 0,
+                "originalRecipientCount": 0,
+                "transferHistory": null
+              },
+              "priority": 0,
+              "fileByteCount": 0
+            }"""
+        return OdinSystemSerializer.deserialize<HomebaseFile>(json)
+    }
+
+    private fun escape(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
+
+    private suspend fun seedRegistryFile(db: DatabaseManager, drives: List<LabeledDrive>) {
+        seedFile(db, buildRegistryFile(drives))
+    }
+
+    private suspend fun seedRegistryFileWithRawContent(db: DatabaseManager, rawContent: String?) {
+        seedFile(
+            db,
+            buildFile(
+                fileType = RegistryDriveFileType,
+                uniqueId = REGISTRY_UNIQUE_ID,
+                content = rawContent,
+            ),
+        )
+    }
+
+    private suspend fun seedFile(db: DatabaseManager, file: HomebaseFile) {
+        val identityId = ApiCredentials.create(
+            domain = OdinId("test.homebase.id"),
+            clientAccessToken = "fake-token",
+            sharedSecret = SecureByteArray(ByteArray(16)),
+        ).getIdentityId()
+        val processor = MainIndexMetaHelpers.HomebaseFileProcessor(db)
+        val record = processor.convertFileHeaderToDriveMainIndexRecord(
+            identityId, SystemDriveConstants.chatDrive.alias, file,
+        )
+        MainIndexMetaHelpers.upsertDriveMainIndex(db, record)
+    }
+
+    private fun parseAliases(content: String): List<Uuid> =
+        OdinSystemSerializer.deserialize<List<LabeledDrive>>(content).map { it.drive.alias }
+
+    /** Production encrypts appData.content via metadata.encryptContent(keyHeader). To
+     *  inspect the captured payload we have to round-trip through the same KeyHeader. */
+    @OptIn(ExperimentalEncodingApi::class)
+    private suspend fun decryptedAliases(request: UploadFileRequest): List<Uuid> {
+        val ciphertext = Base64.decode(request.metadata.appData.content!!)
+        val plaintext = request.keyHeader.decrypt(ciphertext).decodeToString()
+        return parseAliases(plaintext)
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private suspend fun decryptedAliases(request: UpdateFileByUniqueIdRequest): List<Uuid> {
+        val ciphertext = Base64.decode(request.metadata.appData.content!!)
+        val plaintext = request.keyHeader!!.decrypt(ciphertext).decodeToString()
+        return parseAliases(plaintext)
+    }
+}

@@ -1,0 +1,417 @@
+package id.homebase.api.video
+
+import id.homebase.api.client.KeyHeader
+import id.homebase.api.client.drives.files.PayloadFile
+import id.homebase.api.file.FileOperationsProvider
+import io.ktor.client.request.forms.InputProvider
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * Drives [VideoPayloadProcessor] through fakes for the generic compression seam
+ * ([VideoCompressor] / [VideoProber]) — the payoff of lifting `FFmpegUtils` behind
+ * interfaces. No real ffmpeg runs for compress/segment/duration, so the HLS-vs-
+ * direct branching is exercised deterministically.
+ *
+ * Phase 1 (poster frame) goes through `VideoThumbnailService.extractPosterFrame`, which
+ * returns null in this classpath — the JVM decoder is `FFmpegSubprocessVideoDecoder`, whose
+ * ffmpeg backend (`FFmpegBinaryManager`) has no bundled binaries here (they live in
+ * homebase-chat). So the thumbnail phase is skipped and these tests focus on the
+ * compress / HLS-vs-direct branching driven by the fakes below.
+ */
+class VideoPayloadProcessorCompressionSeamTest {
+
+    private val cacheDir = "/cache"
+    private val stagingDir = "/staging"
+
+    /** Minimal in-memory [FileOperationsProvider] backed by a path→bytes map. */
+    private inner class FakeFileOperationsProvider(
+        private val store: MutableMap<String, ByteArray>,
+        // content:// → copy path, mirroring AndroidFileOperationsProvider.resolveToFilePath.
+        private val resolveMap: Map<String, String> = emptyMap(),
+    ) : FileOperationsProvider {
+        private var stagingCounter = 0
+
+        override suspend fun resolveToFilePath(path: String): String {
+            val target = resolveMap[path] ?: return path
+            store[target] = store[path] ?: error("missing source: $path")
+            return target
+        }
+
+        override fun openFileInput(path: String): InputProvider =
+            throw UnsupportedOperationException("not used")
+
+        override suspend fun readFileBytes(path: String): ByteArray =
+            store[path] ?: error("missing file: $path")
+
+        override fun deleteTempFile(path: String): Boolean = store.remove(path) != null
+
+        override fun getCacheDirectory(): String = cacheDir
+
+        override fun getFileSize(path: String): Long =
+            store[path]?.size?.toLong() ?: error("missing file: $path")
+
+        override suspend fun writeBytesToTempFile(
+            bytes: ByteArray,
+            prefix: String,
+            suffix: String,
+        ): String {
+            val path = "$cacheDir/$prefix$suffix"
+            store[path] = bytes
+            return path
+        }
+
+        override suspend fun writeBytesToShareOutboundFile(bytes: ByteArray, suffix: String): String =
+            throw UnsupportedOperationException("not used")
+
+        override suspend fun writeStream(path: String, data: Flow<ByteArray>) {
+            val out = ArrayList<Byte>()
+            data.collect { chunk -> chunk.forEach { out.add(it) } }
+            store[path] = out.toByteArray()
+        }
+
+        // The interface defaults for the staging trio operate on the real
+        // systemFileSystem — reimplement them over the in-memory store.
+        override fun getOutboxStagingDirectory(): String = stagingDir
+
+        override suspend fun createOutboxStagingPath(prefix: String, suffix: String): String =
+            "$stagingDir/$prefix${stagingCounter++}$suffix"
+
+        override suspend fun promoteToOutboxStaging(path: String): String {
+            val target = "$stagingDir/${path.substringAfterLast('/')}"
+            val childPrefix = "$path/"
+            for (key in store.keys.filter { it == path || it.startsWith(childPrefix) }) {
+                store["$target${key.removePrefix(path)}"] = store.remove(key)!!
+            }
+            return target
+        }
+    }
+
+    /** Records the calls it received and returns canned outputs. */
+    private class FakeVideoCompressor(
+        private val compressedPath: String,
+        private val segmented: SegmentedVideo,
+        // When true, segmentAndEncrypt returns null to simulate a failed HLS segmentation —
+        // the path where the processor throws "segmentAndEncryptVideo failed".
+        private val segmentReturnsNull: Boolean = false,
+    ) : VideoCompressor {
+        var compressInput: String? = null
+        var compressQuality: VideoQuality? = null
+        var compressTrim: Pair<Long?, Long?>? = null
+        var segmentAndEncryptCalled = false
+
+        override suspend fun compress(
+            inputPath: String,
+            onProgress: VideoProgressListener?,
+            trimStartMs: Long?,
+            trimEndMs: Long?,
+            quality: VideoQuality,
+        ): String {
+            compressInput = inputPath
+            compressQuality = quality
+            compressTrim = trimStartMs to trimEndMs
+            // Simulate a chunky ffmpeg stream: ~1000 sub-percent ticks across 0f..1f.
+            for (i in 0..1000) onProgress?.invoke(i / 1000f)
+            return compressedPath
+        }
+
+        override suspend fun segment(inputPath: String, onProgress: VideoProgressListener?): SegmentedVideo =
+            segmented
+
+        override suspend fun segmentAndEncrypt(
+            inputPath: String,
+            keyHeader: KeyHeader,
+            onProgress: VideoProgressListener?,
+        ): SegmentedVideo? {
+            segmentAndEncryptCalled = true
+            if (segmentReturnsNull) return null
+            // Simulate a chunky ffmpeg stream: ~1000 sub-percent ticks across 0f..1f.
+            for (i in 0..1000) onProgress?.invoke(i / 1000f)
+            return segmented
+        }
+
+        override suspend fun remuxHlsToMp4(playlistPath: String, outputPath: String): Boolean = true
+
+        override suspend fun transcode(input: ByteArray, extension: String, outputArgs: List<String>): ByteArray? = null
+
+        override suspend fun cacheInputVideo(fileName: String, data: ByteArray): String =
+            "$fileName-cached"
+    }
+
+    private class FakeVideoProbe(private val durationMs: Long) : VideoProber {
+        override suspend fun getDurationMs(inputPath: String): Long = durationMs
+        override suspend fun getFfmpegVersion(): String? = "test"
+        override suspend fun probeVideo(inputPath: String): VideoTrackInfo? = null
+    }
+
+    @Test
+    fun smallCompressedVideoTakesDirectEncryptPathNotHls() = runTest {
+        val inputPath = "$cacheDir/input.mp4"
+        val compressedPath = "$cacheDir/compressed.mp4"
+        // < 5 MB → no HLS segmentation.
+        val store = mutableMapOf(
+            inputPath to ByteArray(1024),
+            compressedPath to ByteArray(1024),
+        )
+        val fileOps = FakeFileOperationsProvider(store)
+        val compressor = FakeVideoCompressor(
+            compressedPath = compressedPath,
+            segmented = SegmentedVideo("$cacheDir/playlist.m3u8", "$cacheDir/segments.ts"),
+        )
+        val processor = VideoPayloadProcessor(fileOps, compressor, FakeVideoProbe(12_345L))
+
+        val result = processor.process(
+            payload = PayloadFile(key = "vid", filePath = inputPath),
+            keyHeader = KeyHeader.newRandom16(),
+            onProgress = null,
+            descriptorContentPayloadKey = "descriptor",
+            trimStartMs = 1_000L,
+            trimEndMs = 4_000L,
+            videoQuality = VideoQuality.HIGH,
+        )
+
+        // The seam was used, with the caller's args passed straight through.
+        assertEquals(inputPath, compressor.compressInput)
+        assertEquals(VideoQuality.HIGH, compressor.compressQuality)
+        assertEquals(1_000L to 4_000L, compressor.compressTrim)
+
+        // Direct (non-HLS) path: no segmentation, mp4 mime, duration from the probe.
+        assertFalse(compressor.segmentAndEncryptCalled)
+        assertFalse(result.videoMetadata.isSegmented)
+        assertEquals("video/mp4", result.videoMetadata.mimeType)
+        assertNull(result.videoMetadata.hlsPlaylist)
+        assertEquals(12_345f, result.videoMetadata.duration)
+    }
+
+    @Test
+    fun contentUriInputIsResolvedBeforeCompressionEvenWhenInputBlobUrlIsNotABlob() = runTest {
+        // #1457: on Android the gallery strip's content:// URI leaked into inputBlobUrl and won
+        // over the withResolvedFile copy, so ffmpeg got a URI it can't open.
+        val contentUri = "content://media/external/video/media/1000041257"
+        val resolvedPath = "$cacheDir/resolved_1457.mp4"
+        val compressedPath = "$cacheDir/compressed.mp4"
+        val store = mutableMapOf(
+            contentUri to ByteArray(1024),
+            compressedPath to ByteArray(1024),
+        )
+        val fileOps = FakeFileOperationsProvider(store, resolveMap = mapOf(contentUri to resolvedPath))
+        val compressor = FakeVideoCompressor(
+            compressedPath = compressedPath,
+            segmented = SegmentedVideo("$cacheDir/playlist.m3u8", "$cacheDir/segments.ts"),
+        )
+        val processor = VideoPayloadProcessor(fileOps, compressor, FakeVideoProbe(1_000L))
+
+        processor.process(
+            payload = PayloadFile(key = "vid", filePath = contentUri),
+            keyHeader = KeyHeader.newRandom16(),
+            onProgress = null,
+            descriptorContentPayloadKey = "descriptor",
+            inputBlobUrl = contentUri,
+        )
+
+        assertEquals(resolvedPath, compressor.compressInput)
+        assertFalse(store.containsKey(resolvedPath), "resolved copy must be reaped by withResolvedFile")
+        assertTrue(store.containsKey(contentUri), "the caller-owned source must not be reaped")
+    }
+
+    @Test
+    fun blobInputBlobUrlStillFeedsFfmpegDirectly() = runTest {
+        val inputPath = "$cacheDir/input.mp4"
+        val blobUrl = "blob:https://app.example/0c1d2e3f"
+        val compressedPath = "$cacheDir/compressed.mp4"
+        val store = mutableMapOf(
+            inputPath to ByteArray(1024),
+            compressedPath to ByteArray(1024),
+        )
+        val fileOps = FakeFileOperationsProvider(store)
+        val compressor = FakeVideoCompressor(
+            compressedPath = compressedPath,
+            segmented = SegmentedVideo("$cacheDir/playlist.m3u8", "$cacheDir/segments.ts"),
+        )
+        val processor = VideoPayloadProcessor(fileOps, compressor, FakeVideoProbe(1_000L))
+
+        processor.process(
+            payload = PayloadFile(key = "vid", filePath = inputPath),
+            keyHeader = KeyHeader.newRandom16(),
+            onProgress = null,
+            descriptorContentPayloadKey = "descriptor",
+            inputBlobUrl = blobUrl,
+        )
+
+        assertEquals(blobUrl, compressor.compressInput)
+    }
+
+    @Test
+    fun largeCompressedVideoTakesHlsSegmentationPath() = runTest {
+        val inputPath = "$cacheDir/input.mp4"
+        val compressedPath = "$cacheDir/compressed.mp4"
+        // Real FFmpegUtils actuals write into an hls_<uuid>/ scratch dir; the processor
+        // promotes that whole dir into the durable staging area after segmentation (#842).
+        val playlistPath = "$cacheDir/hls_test/playlist.m3u8"
+        val segmentsPath = "$cacheDir/hls_test/segments.ts"
+        val playlistText = "#EXTM3U\n#EXT-X-VERSION:3\n"
+        // >= 5 MB → HLS segmentation.
+        val store = mutableMapOf(
+            inputPath to ByteArray(1024),
+            compressedPath to ByteArray(5 * 1024 * 1024),
+            playlistPath to playlistText.encodeToByteArray(),
+            segmentsPath to ByteArray(2048),
+        )
+        val fileOps = FakeFileOperationsProvider(store)
+        val compressor = FakeVideoCompressor(
+            compressedPath = compressedPath,
+            segmented = SegmentedVideo(playlistPath, segmentsPath),
+        )
+        val processor = VideoPayloadProcessor(fileOps, compressor, FakeVideoProbe(9_000L))
+
+        val result = processor.process(
+            payload = PayloadFile(key = "vid", filePath = inputPath),
+            keyHeader = KeyHeader.newRandom16(),
+            onProgress = null,
+            descriptorContentPayloadKey = "descriptor",
+        )
+
+        assertTrue(compressor.segmentAndEncryptCalled)
+        assertTrue(result.videoMetadata.isSegmented)
+        assertEquals("application/vnd.apple.mpegurl", result.videoMetadata.mimeType)
+        assertEquals(playlistText, result.videoMetadata.hlsPlaylist)
+        assertEquals(9_000f, result.videoMetadata.duration)
+
+        // #842: the segment payload the outbox row will reference must live in the
+        // durable staging dir (the hls_<uuid>/ dir was promoted out of cache scratch),
+        // and the scratch location must be gone.
+        val videoPayload = result.payloads.single { it.key == "vid" }
+        assertEquals("$stagingDir/hls_test/segments.ts", videoPayload.filePath)
+        assertFalse(store.containsKey(segmentsPath), "scratch segments must be moved, not copied")
+        assertFalse(store.containsKey(playlistPath), "scratch playlist must be moved, not copied")
+    }
+
+    @Test
+    fun oversizeMetadataStagesOverflowPayloadInTheDurableBucket() = runTest {
+        val inputPath = "$cacheDir/input.mp4"
+        val compressedPath = "$cacheDir/compressed.mp4"
+        val playlistPath = "$cacheDir/hls_big/playlist.m3u8"
+        val segmentsPath = "$cacheDir/hls_big/segments.ts"
+        // A playlist too large to embed in the descriptor (> MaxPayloadDescriptorBytes)
+        // forces the second, encrypted metadata payload — which rides the outbox row and
+        // must be staged in the durable bucket, NOT the disposable upload-temp (#842).
+        val playlistText = "#EXTM3U\n" + "#EXTINF:2.0,\nseg.ts\n".repeat(200)
+        val store = mutableMapOf(
+            inputPath to ByteArray(1024),
+            compressedPath to ByteArray(5 * 1024 * 1024),
+            playlistPath to playlistText.encodeToByteArray(),
+            segmentsPath to ByteArray(2048),
+        )
+        val fileOps = FakeFileOperationsProvider(store)
+        val compressor = FakeVideoCompressor(
+            compressedPath = compressedPath,
+            segmented = SegmentedVideo(playlistPath, segmentsPath),
+        )
+        val processor = VideoPayloadProcessor(fileOps, compressor, FakeVideoProbe(9_000L))
+
+        val result = processor.process(
+            payload = PayloadFile(key = "vid", filePath = inputPath),
+            keyHeader = KeyHeader.newRandom16(),
+            onProgress = null,
+            descriptorContentPayloadKey = "descriptor",
+        )
+
+        val overflow = result.payloads.single { it.key == "descriptor" }
+        assertTrue(
+            overflow.filePath.startsWith(stagingDir),
+            "overflow metadata payload must be staged durably: ${overflow.filePath}",
+        )
+        assertTrue(store.containsKey(overflow.filePath), "overflow payload bytes must be written")
+    }
+
+    @Test
+    fun videoProgressIsDeduplicatedToWholePercentPerPhase() = runTest {
+        val inputPath = "$cacheDir/input.mp4"
+        val compressedPath = "$cacheDir/compressed.mp4"
+        val playlistPath = "$cacheDir/hls_test/playlist.m3u8"
+        val segmentsPath = "$cacheDir/hls_test/segments.ts"
+        val playlistText = "#EXTM3U\n#EXT-X-VERSION:3\n"
+        // >= 5 MB → HLS, so both compress and segmentAndEncrypt run (and fire progress ticks).
+        val store = mutableMapOf(
+            inputPath to ByteArray(1024),
+            compressedPath to ByteArray(5 * 1024 * 1024),
+            playlistPath to playlistText.encodeToByteArray(),
+            segmentsPath to ByteArray(2048),
+        )
+        val fileOps = FakeFileOperationsProvider(store)
+        val compressor = FakeVideoCompressor(
+            compressedPath = compressedPath,
+            segmented = SegmentedVideo(playlistPath, segmentsPath),
+        )
+        val processor = VideoPayloadProcessor(fileOps, compressor, FakeVideoProbe(9_000L))
+
+        val events = mutableListOf<VideoPayloadProgressPhase>()
+        processor.process(
+            payload = PayloadFile(key = "vid", filePath = inputPath),
+            keyHeader = KeyHeader.newRandom16(),
+            onProgress = { events.add(it) },
+            descriptorContentPayloadKey = "descriptor",
+        )
+
+        // The fake fired ~1000 sub-percent ticks per phase; the processor must collapse each
+        // phase to at most one event per whole integer percent — no per-tick duplicates.
+        val compressing = events
+            .filter { it.phase == VideoProcessingPhase.COMPRESSING }
+            .map { (it.progress * 100).toInt() }
+        assertTrue(compressing.isNotEmpty(), "expected COMPRESSING progress")
+        assertEquals(compressing, compressing.distinct(), "COMPRESSING emitted duplicate whole percents")
+        assertTrue(compressing.size <= 101, "COMPRESSING emitted ${compressing.size} events (expected <= 101)")
+
+        val segmenting = events
+            .filter { it.phase == VideoProcessingPhase.SEGMENTING }
+            .map { (it.progress * 100).toInt() }
+        assertTrue(segmenting.isNotEmpty(), "expected SEGMENTING progress on the HLS path")
+        assertEquals(segmenting, segmenting.distinct(), "SEGMENTING emitted duplicate whole percents")
+        assertTrue(segmenting.size <= 101, "SEGMENTING emitted ${segmenting.size} events (expected <= 101)")
+    }
+
+    @Test
+    fun compressedScratchIsReapedWhenHlsSegmentationFails() = runTest {
+        // Regression for the temp-file leak on the HLS failure path: when segmentAndEncrypt
+        // fails (returns null → the processor throws), the compressed_*.mp4 scratch must still
+        // be deleted. Before the fix the reap ran only on the success path, *after* the throw
+        // point, so a repeatedly-failing send leaked a full-size file into the cache each retry.
+        val inputPath = "$cacheDir/input.mp4"
+        val compressedPath = "$cacheDir/compressed.mp4"
+        // >= 5 MB → HLS path, where segmentAndEncrypt is invoked (and here, fails).
+        val store = mutableMapOf(
+            inputPath to ByteArray(1024),
+            compressedPath to ByteArray(5 * 1024 * 1024),
+        )
+        val fileOps = FakeFileOperationsProvider(store)
+        val compressor = FakeVideoCompressor(
+            compressedPath = compressedPath,
+            segmented = SegmentedVideo("$cacheDir/playlist.m3u8", "$cacheDir/segments.ts"),
+            segmentReturnsNull = true,
+        )
+        val processor = VideoPayloadProcessor(fileOps, compressor, FakeVideoProbe(9_000L))
+
+        assertFailsWith<IllegalStateException> {
+            processor.process(
+                payload = PayloadFile(key = "vid", filePath = inputPath),
+                keyHeader = KeyHeader.newRandom16(),
+                onProgress = null,
+                descriptorContentPayloadKey = "descriptor",
+            )
+        }
+
+        // The scratch was reaped despite the failure...
+        assertFalse(
+            store.containsKey(compressedPath),
+            "compressed scratch must be deleted even when HLS segmentation fails",
+        )
+        // ...and the caller-owned input was left untouched.
+        assertTrue(store.containsKey(inputPath), "the input file must not be reaped")
+    }
+}

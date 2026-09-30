@@ -1,0 +1,195 @@
+import kotlin.uuid.Uuid;
+
+CREATE TABLE IF NOT EXISTS ChatReadCount(
+   groupId BLOB AS Uuid NOT NULL UNIQUE,
+   lastReadTime INTEGER NOT NULL
+);
+
+-- To make the conversation + last-message performant
+CREATE INDEX IF NOT EXISTS idx_chatmessage_convid_userDate ON DriveMainIndex(groupId,fileType,userDate DESC);
+
+-- Covering index for the message scans in selectAllUnreadCount,
+-- selectAllConversationPlusLastMessage, selectUnreadCountForConversation and
+-- selectOrphanedAtRestConversations. EVERY query that filters fileType/dataType on this table
+-- also filters identityId, so leading with identityId is strictly better than a fileType-
+-- leading index; including the residual filter columns makes selectAllUnreadCount index-
+-- COVERING (no per-row table lookup), which fixes its ~2.9s cold GROUP BY. EXPLAIN QUERY PLAN
+-- confirms selectAllUnreadCount and selectAllConversationPlusLastMessage (outer scan +
+-- correlated last-message subquery) all use this as a covering index.
+--
+-- This is the correct shape — it replaces the former fileType-leading
+-- idx_messages_filetype_datatype_groupid_userDate. No migration code: it's just a schema
+-- index, so new installs get it directly and existing installs that still carry the old index
+-- simply shed it whenever the DB is next rebuilt on a major (version-bump) upgrade.
+CREATE INDEX IF NOT EXISTS idx_unread_cover
+  ON DriveMainIndex(identityId, fileType, dataType, groupId, userDate, originalAuthor, fileState, archivalStatus);
+
+-- Get full list of conversations (8888) from the DriveMainIndex table
+-- here to not contaminate it. Can also be easily fetched with QB()
+selectAllCoversations:
+SELECT jsonHeader
+FROM DriveMainIndex
+WHERE identityId = ? AND fileType = 8888;
+
+-- Like above, but add last message from each conversation
+-- This is needed at boot-time to efficiently load the full list of conversations
+-- and their corresponding last message.
+-- Only fetches the 1 latest message per conversation via index seek.
+-- `dataType != 202` skips status messages; its twin is the `isStatusMessage`
+-- gate in applyIncomingMessageBump — both own the row's last-message fields and
+-- must stay in step (#1153). Don't drop it: status visibility depends on
+-- decrypted content SQL can't read, so a row returned here can fail to map and
+-- blank the preview (#1148).
+selectAllConversationPlusLastMessage:
+SELECT
+  d.jsonHeader AS convJsonHeader,
+  m.jsonHeader AS msgJsonHeader,
+  m.userDate   AS msgUserDate
+FROM DriveMainIndex AS d
+LEFT JOIN DriveMainIndex AS m
+  ON m.rowId = (
+    SELECT m2.rowId
+    FROM DriveMainIndex AS m2
+    WHERE m2.identityId = d.identityId
+      AND m2.groupId = d.uniqueId
+      AND m2.fileType = 7878
+      AND m2.dataType != 202
+    ORDER BY m2.userDate DESC
+    LIMIT 1
+  )
+WHERE d.identityId = ?
+  AND d.fileType = 8888
+ORDER BY msgUserDate DESC;
+
+-- Return unread message count for a specific groupId
+-- probably shouldn't be needed - with good design we should only need to call selectAllReadCount
+selectUnreadCountForConversation:
+SELECT COUNT(*) AS unreadCount
+FROM DriveMainIndex d
+LEFT JOIN ChatReadCount c ON d.groupId = c.groupId
+WHERE d.identityId = ?
+  AND d.groupId = ?
+  AND d.fileType = 7878 AND d.dataType = 0
+  AND (c.lastReadTime IS NULL OR d.userDate > c.lastReadTime)
+  AND d.originalAuthor IS NOT NULL
+  AND d.originalAuthor != ?
+  -- Exclude soft-deleted messages. We check BOTH markers because
+  -- HomebaseFile.isSoftDeleted() returns true for either, and the defragmenter
+  -- has documented drift between them (SoftDeleteArchivalMismatch).
+  --   fileState != 0      → canonical FileState.Deleted marker (SQL column).
+  --   archivalStatus != 2 → legacy ArchivalStatus.Removed marker (kept for
+  --                          rows written before the fileState column existed
+  --                          and for the drift case the defragmenter repairs).
+  AND d.fileState != 0
+  AND d.archivalStatus != 2;
+
+-- Return list of {groupId, unreadCount} for all chat conversations (8888)
+-- Will return (groupId, unread-count) for all Chat conversations with 1 or more unread messages.
+-- Any conversation missing in this table will be included and considered to have all messages unread.
+-- selectAllUnreadCount:
+-- SELECT d.groupId, COUNT(*) AS unreadCount
+-- FROM DriveMainIndex AS d
+-- LEFT JOIN ChatReadCount ON d.groupId = ChatReadCount.groupId
+-- WHERE d.fileType = 7878 AND d.dataType = 0 -- Message
+--   AND (ChatReadCount.lastReadTime IS NULL OR d.userDate > ChatReadCount.lastReadTime)
+--   AND d.groupId IS NOT NULL
+-- GROUP BY d.groupId;
+
+-- Returns one row per conversation that has at least one unread message, plus
+-- the conversation's stored ChatReadCount.lastReadTime (NULL when no row exists
+-- yet — e.g. never marked-read on this device). The Defragmenter-style
+-- enrichment pipeline uses this single round-trip to both:
+--   - patch unread counts onto the in-memory list, and
+--   - decide whether to mirror file-of-record lastReadTime into ChatReadCount.
+-- groupId is UNIQUE in ChatReadCount, so MAX() over it returns the (only) value.
+selectAllUnreadCount:
+SELECT d.groupId, COUNT(*) AS unreadCount, MAX(c.lastReadTime) AS lastReadTime
+FROM DriveMainIndex AS d
+LEFT JOIN ChatReadCount c ON d.groupId = c.groupId
+WHERE d.identityId = ?
+  AND d.fileType = 7878
+  AND d.dataType = 0
+  AND (c.lastReadTime IS NULL OR d.userDate > c.lastReadTime)
+  AND d.groupId IS NOT NULL
+  -- NULL originalAuthor is treated as self: drive-sync echoes of your own
+  -- messages (and older self-authored rows) land with originalAuthor=NULL
+  -- because the server doesn't stamp it on self-messages. Counting them as
+  -- unread to yourself would be wrong.
+  AND d.originalAuthor IS NOT NULL
+  AND d.originalAuthor != ?
+  -- Exclude soft-deleted messages. We check BOTH markers because
+  -- HomebaseFile.isSoftDeleted() returns true for either, and the defragmenter
+  -- has documented drift between them (SoftDeleteArchivalMismatch).
+  --   fileState != 0      → canonical FileState.Deleted marker (SQL column).
+  --   archivalStatus != 2 → legacy ArchivalStatus.Removed marker (kept for
+  --                          rows written before the fileState column existed
+  --                          and for the drift case the defragmenter repairs).
+  AND d.fileState != 0
+  AND d.archivalStatus != 2
+GROUP BY d.groupId;
+
+
+-- Conversations that have at least one live (non-deleted) message in the local
+-- index but NO conversation header (fileType=8888) — "orphaned at rest". The
+-- header-anchored boot list (selectAllConversationPlusLastMessage) is built FROM
+-- fileType=8888 rows, so these groups are invisible until a fresh message
+-- arrives and the live orphan path kicks in. This message-anchored scan finds
+-- them at rest.
+--
+-- Returns a best-effort counterparty (the most recent non-self message author)
+-- so a 1:1 can be rebuilt with its real participant instead of as a self-only
+-- "1:1 repair". Soft-deleted messages are excluded (both markers, matching
+-- selectAllUnreadCount) so a fully-deleted conversation isn't treated as orphaned.
+--
+-- Intended to run once per cold start, after the chat drive's initial sync
+-- settles; the result is empty in the normal case.
+selectOrphanedAtRestConversations:
+SELECT
+  m.groupId AS groupId,
+  COUNT(*) AS messageCount,
+  (
+    SELECT m2.originalAuthor
+    FROM DriveMainIndex m2
+    WHERE m2.identityId = m.identityId
+      AND m2.groupId = m.groupId
+      AND m2.fileType = 7878 AND m2.dataType = 0
+      AND m2.fileState != 0 AND m2.archivalStatus != 2
+      AND m2.originalAuthor IS NOT NULL
+      AND m2.originalAuthor != :selfDomain
+    ORDER BY m2.userDate DESC
+    LIMIT 1
+  ) AS counterpartyAuthor
+FROM DriveMainIndex m
+WHERE m.identityId = :identityId
+  AND m.fileType = 7878 AND m.dataType = 0
+  AND m.groupId IS NOT NULL
+  AND m.fileState != 0 AND m.archivalStatus != 2
+  AND NOT EXISTS (
+    SELECT 1 FROM DriveMainIndex h
+    WHERE h.identityId = m.identityId
+      AND h.fileType = 8888
+      AND h.uniqueId = m.groupId
+  )
+GROUP BY m.groupId;
+
+-- Raw lastReadTime for a conversation (test affordance + debugging).
+selectLastReadTime:
+SELECT lastReadTime
+FROM ChatReadCount
+WHERE groupId = ?;
+
+-- Upsert lastReadTime (only increase)
+upsertLastReadTime:
+INSERT INTO ChatReadCount(groupId, lastReadTime)
+VALUES (?,?)
+ON CONFLICT(groupId) DO UPDATE
+SET lastReadTime = MAX(excluded.lastReadTime, lastReadTime);
+
+-- Delete a conversation
+deleteByGroupId:
+DELETE FROM ChatReadCount
+WHERE groupId = ?;
+
+-- Delete all records
+deleteAll:
+DELETE FROM ChatReadCount;

@@ -1,0 +1,26 @@
+# Live-test credentials — never commit
+session.json
+
+*.iml
+.kotlin
+.gradle
+**/build/
+!src/**/build/
+bin/
+local.properties
+.idea
+.DS_Store
+captures
+.externalNativeBuild
+.cxx
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/project.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings
+xcuserdata/
+/desktopApp/output/
+hs_err_pid*.log
+replay_pid*.log
+.claude/settings.local.json

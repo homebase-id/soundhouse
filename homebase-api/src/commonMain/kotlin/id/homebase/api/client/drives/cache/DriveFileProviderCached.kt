@@ -1,0 +1,821 @@
+package id.homebase.api.client.drives.cache
+
+import co.touchlab.kermit.Logger
+import coil3.disk.DiskCache
+import id.homebase.api.client.ByteApiResponse
+import id.homebase.api.client.cache.CacheStats
+import id.homebase.api.client.KeyHeader
+import id.homebase.api.client.NotFoundException
+import id.homebase.api.client.PayloadSizePolicy
+import id.homebase.api.client.auth.CredentialsManager
+import id.homebase.api.client.drives.files.BytesResponse
+import id.homebase.api.client.drives.files.DriveFileHelpers
+import id.homebase.api.client.drives.files.DriveFileHttpProvider
+import id.homebase.api.client.drives.files.PayloadDescriptor
+import id.homebase.api.client.drives.files.PayloadOperationOptions
+import id.homebase.api.crypto.AesCbc
+import id.homebase.api.file.FileOperationsProvider
+import id.homebase.api.file.safeDeleteRecursively
+import id.homebase.api.file.systemFileSystem
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
+import io.ktor.client.HttpClient
+import io.ktor.http.Headers
+import kotlin.uuid.Uuid
+import kotlin.concurrent.Volatile
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import okio.ByteString.Companion.encodeUtf8
+import okio.Path.Companion.toPath
+import okio.buffer
+import okio.use
+
+/**
+ * Disk-backed, encrypted cache for authenticated drive file bytes. Wraps
+ * [DriveFileHttpProvider] so callers get transparent read-through caching
+ * for payloads and thumbnails.
+ *
+ * Three underlying [coil3.disk.DiskCache] instances back the three
+ * Storage-screen rows:
+ * - `drive_payloads`   — full media payload bytes (attachments), admission-
+ *   capped at PayloadSizePolicy.RENDER_LIMIT_BYTES (#845). Directory
+ *   `homebase-payloads-v2`, cap 200 MB. Fetches are gated by
+ *   [payloadSemaphore] (1 concurrent network request).
+ * - `drive_thumbnails` — thumbnail bytes. Directory `homebase-thumbs-v2`,
+ *   cap 300 MB. Fetches are gated by [thumbnailSemaphore] (30 concurrent).
+ * - `hls_chunks` — HLS playback byte-range entries (#845). Directory
+ *   `homebase-hls-chunks-v1`, cap 100 MB. Isolated so one long video can't
+ *   evict images/attachments and vice versa; routed by request shape in
+ *   [getPayloadBytesRaw].
+ *
+ * The payload/thumbnail split follows the same "small-hot vs large-cold"
+ * stratification as PublicProfileProviderCached — thumbnails render on
+ * every gallery scroll, so they are kept on their own cap where a burst
+ * of full-payload fetches cannot evict them.
+ *
+ * Bytes are AES-CBC-encrypted on the wire and written encrypted to disk;
+ * the [KeyHeader] is *not* persisted to the cache, so a copy of the cache
+ * directory alone yields no plaintext.
+ *
+ * A separate in-memory [notFoundCache] records 404 responses so repeated
+ * lookups of deleted files skip the network. Transient failures
+ * (5xx, network errors) are never cached.
+ *
+ * Unlike [id.homebase.api.client.profile.PublicProfileProviderCached], this
+ * cache has no TTL or `Cache-Control` handling: drive file bytes are
+ * immutable at a given `(driveId, fileId, key, chunkStart, chunkLength,
+ * lastModified)` tuple, so the cacheKey itself is version-addressed.
+ * A new version lands under a new key, which gets fetched fresh; the old
+ * key ages out through LRU eviction.
+ *
+ * Both DiskCache instances are constructed eagerly. Coil's DiskCache
+ * (a Kotlin port of OkHttp's DiskLruCache) is thread-safe by contract,
+ * so concurrent get/put/clear are all safe and no lifecycle mutex is
+ * needed. [clearCaches] calls [coil3.disk.DiskCache.clear] on each.
+ */
+class DriveFileProviderCached(
+        httpClient: HttpClient,
+        credentialsManager: CredentialsManager,
+        private val fileOperationsProvider: FileOperationsProvider
+) {
+    private val delegate: DriveFileHttpProvider =
+            DriveFileHttpProvider(httpClient, credentialsManager)
+
+    private val fileSystem = systemFileSystem
+    private val directory = fileOperationsProvider.getCacheDirectory()
+
+    private val payloadSemaphore = Semaphore(1)
+    private val thumbnailSemaphore = Semaphore(30)
+
+    private val fetchScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val inFlight = HashMap<String, Deferred<ByteApiResponse>>()
+    private val inFlightMutex = Mutex()
+
+    // Bumped by clearCaches under inFlightMutex; a fetch only writes its result if the generation
+    // it started under is still current, so a download finishing after logout cannot repopulate.
+    @Volatile private var generation = 0
+
+    // Immutable set — always replaced, never mutated in-place.
+    // @Volatile ensures lock-free reads always see the latest reference.
+    // Writes are serialized via notFoundCacheMutex (rare: only on 404 responses).
+    // Only 404 (NotFoundException) is cached. Transient failures (5xx, network errors) are never cached.
+    @Volatile private var notFoundCache: Set<String> = emptySet()
+    private val notFoundCacheMutex = Mutex()
+
+    private val payloadDir = "$directory/homebase-payloads-v2"
+    private val thumbDir = "$directory/homebase-thumbs-v2"
+
+    // Coil's DiskCache (DiskLruCache descendant) is thread-safe; no lifecycle
+    // mutex, no write serialization, no construction tombstones — concurrent
+    // get()/put()/clear() are all safe per the Coil contract.
+    private val payloadDiskCache: DiskCache = DiskCache.Builder()
+            .directory(payloadDir.toPath())
+            // Use the project FileSystem abstraction: okio FileSystem.SYSTEM on native (unchanged),
+            // the in-memory FakeFileSystem on web. Coil's default is FileSystem.SYSTEM, which throws
+            // "Javascript does not have access to the device's file system" on wasmJs.
+            .fileSystem(fileSystem)
+            .maxSizeBytes(200L * 1024L * 1024L) // 200MB
+            .build()
+
+    private val thumbDiskCache: DiskCache = DiskCache.Builder()
+            .directory(thumbDir.toPath())
+            .fileSystem(fileSystem)
+            .maxSizeBytes(300L * 1024L * 1024L) // 300MB
+            .build()
+
+    // HLS playback range-chunks get their OWN cache (#845): every byte-range a
+    // player requests is an independent LRU entry, so one long video used to
+    // flood the shared payload cache and evict every image/attachment — and an
+    // image burst evicted warm chunks mid-playback. Isolation means the two
+    // populations can no longer evict each other. Routing is by request shape
+    // (chunkStart != null) inside getPayloadBytesRaw — NOT per-caller — so the
+    // seg-0 preloader, ExoPlayer's decrypted-range reads, iOS LocalVideoServer's
+    // encrypted-range reads, and desktop VLC range reads all converge here (all
+    // four cache the same encrypted range bytes; decryption is always post-read).
+    private val hlsChunkDir = "$directory/homebase-hls-chunks-v1"
+    private val hlsChunkDiskCache: DiskCache = DiskCache.Builder()
+            .directory(hlsChunkDir.toPath())
+            .fileSystem(fileSystem)
+            .maxSizeBytes(100L * 1024L * 1024L) // 100MB
+            .build()
+
+    init {
+        // Fire-and-forget reclaim of the pre-migration mayakapps/kache cache
+        // directories. Best-effort — a missing dir is fine, and any failure
+        // here is purely a missed cleanup, not a correctness issue. Done off
+        // the construction thread so an upgrade-day delete of a populated
+        // 500 MB dir cannot block whatever path instantiates this class.
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            safeDeleteRecursively(directory, "homebase-payloads")
+            safeDeleteRecursively(directory, "homebase-thumbs")
+        }
+    }
+
+    // Coil's DiskLruCache enforces `[a-z0-9_-]{1,120}` on keys. Our logical
+    // cache keys (`payload:driveId:fileId:…`) contain colons and overflow that
+    // length, so hash to a fixed-width hex digest. SHA-256 → 64 hex chars,
+    // collision-resistant.
+    private fun String.toDiskKey(): String = encodeUtf8().sha256().hex()
+
+    // ================================================================
+    // -------------------- CACHED PAYLOAD METHODS --------------------
+    // ================================================================
+
+    /**
+     * Fetch raw payload bytes straight from the network, bypassing the disk cache. Use when the
+     * caller needs the response headers the cache doesn't persist — notably
+     * `SharedSecretEncryptedHeader64`, the authoritative per-payload key header for a payload whose
+     * IV the server rotates on rewrite (e.g. a contact's `ext_data`).
+     */
+    suspend fun getPayloadBytesRawFromNetwork(
+        driveId: Uuid,
+        fileId: Uuid,
+        key: String,
+    ): ByteApiResponse = delegate.getPayloadBytesRawNetwork(driveId, fileId, key)
+
+    suspend fun getPayloadBytesRaw(
+            driveId: Uuid,
+            fileId: Uuid,
+            key: String,
+            options: PayloadOperationOptions = PayloadOperationOptions(),
+            onDownloadProgress: ((Float) -> Unit)? = null,
+    ): ByteApiResponse {
+        val cacheKey = buildPayloadCacheKey(
+                driveId, fileId, key, options.chunkStart, options.chunkLength, options.lastModified)
+        // The ONE routing decision (#845): range-shaped requests live in the
+        // dedicated chunk cache, full-payload reads in the payload LRU. Keeping
+        // it here (not per-caller) guarantees prefetch and playback share a
+        // cache — split caches would make every seg-0 prefetch a guaranteed
+        // playback miss AND pollute the payload LRU.
+        val cache = if (options.chunkStart != null) hlsChunkDiskCache else payloadDiskCache
+        return readThrough(cache, cacheKey, payloadSemaphore, "PayloadIO") {
+            delegate.getPayloadBytesRawNetwork(driveId, fileId, key, options, onDownloadProgress)
+        }
+    }
+
+    suspend fun getPayloadBytesDecrypted(
+            driveId: Uuid,
+            fileId: Uuid,
+            key: String,
+            keyHeader: KeyHeader,
+            chunkStart: Long? = null,
+            chunkLength: Long? = null,
+            onDownloadProgress: ((Float) -> Unit)? = null,
+            lastModified: Long? = null,
+    ): BytesResponse? {
+        val raw =
+                getPayloadBytesRaw(
+                        driveId = driveId,
+                        fileId = fileId,
+                        key = key,
+                        options =
+                                PayloadOperationOptions(
+                                        chunkStart = chunkStart,
+                                        chunkLength = chunkLength,
+                                        lastModified = lastModified,
+                                ),
+                        onDownloadProgress = onDownloadProgress,
+                )
+
+        if (raw.status == 404) throw NotFoundException()
+
+        val rangeResult = DriveFileHelpers.getRangeHeader(chunkStart, chunkLength)
+
+        val decryptedBytes = if (rangeResult.updatedChunkStart != null) {
+            val decrypted =
+                    delegate.decryptChunkedBytes(
+                            raw.headers,
+                            raw.bytes,
+                            keyHeader,
+                            startOffset = rangeResult.startOffset,
+                            chunkStart = (chunkStart ?: 0).toInt()
+                    )
+
+            val sliceEnd = chunkLength?.toInt() ?: decrypted.size
+            decrypted.sliceArray(0 until minOf(sliceEnd, decrypted.size))
+        } else {
+            delegate.decryptBytes(keyHeader, raw.headers, raw.bytes)
+        }
+
+        return BytesResponse(bytes = decryptedBytes, contentType = raw.contentType)
+    }
+
+    suspend fun streamPayloadDecryptedToPath(
+            driveId: Uuid,
+            fileId: Uuid,
+            key: String,
+            keyHeader: KeyHeader,
+            outputPath: String,
+            fileOps: FileOperationsProvider = fileOperationsProvider,
+            onProgress: ((Float) -> Unit)? = null,
+    ): Boolean {
+        val cacheKey = buildPayloadCacheKey(driveId, fileId, key, null, null)
+        val snapshot = payloadDiskCache.openSnapshot(cacheKey.toDiskKey())
+                ?: return delegate.streamPayloadDecryptedToPath(
+                        driveId, fileId, key, keyHeader, outputPath, fileOps, onProgress)
+
+        return snapshot.use { snap ->
+            val encryptedFlow = channelFlow<ByteArray> {
+                val channel = this
+                fileSystem.read(snap.data) {
+                    readInt() // skip status
+                    val ctLen = readInt()
+                    readUtf8(ctLen.toLong()) // skip contentType
+                    readByte() // skip payloadEncrypted flag
+                    val chunkSize = 65_536L
+                    while (true) {
+                        if (!request(chunkSize)) {
+                            if (!exhausted()) channel.send(readByteArray())
+                            break
+                        }
+                        channel.send(readByteArray(chunkSize))
+                    }
+                }
+            }
+
+            val decryptedFlow = AesCbc.streamDecryptWithCbc(encryptedFlow, keyHeader.aesKey, keyHeader.iv)
+            fileOps.writeStream(outputPath, decryptedFlow)
+            // Cache hit is local-disk speed — progress jumps straight to done.
+            onProgress?.invoke(1f)
+            true
+        }
+    }
+
+    // ==============================================================
+    // -------------------- CACHED THUMB METHODS --------------------
+    // ==============================================================
+
+    suspend fun getThumbBytesRaw(
+            driveId: Uuid,
+            fileId: Uuid,
+            payloadKey: String,
+            width: Int,
+            height: Int,
+            lastModified: Long? = null
+    ): ByteApiResponse {
+        val cacheKey = buildThumbCacheKey(driveId, fileId, payloadKey, width, height, lastModified)
+        return readThrough(thumbDiskCache, cacheKey, thumbnailSemaphore, "ThumbIO") {
+            delegate.getThumbBytesRawNetwork(driveId, fileId, payloadKey, width, height, lastModified)
+        }
+    }
+
+    /**
+     * Read from a disk cache. Returns null on cache miss OR when the cached file
+     * cannot be parsed (corrupted entry, truncated write, etc.). All exceptions are
+     * logged as errors so the caller can fall through to the network cleanly.
+     */
+    private fun readCachedOrLog(
+            cache: DiskCache,
+            cacheKey: String,
+            logTag: String
+    ): ByteApiResponse? {
+        return try {
+            cache.openSnapshot(cacheKey.toDiskKey())?.use { snap ->
+                readBytesResponse(snap.data.toString())
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.e(tag = logTag, throwable = e) { "cache-read FAILED key=$cacheKey" }
+            null
+        }
+    }
+
+    internal var beforeCacheWrite: (() -> Unit)? = null
+
+    internal suspend fun inFlightCount(): Int = inFlightMutex.withLock { inFlight.size }
+
+    // One in-flight fetch per cache key, run on fetchScope so a cancelled caller only abandons its
+    // await. The same fetch also owns the cache write, gated by the generation it started under.
+    private suspend fun readThrough(
+            cache: DiskCache,
+            cacheKey: String,
+            semaphore: Semaphore,
+            logTag: String,
+            fetch: suspend () -> ByteApiResponse
+    ): ByteApiResponse {
+        while (true) {
+            if (cacheKey in notFoundCache) return ByteApiResponse.EMPTY_404
+            readCachedOrLog(cache, cacheKey, logTag)?.let { return it }
+
+            val startedGeneration: Int
+            val deferred = inFlightMutex.withLock {
+                startedGeneration = generation
+                inFlight[cacheKey] ?: fetchScope.async(start = CoroutineStart.LAZY) {
+                    fetchAndStore(cache, cacheKey, semaphore, logTag, startedGeneration, fetch)
+                }.also { inFlight[cacheKey] = it }
+            }
+            deferred.start()
+            try {
+                return deferred.await()
+            } catch (e: CancellationException) {
+                if (!currentCoroutineContext().isActive || generation == startedGeneration) throw e
+            }
+        }
+    }
+
+    private suspend fun fetchAndStore(
+            cache: DiskCache,
+            cacheKey: String,
+            semaphore: Semaphore,
+            logTag: String,
+            startedGeneration: Int,
+            fetch: suspend () -> ByteApiResponse
+    ): ByteApiResponse {
+        val self = currentCoroutineContext()[Job]
+        try {
+            if (cacheKey in notFoundCache) return ByteApiResponse.EMPTY_404
+            readCachedOrLog(cache, cacheKey, logTag)?.let { return it }
+
+            return semaphore.withPermit {
+                try {
+                    val result = fetch()
+                    check(result.status in 200..299) {
+                        "Unexpected non-2xx status ${result.status} reached disk cache write — not caching"
+                    }
+                    // clearCaches bumps generation before clearing disk: a write landing before the
+                    // clear is wiped by it, one landing after is caught by this re-check.
+                    if (generation == startedGeneration) {
+                        beforeCacheWrite?.invoke()
+                        writeToDiskCache(cache, cacheKey, logTag, result)
+                        if (generation != startedGeneration) cache.remove(cacheKey.toDiskKey())
+                    }
+                    result
+                } catch (e: NotFoundException) {
+                    if (generation == startedGeneration) {
+                        notFoundCacheMutex.withLock { notFoundCache = notFoundCache + cacheKey }
+                        if (generation != startedGeneration) {
+                            notFoundCacheMutex.withLock { notFoundCache = notFoundCache - cacheKey }
+                        }
+                    }
+                    throw e
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Logger.w(tag = logTag) {
+                        "network-fetch FAILED (${e::class.simpleName}): ${e.message} key=$cacheKey"
+                    }
+                    throw e
+                }
+            }
+        } finally {
+            withContext(NonCancellable) {
+                inFlightMutex.withLock { if (inFlight[cacheKey] === self) inFlight.remove(cacheKey) }
+            }
+        }
+    }
+
+    // Entry points for reads this class cannot issue itself. A peer read lives in
+    // PeerFileByGlobalTransitProvider, which injecting here would cycle, so it hands in its
+    // own key and fetch instead. Cached bytes stay encrypted — callers decrypt post-read
+    // with the KeyHeader from the file header, since no response headers survive a hit.
+    suspend fun readPayloadThrough(
+            cacheKey: String,
+            fetch: suspend () -> ByteApiResponse
+    ): ByteApiResponse = readThrough(payloadDiskCache, cacheKey, payloadSemaphore, "PayloadIO", fetch)
+
+    suspend fun readThumbThrough(
+            cacheKey: String,
+            fetch: suspend () -> ByteApiResponse
+    ): ByteApiResponse = readThrough(thumbDiskCache, cacheKey, thumbnailSemaphore, "ThumbIO", fetch)
+
+    suspend fun readHlsChunkThrough(
+            cacheKey: String,
+            fetch: suspend () -> ByteApiResponse
+    ): ByteApiResponse = readThrough(hlsChunkDiskCache, cacheKey, payloadSemaphore, "PayloadIO", fetch)
+
+    suspend fun getThumbBytesDecrypted(
+            driveId: Uuid,
+            fileId: Uuid,
+            payloadKey: String,
+            keyHeader: KeyHeader,
+            width: Int,
+            height: Int,
+            lastModified: Long? = null
+    ): BytesResponse? {
+        val raw =
+                getThumbBytesRaw(
+                        driveId = driveId,
+                        fileId = fileId,
+                        payloadKey = payloadKey,
+                        width = width,
+                        height = height,
+                        lastModified = lastModified
+                )
+
+        if (raw.status == 404) throw NotFoundException()
+
+        val payloadEncryptedHeader = raw.headers["payloadencrypted"]
+        val decryptedBytes = try {
+            delegate.decryptBytes(keyHeader, raw.headers, raw.bytes)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Single most likely NPE site when the cache is poisoned with a
+            // non-2xx response from the pre-61ebe154 code path. Keep context
+            // so the log pins the bad key.
+            Logger.e(tag = "ThumbIO", throwable = e) {
+                "thumb decrypt FAILED (${e::class.simpleName}): status=${raw.status} " +
+                    "bytes=${raw.bytes.size} contentType=${raw.contentType} " +
+                    "payloadEncrypted=$payloadEncryptedHeader drive=$driveId file=$fileId " +
+                    "key=$payloadKey size=${width}x$height lastMod=$lastModified"
+            }
+            throw e
+        }
+
+        return BytesResponse(bytes = decryptedBytes, contentType = raw.contentType)
+    }
+
+    // =================================================
+    // -------------------- FILE IO --------------------
+    // =================================================
+
+    /**
+     * Write a ByteApiResponse to a Coil DiskCache entry. Surface failures
+     * loudly (corrupt journal, full disk) but never propagate them to the
+     * caller — a cache-write failure must not poison the fresh bytes the
+     * caller already paid the network round-trip for.
+     */
+    private fun writeToDiskCache(
+            cache: DiskCache,
+            cacheKey: String,
+            logTag: String,
+            value: ByteApiResponse
+    ) {
+        // Admission fence (#845): an entry above the render limit has no second
+        // read in-app, and committing it would make Coil's trimToSize evict every
+        // other entry and then the new entry itself — pure churn. The network
+        // guard in requestBytes keeps full reads under the limit already; this is
+        // defense-in-depth for locally-seeded bytes and any future caller.
+        if (value.bytes.size > PayloadSizePolicy.RENDER_LIMIT_BYTES) {
+            Logger.w(tag = logTag) {
+                "cache-admit REFUSED size=${value.bytes.size} (> ${PayloadSizePolicy.RENDER_LIMIT_BYTES}) key=$cacheKey"
+            }
+            return
+        }
+        val editor = cache.openEditor(cacheKey.toDiskKey()) ?: return
+        try {
+            writeBytesResponse(editor.data.toString(), value)
+            editor.commit()
+        } catch (e: CancellationException) {
+            editor.abortQuietly()
+            throw e
+        } catch (e: Exception) {
+            editor.abortQuietly()
+            Logger.e(tag = logTag, throwable = e) { "cache-write FAILED key=$cacheKey" }
+        }
+    }
+
+    private fun writeBytesResponse(filePath: String, value: ByteApiResponse): Boolean {
+        val path = filePath.toPath()
+
+        // Extract the payloadencrypted header - this is critical for decryption on cache reads
+        val payloadEncrypted =
+                value.headers["payloadencrypted"]?.equals("true", ignoreCase = true) == true
+
+        fileSystem.write(path) {
+            writeInt(value.status)
+            writeInt(value.contentType.length)
+            writeUtf8(value.contentType)
+            // Store whether the payload is encrypted (1 = true, 0 = false)
+            writeByte(if (payloadEncrypted) 1 else 0)
+            write(value.bytes)
+        }
+
+        return true
+    }
+
+    private fun readBytesResponse(filePath: String): ByteApiResponse {
+        val path = filePath.toPath()
+
+        return fileSystem.read(path) {
+            val status = readInt()
+            val contentTypeLength = readInt()
+            val contentType = readUtf8(contentTypeLength.toLong())
+            val payloadEncrypted = readByte() == 1.toByte()
+            val bytes = readByteArray()
+
+            // Reconstruct the payloadencrypted header for decryption logic
+            val headers =
+                    if (payloadEncrypted) {
+                        Headers.build { append("payloadencrypted", "true") }
+                    } else {
+                        Headers.Empty
+                    }
+
+            ByteApiResponse(status, headers, bytes, contentType)
+        }
+    }
+
+    // =======================================================
+    // -------------------- CACHE SEEDING --------------------
+    // =======================================================
+
+    /**
+     * Seed the payload disk cache with already-encrypted bytes the client
+     * produced locally (e.g. at optimistic send time, before the server has
+     * the file). The bytes must be exactly what the server would return for
+     * `GET payload` — AES-CBC encrypted with the file's [KeyHeader] — so that
+     * [getPayloadBytesRaw]/[getPayloadBytesDecrypted] serve them
+     * transparently. Clears any stale 404 marker for the key so a pre-send
+     * lookup can't shadow the seeded entry.
+     */
+    suspend fun cachePayloadBytesEncrypted(
+            driveId: Uuid,
+            fileId: Uuid,
+            key: String,
+            bytes: ByteArray,
+            contentType: String
+    ) {
+        val cacheKey = buildPayloadCacheKey(driveId, fileId, key, null, null)
+        seedCache(payloadDiskCache, cacheKey, "PayloadIO", bytes, contentType)
+    }
+
+    /**
+     * Thumbnail analog of [cachePayloadBytesEncrypted]. `lastModified` defaults
+     * to null to line up with the read path's default for files that have not
+     * synced back from the server yet.
+     */
+    suspend fun cacheThumbBytesEncrypted(
+            driveId: Uuid,
+            fileId: Uuid,
+            payloadKey: String,
+            width: Int,
+            height: Int,
+            bytes: ByteArray,
+            contentType: String,
+            lastModified: Long? = null
+    ) {
+        val cacheKey = buildThumbCacheKey(driveId, fileId, payloadKey, width, height, lastModified)
+        seedCache(thumbDiskCache, cacheKey, "ThumbIO", bytes, contentType)
+    }
+
+    private suspend fun seedCache(
+            cache: DiskCache,
+            cacheKey: String,
+            logTag: String,
+            bytes: ByteArray,
+            contentType: String
+    ) {
+        writeToDiskCache(
+                cache,
+                cacheKey,
+                logTag,
+                ByteApiResponse(
+                        status = 200,
+                        // The payloadencrypted bit is load-bearing: decrypt-on-read
+                        // consults it to know the cached bytes need AES-CBC.
+                        headers = Headers.build { append("payloadencrypted", "true") },
+                        bytes = bytes,
+                        contentType = contentType
+                )
+        )
+        notFoundCacheMutex.withLock { notFoundCache = notFoundCache - cacheKey }
+    }
+
+    /**
+     * Move a file's seeded cache entries from the client-minted optimistic
+     * fileId to the server-assigned one. Counterpart to
+     * [cachePayloadBytesEncrypted]/[cacheThumbBytesEncrypted]: at optimistic
+     * send time entries are seeded under a random local fileId; when the file
+     * syncs back the server has assigned a new fileId and readers key by it,
+     * so without this the sender re-downloads media it just produced.
+     *
+     * [payloads] must be the SYNCED file's descriptors: thumbnail target keys
+     * need the server's `lastModified` (the read path includes it in the thumb
+     * key; seeds were written with null), and the thumbnail (w,h) list drives
+     * which sizes to move.
+     *
+     * Per-entry best-effort — a missing source (LRU-evicted seed) or a failed
+     * copy is logged and skipped; the only cost is a re-download.
+     */
+    suspend fun rekeyCachedFile(
+            driveId: Uuid,
+            oldFileId: Uuid,
+            newFileId: Uuid,
+            payloads: List<PayloadDescriptor>
+    ) {
+        // Chunk-cache entries are intentionally NOT rekeyed (#845): range entries
+        // only exist for files already synced under their server fileId (the
+        // sender's own playback uses the local file, and the seeder seeds full
+        // payloads only) — there is nothing under the optimistic fileId to move.
+        for (descriptor in payloads) {
+            moveCacheEntry(
+                    cache = payloadDiskCache,
+                    oldKey = buildPayloadCacheKey(driveId, oldFileId, descriptor.key, null, null),
+                    newKey = buildPayloadCacheKey(driveId, newFileId, descriptor.key, null, null),
+                    logTag = "PayloadIO",
+            )
+            for (thumb in descriptor.thumbnails.orEmpty()) {
+                val w = thumb.pixelWidth ?: continue
+                val h = thumb.pixelHeight ?: continue
+                moveCacheEntry(
+                        cache = thumbDiskCache,
+                        // Seeds are written with lastModified = null; the synced
+                        // descriptor's lastModified is what readers use from now on.
+                        oldKey = buildThumbCacheKey(driveId, oldFileId, descriptor.key, w, h, null),
+                        newKey = buildThumbCacheKey(driveId, newFileId, descriptor.key, w, h, descriptor.lastModified),
+                        logTag = "ThumbIO",
+                )
+            }
+        }
+    }
+
+    /**
+     * Copy one cache entry's on-disk file to a new key, then remove the old
+     * entry. A byte-exact streaming file copy — the serialized entry format
+     * (status, contentType, payloadencrypted flag, bytes) is preserved without
+     * ever loading a potentially large payload into memory.
+     */
+    private suspend fun moveCacheEntry(
+            cache: DiskCache,
+            oldKey: String,
+            newKey: String,
+            logTag: String,
+    ) {
+        try {
+            val copied = cache.openSnapshot(oldKey.toDiskKey())?.use { snapshot ->
+                val editor = cache.openEditor(newKey.toDiskKey()) ?: return@use false
+                try {
+                    fileSystem.source(snapshot.data).use { source ->
+                        fileSystem.sink(editor.data).buffer().use { sink ->
+                            sink.writeAll(source)
+                        }
+                    }
+                    editor.commit()
+                    true
+                } catch (e: Exception) {
+                    editor.abortQuietly()
+                    throw e
+                }
+            } ?: false
+
+            if (!copied) {
+                Logger.d(tag = logTag) { "cache-rekey skipped (no source entry or editor conflict) old=$oldKey" }
+                return
+            }
+            // A racing read between the DB fileId swap and this copy may have
+            // 404-cached the new key — clear it so the moved entry is visible.
+            notFoundCacheMutex.withLock { notFoundCache = notFoundCache - newKey }
+            // The old key can never be read again (the local record now carries
+            // the new fileId) — free its LRU budget instead of waiting for eviction.
+            cache.remove(oldKey.toDiskKey())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(tag = logTag, throwable = e) { "cache-rekey FAILED old=$oldKey new=$newKey" }
+        }
+    }
+
+    // ====================================================
+    // -------------------- CACHE KEYS --------------------
+    // ====================================================
+
+    private fun buildPayloadCacheKey(
+            driveId: Uuid,
+            fileId: Uuid,
+            key: String,
+            chunkStart: Long?,
+            chunkLength: Long?,
+            // Omitted when null so existing entries keep their keys.
+            lastModified: Long? = null,
+    ): String =
+            listOfNotNull("payload", driveId, fileId, key, chunkStart ?: "full", chunkLength ?: "full", lastModified)
+                    .joinToString(":")
+
+    private fun buildThumbCacheKey(
+            driveId: Uuid,
+            fileId: Uuid,
+            payloadKey: String,
+            width: Int,
+            height: Int,
+            lastModified: Long?
+    ): String =
+            listOf("thumb", driveId, fileId, payloadKey, width, height, lastModified ?: "null")
+                    .joinToString(":")
+
+    suspend fun clearCaches() {
+        inFlightMutex.withLock {
+            generation++
+            fetchScope.coroutineContext.cancelChildren()
+            inFlight.clear()
+        }
+        // Coil's DiskCache.clear() is documented as thread-safe; it serialises
+        // internally against in-flight readers/writers.
+        try {
+            payloadDiskCache.clear()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(tag = "DriveFileProviderCached", throwable = e) { "payload cache clear failed" }
+        }
+        try {
+            thumbDiskCache.clear()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(tag = "DriveFileProviderCached", throwable = e) { "thumb cache clear failed" }
+        }
+        try {
+            hlsChunkDiskCache.clear()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Logger.w(tag = "DriveFileProviderCached", throwable = e) { "hls chunk cache clear failed" }
+        }
+
+        notFoundCache = emptySet()
+    }
+
+    // Per-cache try/catch as defense-in-depth: a thrown size read on one cache
+    // must not hide the other row. Returns sentinel `sizeBytes = CacheStats.UNAVAILABLE`
+    // (-1L) so the UI can render a visible "Unavailable" row when one cache is
+    // unhealthy.
+    suspend fun getCacheStats(): List<CacheStats> {
+        val out = ArrayList<CacheStats>(2)
+        try {
+            out.add(CacheStats(id = "drive_payloads", sizeBytes = payloadDiskCache.size, maxBytes = payloadDiskCache.maxSize))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Logger.w(tag = "DriveFileProviderCached", throwable = e) { "drive_payloads stats unavailable" }
+            out.add(CacheStats(id = "drive_payloads", sizeBytes = CacheStats.UNAVAILABLE, maxBytes = 0L))
+        }
+        try {
+            out.add(CacheStats(id = "drive_thumbnails", sizeBytes = thumbDiskCache.size, maxBytes = thumbDiskCache.maxSize))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Logger.w(tag = "DriveFileProviderCached", throwable = e) { "drive_thumbnails stats unavailable" }
+            out.add(CacheStats(id = "drive_thumbnails", sizeBytes = CacheStats.UNAVAILABLE, maxBytes = 0L))
+        }
+        try {
+            out.add(CacheStats(id = "hls_chunks", sizeBytes = hlsChunkDiskCache.size, maxBytes = hlsChunkDiskCache.maxSize))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Logger.w(tag = "DriveFileProviderCached", throwable = e) { "hls_chunks stats unavailable" }
+            out.add(CacheStats(id = "hls_chunks", sizeBytes = CacheStats.UNAVAILABLE, maxBytes = 0L))
+        }
+        return out
+    }
+}
+
+private fun DiskCache.Editor.abortQuietly() {
+    try { abort() } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+}

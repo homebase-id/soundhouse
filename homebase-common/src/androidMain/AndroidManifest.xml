@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Package visibility (API 30+): without this, getLaunchIntentForPackage returns null and
+         Thunderbird reads as "not installed" even when it is there. -->
+    <queries>
+        <package android:name="net.thunderbird.android" />
+    </queries>
+
+    <!-- Location add-on background tracking. Both receivers merge into the app
+         manifest; the app module declares the runtime permissions
+         (ACCESS_BACKGROUND_LOCATION, RECEIVE_BOOT_COMPLETED). -->
+    <application>
+        <!-- In-app browser (#1089). No launchMode/taskAffinity: it must stay in the caller's
+             task so Back returns to the app rather than the launcher. -->
+        <activity
+            android:name="id.homebase.core.util.InAppBrowserActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode" />
+
+        <receiver
+            android:name="id.homebase.core.location.tracking.LocationUpdatesReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name="id.homebase.core.location.tracking.LocationBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

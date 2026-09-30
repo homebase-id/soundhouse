@@ -1,0 +1,63 @@
+package id.homebase.auth.login
+
+import androidx.compose.runtime.Immutable
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import org.jetbrains.compose.resources.StringResource
+
+@Immutable
+data class LoginUiState(
+    val homebaseId: String = "",
+    val isLoading: Boolean = false,
+    val isPinging: Boolean = false,
+    /** The YouAuth authorize page is open in the user's browser and we're waiting for
+     *  the confirmation callback — the loading screen says "check your browser". */
+    val isAwaitingAuthConfirmation: Boolean = false,
+    val isAuthenticated: Boolean = false,
+    val error: LoginError? = null,
+    // Raw technical detail for the current [error] (exception type + message, or HTTP
+    // status), surfaced behind a "Show error details" toggle so a user can read/copy the
+    // exact cause for support instead of only the friendly message. Null when there's
+    // nothing extra to show.
+    val errorDetails: String? = null,
+    val driveProgresses: ImmutableList<DriveProgress> = persistentListOf(),
+    /** Public profile for what is currently typed. Null is the resting state, not an error. */
+    val identityPreview: IdentityPreview? = null,
+    /** Last identity that signed in on this device, seeded from `UsernameStorage`. */
+    val lastIdentity: IdentityPreview? = null,
+    // Must default to true: every LoginUiTest case builds this state without it and asserts the
+    // form is there.
+    val showIdField: Boolean = true,
+    val uiEvent: LoginUiEvent? = null
+) {
+    /** The saved identity is an offer, not a fact about this attempt. */
+    val offeringLastIdentity: Boolean get() = lastIdentity != null && !showIdField
+
+    /**
+     * Who the brand panel names. Falls back to the saved identity only while its card is still on
+     * offer — once declined, the panel must not keep painting the identity the user just refused.
+     */
+    val signingInAs: IdentityPreview? get() = identityPreview ?: lastIdentity?.takeIf { !showIdField }
+}
+
+/**
+ * A login error to surface to the user. The ViewModel can't call `stringResource` (no Compose
+ * context), so localizable errors travel as a [Res] (resolved in the Composable) and only genuinely
+ * dynamic text (exception / server messages with no resource) travels as a [Message].
+ */
+@Immutable
+sealed interface LoginError {
+    data class Res(val resource: StringResource, val arg: String? = null) : LoginError
+    data class Message(val text: String) : LoginError
+}
+
+@Immutable
+data class DriveProgress(
+    val driveId: String,
+    val name: String,
+    val error: String? = null,
+    val completed: Boolean = false,
+    val progress: Float? = null,
+    val count: Int = 0,
+    val total: Int = 0,
+)

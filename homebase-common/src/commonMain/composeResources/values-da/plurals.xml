@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="chat_group_selected_members">
+        <item quantity="one">%1$d medlem</item>
+        <item quantity="other">%1$d medlemmer</item>
+    </plurals>
+    <plurals name="chat_group_heal_main_resent">
+        <item quantity="one">Sendte gruppefil til %1$d modtager igen</item>
+        <item quantity="other">Sendte gruppefil til %1$d modtagere igen</item>
+    </plurals>
+    <plurals name="chat_group_heal_admin_resent">
+        <item quantity="one">Sendte adminfil til %1$d modtager igen</item>
+        <item quantity="other">Sendte adminfil til %1$d modtagere igen</item>
+    </plurals>
+    <plurals name="chat_group_heal_request_sent">
+        <item quantity="one">Bad %1$d modtager om at rydde op i deres kopi</item>
+        <item quantity="other">Bad %1$d modtagere om at rydde op i deres kopier</item>
+    </plurals>
+    <plurals name="conversations_selected">
+        <item quantity="one">%1$d samtale valgt</item>
+        <item quantity="other">%1$d samtaler valgt</item>
+    </plurals>
+    <plurals name="sending_to_conversations">
+        <item quantity="one">Sender til %1$d samtale…</item>
+        <item quantity="other">Sender til %1$d samtaler…</item>
+    </plurals>
+</resources>
