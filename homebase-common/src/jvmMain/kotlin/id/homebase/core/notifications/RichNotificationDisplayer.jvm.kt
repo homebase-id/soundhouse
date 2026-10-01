@@ -53,5 +53,5 @@ private fun isMacOsRunningUnbundled(): Boolean {
     // bundle, so java.home contains the bundle name. Anything else (IDE JBR, gradle,
     // system JDK) is unbundled and macOS native notifications will crash.
     val javaHome = System.getProperty("java.home") ?: ""
-    return !javaHome.contains("HomebaseSimpleAudio", ignoreCase = true)
+    return !javaHome.contains("SimplyAudio", ignoreCase = true)
 }

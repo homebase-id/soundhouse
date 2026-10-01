@@ -1,5 +1,8 @@
 [versions]
 agp = "9.4.0"
+androidx-benchmark = "1.5.0"
+androidx-profileinstaller = "1.4.1"
+androidx-uiautomator = "2.4.0"
 android-compileSdk = "36"
 android-minSdk = "28"
 android-targetSdk = "36"
@@ -123,6 +126,9 @@ jetbrains-compose-ui-backhandler = { module = "org.jetbrains.compose.ui:ui-backh
 jetbrains-compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
 jetbrains-compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "androidx-benchmark" }
+androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "androidx-profileinstaller" }
+androidx-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "androidx-uiautomator" }
 androidx-core-splashscreen = { module = "androidx.core:core-splashscreen", version = "1.0.1" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-testRunner" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-testCore" }
@@ -245,6 +251,8 @@ nucleus-notification-macos = { module = "io.github.kdroidfilter:nucleus.notifica
 nucleus-notification-linux = { module = "io.github.kdroidfilter:nucleus.notification-linux", version.ref = "nucleus" }
 
 [plugins]
+androidTest = { id = "com.android.test", version.ref = "agp" }
+baselineprofile = { id = "androidx.baselineprofile", version.ref = "androidx-benchmark" }
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }

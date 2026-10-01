@@ -44,4 +44,5 @@ include(":homebase-notifshared")
 
 include(":audio-app")
 include(":androidApp")
+include(":baselineprofile")
 include(":desktopApp")

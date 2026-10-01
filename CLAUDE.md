@@ -5,7 +5,7 @@ repository.
 
 ## Project Overview
 
-Homebase Simple Audio — a Kotlin Multiplatform personal audio library stored on the user's Homebase
+Simply Audio — a Kotlin Multiplatform personal audio library stored on the user's Homebase
 drive. Android and Desktop (JVM) are the shipping targets; the iOS framework must compile. No web
 target. Compose Multiplatform UI, MVVM, Koin DI.
 
@@ -27,7 +27,7 @@ androidApp / desktopApp  — platform entry points
 
 ```bash
 ./gradlew androidApp:installDebug     # applicationId id.homebase.audio.debug
-./gradlew desktopApp:run              # data dir ~/Library/Application Support/HomebaseSimpleAudioDev
+./gradlew desktopApp:run              # data dir ~/Library/Application Support/SimplyAudioDev
 ./scripts/gate.sh                     # commit gate: compile JVM/Android/iOS-sim (main+test) + all jvmTests
 ./scripts/gate.sh --apps              # + androidApp:assembleDebug + desktopApp:createDistributable
 ./gradlew :audio-app:liveTest         # live server tests; skipped without ~/.config/homebase-audio-test/session.json

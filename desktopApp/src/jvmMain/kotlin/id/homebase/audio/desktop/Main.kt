@@ -26,7 +26,7 @@ fun main() {
 
     runBlocking { DatabaseManager.initializeWithRecovery(DatabaseDriverFactory()) }
     startKoin { modules(allAudioModules()) }.koin.startAudioServices()
-    FileKit.init(appId = "HomebaseSimpleAudio")
+    FileKit.init(appId = "SimplyAudio")
 
     application {
         Window(

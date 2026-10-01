@@ -48,9 +48,9 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
 
-            packageName = "HomebaseSimpleAudio"
+            packageName = "SimplyAudio"
             packageVersion = versionName
-            description = "Homebase Simple Audio"
+            description = "Simply Audio"
             vendor = "Homebase"
 
             modules(
@@ -70,7 +70,7 @@ compose.desktop {
 
             macOS {
                 iconFile.set(project.rootProject.file("icons/icon.icns"))
-                packageName = "Homebase Simple Audio"
+                packageName = "Simply Audio"
                 bundleID = "id.homebase.audio"
                 infoPlist {
                     extraKeysRawXml = """

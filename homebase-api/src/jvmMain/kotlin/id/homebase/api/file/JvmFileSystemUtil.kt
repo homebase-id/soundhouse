@@ -4,7 +4,7 @@ import java.io.File
 
 object JvmFileSystemUtil {
 
-    val appName = if (isProductionVersion()) "HomebaseSimpleAudio" else "HomebaseSimpleAudioDev"
+    val appName = if (isProductionVersion()) "SimplyAudio" else "SimplyAudioDev"
     val appNameLinux = if (isProductionVersion()) "homebase-simple-audio" else "homebase-simple-audio-dev"
 
     fun getAppDataDirectory(): File {

@@ -30,19 +30,12 @@ data class LabeledDrive(
  * LoginViewModel (for initial auth) and HomeViewModel (for permission checking).
  */
 object AppConfig {
-    /**
-     * Borrowed from Homebase Chat until this app gets its own registration: the test session was
-     * minted for this id. Changing it also means changing [APP_SLUG] ("chat" belongs to this id).
-     */
-    const val APP_ID = "2d78140138044b57b4aad8e4e2ef39f4"
+    const val APP_ID = "e6a8c403d4da42c49c749b28081f0233"
 
-    const val APP_NAME = "Homebase Simple Audio"
+    const val APP_NAME = "Simply Audio"
 
-    /**
-     * App slug, sent as `as` in the YouAuth permission request. "chat" is the slug odin-core's
-     * built-in Chat app owns for [APP_ID]; give this app its own slug together with its own id.
-     */
-    const val APP_SLUG = "chat"
+    // Sent as `as` in the YouAuth permission request.
+    const val APP_SLUG = "audio"
 
     // Deep link scheme for returning from permission extension
     const val DEEP_LINK_SCHEME = "homebase-audio"
