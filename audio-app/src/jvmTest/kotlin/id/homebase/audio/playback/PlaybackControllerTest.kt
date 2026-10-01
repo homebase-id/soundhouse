@@ -38,7 +38,7 @@ class PlaybackControllerTest {
         override fun pause() { calls += "pause" }
         override fun stop() { calls += "stop" }
         override fun release() = Unit
-        override fun setSpeed(speed: Float) = Unit
+        override fun setSpeed(speed: Float) { calls += "speed $speed" }
         override fun setPlaybackObserver(observer: AudioPlaybackObserver) { this.observer = observer }
     }
 
@@ -122,5 +122,63 @@ class PlaybackControllerTest {
         assertEquals("b", controller.state.value.current?.title)
         controller.removeTrack(tracks[1].fileId)
         assertEquals(null, controller.state.value.current)
+    }
+
+    @Test
+    fun `speed reaches the player and carries over to the next queue`() = runBlocking {
+        controller.playQueue(tracks, 0)
+        awaitState { it.isPlaying }
+        controller.setSpeed(1.5f)
+        controller.playQueue(tracks, 2)
+        val state = awaitState { it.isPlaying && it.current?.title == "c" }
+        assertEquals(1.5f, state.speed)
+        withTimeout(5_000) { while ("speed 1.5" !in player.calls) kotlinx.coroutines.delay(5) }
+        controller.setSpeed(9f)
+        assertEquals(2f, controller.state.value.speed)
+    }
+
+    @Test
+    fun `skips move relative to the position and stay inside the track`() = runBlocking {
+        controller.playQueue(tracks, 0)
+        awaitState { it.isPlaying }
+        controller.seekTo(5_000)
+        controller.skipBy(-10_000)
+        assertEquals(0, controller.state.value.positionMs)
+        controller.skipBy(30_000)
+        assertEquals(30_000, controller.state.value.positionMs)
+        controller.skipBy(45_000)
+        assertEquals(60_000, controller.state.value.positionMs)
+    }
+
+    @Test
+    fun `a sleep timer pauses playback when it runs out`() = runBlocking {
+        controller.playQueue(tracks, 0)
+        awaitState { it.isPlaying }
+        controller.sleepAfter(50)
+        assertTrue(controller.state.value.sleepTimer is SleepTimer.At)
+        val state = awaitState { !it.isPlaying }
+        assertEquals(null, state.sleepTimer)
+        assertTrue("pause" in player.calls)
+    }
+
+    @Test
+    fun `cancelling the sleep timer keeps playing`() = runBlocking {
+        controller.playQueue(tracks, 0)
+        awaitState { it.isPlaying }
+        controller.sleepAfter(50)
+        controller.sleepAfter(null)
+        kotlinx.coroutines.delay(150)
+        assertTrue(controller.state.value.isPlaying)
+    }
+
+    @Test
+    fun `sleeping at the end of the track stops instead of moving on`() = runBlocking {
+        controller.playQueue(tracks, 0)
+        awaitState { it.isPlaying }
+        controller.sleepAtEndOfTrack()
+        player.observer.onComplete()
+        val state = awaitState { !it.isPlaying }
+        assertEquals("a", state.current?.title)
+        assertEquals(null, state.sleepTimer)
     }
 }

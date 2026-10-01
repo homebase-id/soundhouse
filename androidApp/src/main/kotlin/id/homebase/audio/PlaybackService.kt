@@ -22,6 +22,7 @@ import android.media.session.PlaybackState as SessionState
 import android.os.IBinder
 import id.homebase.audio.playback.PlaybackController
 import id.homebase.audio.playback.PlaybackState
+import id.homebase.audio.ui.player.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -90,6 +91,8 @@ class PlaybackService : Service() {
                 override fun onSkipToNext() = playback.next()
                 override fun onSkipToPrevious() = playback.previous()
                 override fun onSeekTo(pos: Long) = playback.seekTo(pos)
+                override fun onRewind() = playback.skipBy(-PlayerViewModel.SKIP_BACK_MS)
+                override fun onFastForward() = playback.skipBy(PlayerViewModel.SKIP_FORWARD_MS)
                 override fun onStop() = playback.stop()
             })
             setSessionActivity(openAppIntent())
@@ -160,7 +163,8 @@ class PlaybackService : Service() {
                 .setActions(
                     SessionState.ACTION_PLAY or SessionState.ACTION_PAUSE or SessionState.ACTION_PLAY_PAUSE or
                         SessionState.ACTION_SKIP_TO_NEXT or SessionState.ACTION_SKIP_TO_PREVIOUS or
-                        SessionState.ACTION_SEEK_TO or SessionState.ACTION_STOP
+                        SessionState.ACTION_SEEK_TO or SessionState.ACTION_STOP or
+                        SessionState.ACTION_REWIND or SessionState.ACTION_FAST_FORWARD
                 )
                 .setState(
                     when {

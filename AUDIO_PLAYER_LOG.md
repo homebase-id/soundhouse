@@ -187,6 +187,13 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
   move from the cache to `imports/` and are deleted only on success or dismiss. Sign-out drops the queue.
 - Home shows the import panel too. Not verified on a device with a real upload yet (no signed-in emulator).
 
+### Listening controls (2026-10-01)
+
+- Player row under the transport: back 10 s / forward 30 s (Material has Replay10/Forward30 icons, no 15), speed
+  menu 0.5–2× (persisted in `AudioSettings`, applied on startup; players already keep speed across tracks), and a
+  sleep timer (15/30/45/60 min with a live countdown, or end of track). The media session's rewind/fast-forward
+  map to the same skips. `PlaybackController` keeps speed and the timer across `playQueue`; `stop()` keeps speed.
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first

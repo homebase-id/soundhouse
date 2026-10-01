@@ -32,6 +32,14 @@
     <string name="player_previous">Previous track</string>
     <string name="player_position">Track %1$d of %2$d</string>
     <string name="player_failed">Couldn't play this track</string>
+    <string name="player_back_10">Back 10 seconds</string>
+    <string name="player_forward_30">Forward 30 seconds</string>
+    <string name="player_speed_value">%1$s×</string>
+    <string name="player_selected">Selected</string>
+    <string name="player_sleep">Sleep</string>
+    <string name="player_sleep_minutes">%1$d minutes</string>
+    <string name="player_sleep_end_of_track">End of track</string>
+    <string name="player_sleep_off">Turn off timer</string>
     <string name="player_nothing_playing">Nothing is playing</string>
     <string name="record_title">Record</string>
     <string name="record_open">Record audio</string>

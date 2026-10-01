@@ -44,7 +44,10 @@ import id.homebase.core.session.IdentitySessionScope
 import id.homebase.core.settings.UserPreferences
 import id.homebase.core.sync.DriveRegistry
 import org.koin.core.Koin
+import id.homebase.audio.settings.AudioSettings
+import id.homebase.audio.settings.StoredAudioSettings
 import org.koin.core.module.Module
+import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
@@ -157,7 +160,10 @@ val audioAppModule = module {
         )
     }
     single<TrackLocator> { DefaultTrackLocator(get(), get(), get()) }
-    single { PlaybackController(get<AudioPlayer>(), get(), get()) }
+    single<AudioSettings> { StoredAudioSettings() }
+    single {
+        PlaybackController(get<AudioPlayer>(), get(), get(), initialSpeed = get<AudioSettings>().preferences.value.playbackSpeed)
+    }
     single { ListeningHistory(listeningHistoryFile(), systemFileSystem, get(), get()) }
     single { ListeningRecorder(get(), get(), get()) }
     single {
@@ -174,7 +180,7 @@ val audioAppModule = module {
     }
 
     viewModelOf(::AppLoadingViewModel)
-    viewModelOf(::PlayerViewModel)
+    viewModel { PlayerViewModel(get(), get()) }
     viewModelOf(::HomeViewModel)
     viewModelOf(::RecordViewModel)
     viewModelOf(::LoginViewModel)

@@ -14,6 +14,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import id.homebase.core.audio.coerceToPlaybackSpeed
+import kotlin.time.Clock
 
 data class PlaybackState(
     val queue: List<AudioTrack> = emptyList(),
@@ -23,10 +27,17 @@ data class PlaybackState(
     val positionMs: Long = 0,
     val durationMs: Long = 0,
     val failed: Boolean = false,
+    val speed: Float = 1f,
+    val sleepTimer: SleepTimer? = null,
 ) {
     val current: AudioTrack? get() = queue.getOrNull(index)
     val hasNext: Boolean get() = index in 0 until queue.lastIndex
     val hasPrevious: Boolean get() = index > 0
+}
+
+sealed interface SleepTimer {
+    data class At(val endsAtMs: Long) : SleepTimer
+    data object EndOfTrack : SleepTimer
 }
 
 /** Turns a track into something [AudioPlayer.play] accepts: a loopback stream URL or a local file path. */
@@ -44,13 +55,17 @@ class PlaybackController(
     private val locator: TrackLocator,
     private val scope: CoroutineScope,
     private val playerLane: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1),
+    initialSpeed: Float = 1f,
+    private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
-    private val _state = MutableStateFlow(PlaybackState())
+    private val _state = MutableStateFlow(PlaybackState(speed = initialSpeed.coerceToPlaybackSpeed()))
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
     private var generation = 0
+    private var sleepJob: Job? = null
 
     init {
+        if (_state.value.speed != 1f) scope.launch(playerLane) { player.setSpeed(_state.value.speed) }
         player.setPlaybackObserver(object : AudioPlaybackObserver {
             override fun onComplete() {
                 scope.launch(playerLane) { advanceAfterCompletion() }
@@ -71,7 +86,7 @@ class PlaybackController(
     /** [startAtMs] resumes the first track part-way; later tracks always start from the top. */
     fun playQueue(tracks: List<AudioTrack>, startIndex: Int, startAtMs: Long = 0) {
         if (startIndex !in tracks.indices) return
-        _state.update { PlaybackState(queue = tracks, index = startIndex) }
+        _state.update { PlaybackState(queue = tracks, index = startIndex, speed = it.speed, sleepTimer = it.sleepTimer) }
         startCurrent(startAtMs)
     }
 
@@ -109,6 +124,37 @@ class PlaybackController(
         scope.launch(playerLane) { player.jumpTo(target) }
     }
 
+    fun skipBy(deltaMs: Long) = seekTo(_state.value.positionMs + deltaMs)
+
+    fun setSpeed(speed: Float) {
+        val clamped = speed.coerceToPlaybackSpeed()
+        _state.update { it.copy(speed = clamped) }
+        scope.launch(playerLane) { player.setSpeed(clamped) }
+    }
+
+    /** Pauses after [durationMs]; null cancels. */
+    fun sleepAfter(durationMs: Long?) {
+        sleepJob?.cancel()
+        if (durationMs == null) {
+            _state.update { it.copy(sleepTimer = null) }
+            return
+        }
+        val timer = SleepTimer.At(now() + durationMs)
+        _state.update { it.copy(sleepTimer = timer) }
+        sleepJob = scope.launch {
+            delay(durationMs)
+            if (_state.value.sleepTimer == timer) {
+                _state.update { it.copy(sleepTimer = null) }
+                pause()
+            }
+        }
+    }
+
+    fun sleepAtEndOfTrack() {
+        sleepJob?.cancel()
+        _state.update { it.copy(sleepTimer = SleepTimer.EndOfTrack) }
+    }
+
     fun next() {
         val state = _state.value
         if (!state.hasNext) return
@@ -130,7 +176,8 @@ class PlaybackController(
 
     fun stop() {
         generation++
-        _state.update { PlaybackState() }
+        sleepJob?.cancel()
+        _state.update { PlaybackState(speed = it.speed) }
         scope.launch(playerLane) { player.stop() }
     }
 
@@ -179,6 +226,10 @@ class PlaybackController(
 
     private fun advanceAfterCompletion() {
         val state = _state.value
+        if (state.sleepTimer == SleepTimer.EndOfTrack) {
+            _state.update { it.copy(isPlaying = false, positionMs = it.durationMs, sleepTimer = null) }
+            return
+        }
         if (state.hasNext) {
             _state.update { it.copy(index = it.index + 1) }
             startCurrent()

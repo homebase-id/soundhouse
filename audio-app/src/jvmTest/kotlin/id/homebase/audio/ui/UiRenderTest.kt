@@ -1,5 +1,6 @@
 package id.homebase.audio.ui
 
+import id.homebase.audio.settings.InMemoryAudioSettings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -188,7 +189,7 @@ class UiRenderTest {
         controller.playQueue(tracks, 1)
         withTimeout(5_000) { controller.state.first { it.isPlaying } }
         controller.seekTo(124_000)
-        val viewModel = PlayerViewModel(controller)
+        val viewModel = PlayerViewModel(controller, InMemoryAudioSettings())
         withTimeout(5_000) { viewModel.uiState.first { it.title != null } }
         for (dark in listOf(false, true)) render("player", dark) {
             PlayerScreen(viewModel, onBack = {})

@@ -16,6 +16,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.TextButton
+import id.homebase.audio.resources.player_back_10
+import id.homebase.audio.resources.player_forward_30
+import id.homebase.audio.resources.player_selected
+import id.homebase.audio.resources.player_sleep
+import id.homebase.audio.resources.player_sleep_end_of_track
+import id.homebase.audio.resources.player_sleep_minutes
+import id.homebase.audio.resources.player_sleep_off
+import id.homebase.audio.resources.player_speed_value
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -145,6 +164,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
                 TrackHeading(uiState, title)
                 SeekSection(uiState, viewModel)
                 Controls(uiState, viewModel)
+                ListeningControls(uiState, viewModel)
             }
         }
     }
@@ -230,4 +250,101 @@ private fun Controls(uiState: PlayerUiState, viewModel: PlayerViewModel) {
             Icon(Icons.Filled.SkipNext, contentDescription = stringResource(AR.string.player_next), modifier = Modifier.size(30.dp))
         }
     }
+}
+
+@Composable
+private fun ListeningControls(uiState: PlayerUiState, viewModel: PlayerViewModel) {
+    val enabled = !uiState.isLoading && uiState.durationMs > 0
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        IconButton(onClick = viewModel::skipBack, enabled = enabled) {
+            Icon(Icons.Filled.Replay10, contentDescription = stringResource(AR.string.player_back_10))
+        }
+        SpeedMenu(uiState.speed, viewModel::setSpeed)
+        SleepMenu(uiState, viewModel)
+        IconButton(onClick = viewModel::skipForward, enabled = enabled) {
+            Icon(Icons.Filled.Forward30, contentDescription = stringResource(AR.string.player_forward_30))
+        }
+    }
+}
+
+@Composable
+private fun SpeedMenu(speed: Float, onSpeed: (Float) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { open = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)) {
+            Icon(Icons.Filled.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                stringResource(AR.string.player_speed_value, formatSpeed(speed)),
+                style = MaterialTheme.typography.labelLarge.tabular(),
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            PlayerViewModel.SPEEDS.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(AR.string.player_speed_value, formatSpeed(option))) },
+                    onClick = { onSpeed(option); open = false },
+                    trailingIcon = if (option == speed) {
+                        { Icon(Icons.Filled.Check, contentDescription = stringResource(AR.string.player_selected)) }
+                    } else null,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SleepMenu(uiState: PlayerUiState, viewModel: PlayerViewModel) {
+    var open by remember { mutableStateOf(false) }
+    val remaining = uiState.sleepRemainingMs
+    val active = remaining != null || uiState.sleepAtEndOfTrack
+    Box {
+        TextButton(onClick = { open = true }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)) {
+            Icon(
+                Icons.Filled.Bedtime,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = if (active) MaterialTheme.colorScheme.tertiary else LocalContentColor.current,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                when {
+                    remaining != null -> formatDuration(remaining)
+                    uiState.sleepAtEndOfTrack -> stringResource(AR.string.player_sleep_end_of_track)
+                    else -> stringResource(AR.string.player_sleep)
+                },
+                style = MaterialTheme.typography.labelLarge.tabular(),
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            PlayerViewModel.SLEEP_MINUTES.forEach { minutes ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(AR.string.player_sleep_minutes, minutes)) },
+                    onClick = { viewModel.sleepAfterMinutes(minutes); open = false },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(AR.string.player_sleep_end_of_track)) },
+                onClick = { viewModel.sleepAtEndOfTrack(); open = false },
+            )
+            if (active) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(AR.string.player_sleep_off)) },
+                    onClick = { viewModel.sleepAfterMinutes(null); open = false },
+                )
+            }
+        }
+    }
+}
+
+/** 1 → "1", 1.25 → "1.25", 0.5 → "0.5". */
+internal fun formatSpeed(speed: Float): String {
+    val hundredths = kotlin.math.round(speed * 100).toInt()
+    val whole = hundredths / 100
+    val fraction = (hundredths % 100).toString().padStart(2, '0').trimEnd('0')
+    return if (fraction.isEmpty()) "$whole" else "$whole.$fraction"
 }
