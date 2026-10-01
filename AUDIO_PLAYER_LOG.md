@@ -20,7 +20,7 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
 | Offline download, plays from disk, remove | ✅ | ✅ | compiles |
 | Rename, delete (with confirmation) | ✅ | ✅ | compiles |
 | Stretch: mini-player | ✅ | ✅ | compiles |
-| Stretch: background playback + media controls | n/a (keeps playing) | built (foreground service + MediaSession) — **not run on a device** | — |
+| Stretch: background playback + media controls | n/a (keeps playing) | ✅ verified on the emulator (background, other app, screen off, media keys) | — |
 
 ### What liveTest proved against the real server
 
@@ -113,6 +113,18 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
 - Record screen: large timer, live level meter (square-root scaled so speech reads naturally), stop button whose halo
   follows the input level; preview card with a waveform built from the levels captured while recording (no second
   decode), filled up to the play position, tap to seek. `RecordContent` is stateless and rendered by `UiRenderTest`.
+
+### Android background playback verified on the emulator (2026-10-01)
+
+- Added to `PlaybackService`: partial wake lock + Wi-Fi lock while playing (released on pause/stop; the
+  foreground service alone keeps the process but not the CPU/Wi-Fi awake with the screen off), audio focus
+  (pause when another app takes it), pause on `ACTION_AUDIO_BECOMING_NOISY`. `AndroidAudioPlayer` now tags its
+  output `USAGE_MEDIA` / `CONTENT_TYPE_MUSIC` (was unknown).
+- Verified with `dumpsys` on Pixel_8_Pro (Android 16, 16 GB data): playing → Home → Settings in front → screen
+  off 25 s: session stays PLAYING and the position advances (6.8 → 21.8 → 31.9 → 49 → 74 s), wake lock held,
+  service foreground with type mediaPlayback; media keys from outside the app pause/resume; the shade shows the
+  media controls; "Continue listening" resumes at the saved position.
+- The emulator's AVD data partition was raised from 6 GB to 16 GB (wipe required; `config.ini.bak-6G` kept).
 
 ### Open problems
 

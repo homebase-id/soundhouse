@@ -7,7 +7,14 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.net.wifi.WifiManager
+import android.os.PowerManager
 import android.graphics.drawable.Icon
 import android.media.MediaMetadata
 import android.media.session.MediaSession
@@ -31,9 +38,48 @@ class PlaybackService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var session: MediaSession
     private var foreground = false
+    private lateinit var wakeLock: PowerManager.WakeLock
+    private lateinit var wifiLock: WifiManager.WifiLock
+    private lateinit var audioManager: AudioManager
+    private lateinit var focusRequest: AudioFocusRequest
+    private var hasFocus = false
+    private var noisyReceiverRegistered = false
+
+    // Headphones unplugged or Bluetooth dropped: pause rather than switch to the speaker.
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) playback.pause()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
+        // The foreground service keeps the process alive; these keep the CPU and Wi-Fi from sleeping
+        // with the screen off while a track streams through the loopback server.
+        wakeLock = getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HomebaseAudio:playback")
+            .apply { setReferenceCounted(false) }
+        @Suppress("DEPRECATION")
+        wifiLock = getSystemService(WifiManager::class.java)
+            .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "HomebaseAudio:playback")
+            .apply { setReferenceCounted(false) }
+        audioManager = getSystemService(AudioManager::class.java)
+        focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            .setOnAudioFocusChangeListener { change ->
+                when (change) {
+                    AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                        hasFocus = false
+                        playback.pause()
+                    }
+                }
+            }
+            .build()
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL_ID, getString(R.string.playback_channel), NotificationManager.IMPORTANCE_LOW)
         )
@@ -67,12 +113,36 @@ class PlaybackService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        holdPlaybackResources(false)
+        if (hasFocus) audioManager.abandonAudioFocusRequest(focusRequest)
         session.release()
         super.onDestroy()
     }
 
+    private fun holdPlaybackResources(playing: Boolean) {
+        if (playing) {
+            if (!wakeLock.isHeld) wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS)
+            if (!wifiLock.isHeld) wifiLock.acquire()
+            if (!noisyReceiverRegistered) {
+                registerReceiver(noisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
+                noisyReceiverRegistered = true
+            }
+            if (!hasFocus) {
+                hasFocus = audioManager.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
+        } else {
+            if (wakeLock.isHeld) wakeLock.release()
+            if (wifiLock.isHeld) wifiLock.release()
+            if (noisyReceiverRegistered) {
+                unregisterReceiver(noisyReceiver)
+                noisyReceiverRegistered = false
+            }
+        }
+    }
+
     private fun render(state: PlaybackState) {
         val track = state.current
+        holdPlaybackResources(track != null && (state.isPlaying || state.isLoading))
         if (track == null) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             foreground = false
@@ -150,6 +220,8 @@ class PlaybackService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "playback"
+        // Safety net only; the lock is released on pause and stop.
+        private const val WAKE_LOCK_TIMEOUT_MS = 6L * 60 * 60 * 1000
         private const val NOTIFICATION_ID = 1
         private const val ACTION_TOGGLE = "id.homebase.audio.TOGGLE"
         private const val ACTION_NEXT = "id.homebase.audio.NEXT"

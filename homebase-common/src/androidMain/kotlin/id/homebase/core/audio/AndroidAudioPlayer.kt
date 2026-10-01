@@ -1,5 +1,6 @@
 package id.homebase.core.audio
 
+import android.media.AudioAttributes
 import android.media.MediaPlayer
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,12 @@ class AndroidAudioPlayer: AudioPlayer {
     override fun play(filePath: String) {
         release()
         mediaPlayer = MediaPlayer().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
             setDataSource(filePath)
             setOnCompletionListener { observer?.onComplete() }
             prepare()
