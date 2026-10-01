@@ -56,3 +56,14 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - Verified: all-target compile (main + tests), gate --apps exit 0, assembleRelease exit 0.
 - Review: CLAUDE.md pointed at the deleted `ScrollPosition.kt` helper; kept the guidance, dropped the pointer.
 - Kotlin lines 142,780 → 123,917 (−18,863).
+
+### 2. Koin registrations nothing injects, and the code behind them
+- Dropped 9 `ApiModule` definitions whose types no live code names (Follow, Mail, ConnectionNetwork,
+  ConnectionRequest, ConnectionIntroduction/IntroductionSender, LiveRelay, IdentityUpgrade, LinkPreview,
+  VideoPreloadService); Kotlin must name a type to inject it, so nothing could resolve them. The reachability pass
+  then freed 17 files (connections, follow, mail, live relay, link preview). 4 tests covered only those.
+- `ServerExceptionMessageTest` checks live error mapping and only used FollowProvider as a vehicle: rewritten
+  with a minimal test-local provider; all 9 cases still pass.
+- Kept: `StartupCacheAudit` (nothing injects it, but it is created at start on purpose; removing it changes startup).
+- Verified: all-target compile, gate --apps exit 0.
+- Kotlin lines → 121522.

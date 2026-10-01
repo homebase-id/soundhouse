@@ -6,16 +6,11 @@ import id.homebase.api.client.auth.CredentialsManager
 import id.homebase.api.client.auth.OwnerSessionRepository
 import id.homebase.api.client.diagnostics.ServerIpCapture
 import id.homebase.api.client.diagnostics.ServerIpStore
-import id.homebase.api.client.connections.ConnectionIntroductionProvider
-import id.homebase.api.client.connections.ConnectionNetworkProvider
-import id.homebase.api.client.connections.ConnectionRequestProvider
-import id.homebase.api.client.connections.IntroductionSender
 import id.homebase.api.client.contacts.ContactHeaderReader
 import id.homebase.api.client.contacts.ContactInfoGateway
 import id.homebase.api.client.contacts.ContactPayloadReader
 import id.homebase.api.client.contacts.ContactRepository
 import id.homebase.api.client.contacts.ContactsProvider
-import id.homebase.api.client.liverelay.LiveRelayProvider
 import id.homebase.api.client.drives.cache.DriveFileProviderCached
 import id.homebase.api.client.drives.files.DriveFileHttpProvider
 import id.homebase.api.client.drives.files.DriveFileOperationsProvider
@@ -28,10 +23,7 @@ import id.homebase.api.client.drives.files.reactions.DriveFileGroupReactionProvi
 import id.homebase.api.client.drives.query.DriveQueryProvider
 import id.homebase.api.client.drives.upload.DriveUploadProvider
 import id.homebase.api.client.eventbus.EventBus
-import id.homebase.api.client.follow.FollowProvider
-import id.homebase.api.client.mail.MailProvider
 import id.homebase.api.client.identity.PublicIdentityRepository
-import id.homebase.api.client.link.LinkPreviewProvider
 import id.homebase.api.client.location.LocationPreviewProvider
 import id.homebase.api.client.notifications.PushNotificationApi
 import id.homebase.api.client.notifications.ScheduledPushNotificationProvider
@@ -44,14 +36,12 @@ import id.homebase.api.client.peer.temporal.TemporalDriveReadProvider
 import id.homebase.api.client.profile.ProfileProvider
 import id.homebase.api.client.profile.ProfileRepository
 import id.homebase.api.client.profile.PublicProfileProviderCached
-import id.homebase.api.client.upgrade.IdentityUpgradeProvider
 import id.homebase.api.file.StartupCacheAudit
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.api.sync.database.OutboxSync
 import id.homebase.api.sync.database.OutboxUploader
 import id.homebase.api.video.VideoPayloadProcessor
 import id.homebase.api.video.VideoPrefetchDriveAccess
-import id.homebase.api.video.VideoPreloadService
 import id.homebase.api.video.VideoPreloader
 import id.homebase.api.youauth.SecurityContextProvider
 import id.homebase.api.youauth.UsernameStorage
@@ -61,7 +51,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.koin.core.module.dsl.factoryOf
 import org.koin.core.module.dsl.singleOf
-import org.koin.dsl.bind
 import org.koin.dsl.module
 
 val apiModule = module {
@@ -83,7 +72,6 @@ val apiModule = module {
     // and fail at first video send.
     single { VideoPayloadProcessor(get()) }
     singleOf(::VideoPreloader)
-    singleOf(::VideoPreloadService)
     singleOf(::CredentialsManager)
     singleOf(::OwnerSessionRepository)
     // Last-known-good owner-server IP: the store + the production-capture bridge (its init arms
@@ -124,16 +112,12 @@ val apiModule = module {
     factory<VideoPrefetchDriveAccess> { get<DriveFileProvider>() }
     factoryOf(::DriveFileOperationsProvider)
     factoryOf(::DriveFileGroupReactionProvider)
-    factoryOf(::FollowProvider)
-    factoryOf(::MailProvider)
 
-    factoryOf(::ConnectionNetworkProvider)
     factoryOf(::PeerDriveQueryProvider)
     factoryOf(::PeerFileByGlobalTransitProvider)
     factoryOf(::TemporalDriveReadProvider)
     factoryOf(::PeerDriveUploadProvider)
     factoryOf(::PeerNotificationProvider)
-    factoryOf(::LiveRelayProvider)
     // Single: one set of peer (owner-hosted) websocket connections per app session; reset on logout
     // via AuthConnectionCoordinator.disconnect(). Uses its own internal scope (default ctor arg).
     single {
@@ -144,8 +128,6 @@ val apiModule = module {
             databaseManager = get(),
         )
     }
-    factoryOf(::ConnectionRequestProvider)
-    factoryOf(::ConnectionIntroductionProvider) bind IntroductionSender::class
     // Single so the per-contact AES-key cache used by setContactImage survives across calls.
     // ContactHeaderReader adapts DriveFileProvider's header-by-uid read so ContactsProvider stays
     // off the heavier drive-file/caching graph.
@@ -172,7 +154,6 @@ val apiModule = module {
     // ProfileDrive Read grant from AppConfig.
     factoryOf(::ProfileProvider)
     factoryOf(::ProfileRepository)
-    factoryOf(::IdentityUpgradeProvider)
     singleOf(::PublicProfileProviderCached)
     // The single supported entry point for a peer's name/avatar/profile; the provider above
     // is internal to this module so nothing else can reach /pub/profile or /pub/image.
@@ -188,7 +169,6 @@ val apiModule = module {
     factoryOf(::SecurityContextProvider)
     factoryOf(::PushNotificationApi)
     factoryOf(::ScheduledPushNotificationProvider)
-    singleOf(::LinkPreviewProvider)
     singleOf(::LocationPreviewProvider)
 
     single { EventBus() }

@@ -2,9 +2,6 @@ package id.homebase.api.client
 
 import id.homebase.api.client.auth.ApiCredentials
 import id.homebase.api.client.auth.CredentialsManager
-import id.homebase.api.client.follow.FollowNotificationType
-import id.homebase.api.client.follow.FollowProvider
-import id.homebase.api.client.follow.FollowRequest
 import id.homebase.api.common.OdinId
 import id.homebase.api.common.SecureByteArray
 import io.ktor.client.HttpClient
@@ -23,7 +20,22 @@ import kotlin.test.assertTrue
 
 class ServerExceptionMessageTest {
 
-    private suspend fun providerRespondingWith(status: HttpStatusCode, body: String): FollowProvider {
+    /** The smallest real provider: one encrypted POST through the shared failure mapping. */
+    private class ProbeProvider(httpClient: HttpClient, credentialsManager: CredentialsManager) :
+        OdinApiProviderBase(httpClient, credentialsManager) {
+        suspend fun call() {
+            val creds = requireCreds()
+            val response = encryptedPostJson(
+                url = apiUrl(creds.domain, "/probe"),
+                token = creds.accessToken,
+                jsonBody = "{}",
+                secret = creds.secret,
+            )
+            throwForFailure(response)
+        }
+    }
+
+    private suspend fun providerRespondingWith(status: HttpStatusCode, body: String): ProbeProvider {
         val cm = CredentialsManager()
         cm.setActiveCredentials(
             ApiCredentials.create(
@@ -39,13 +51,8 @@ class ServerExceptionMessageTest {
                 headersOf(HttpHeaders.ContentType, ContentType.Application.ProblemJson.toString()),
             )
         }
-        return FollowProvider(HttpClient(engine), cm)
+        return ProbeProvider(HttpClient(engine), cm)
     }
-
-    private val request = FollowRequest(
-        odinId = OdinId("frodo.dotyou.cloud"),
-        notificationType = FollowNotificationType.AllNotifications,
-    )
 
     @Test
     fun serverError_messageCarriesCorrelationIdAndTitle() = runTest {
@@ -54,7 +61,7 @@ class ServerExceptionMessageTest {
             """{"type":"https://tools.ietf.org/html/rfc7231","title":"Internal Server Error","status":500,"correlationId":"9c0b1703-d648-4027-b993-7ab0a54eca99","errorCode":"unhandledScenario"}""",
         )
 
-        val e = assertFailsWith<ServerException> { provider.follow(request) }
+        val e = assertFailsWith<ServerException> { provider.call() }
 
         assertEquals("9c0b1703-d648-4027-b993-7ab0a54eca99", e.correlationId)
         assertEquals(
@@ -67,7 +74,7 @@ class ServerExceptionMessageTest {
     fun serverError_unparsableBody_stillHasSensibleMessage() = runTest {
         val provider = providerRespondingWith(HttpStatusCode.BadGateway, "<html>bad gateway</html>")
 
-        val e = assertFailsWith<ServerException> { provider.follow(request) }
+        val e = assertFailsWith<ServerException> { provider.call() }
 
         assertEquals("Server error (status=502)", e.message)
     }
@@ -84,7 +91,7 @@ class ServerExceptionMessageTest {
             problemJson(400, "Missing version tag", "missingVersionTag"),
         )
 
-        val e = assertFailsWith<ClientException> { provider.follow(request) }
+        val e = assertFailsWith<ClientException> { provider.call() }
 
         assertEquals(cid, e.correlationId)
         assertEquals(
@@ -101,7 +108,7 @@ class ServerExceptionMessageTest {
             problemJson(403, "Forbidden", "unhandledScenario"),
         )
 
-        val e = assertFailsWith<ForbiddenException> { provider.follow(request) }
+        val e = assertFailsWith<ForbiddenException> { provider.call() }
 
         assertEquals(cid, e.correlationId)
         assertEquals("Forbidden (status=403, errorCode=unhandledScenario, correlationId=$cid)", e.message)
@@ -114,7 +121,7 @@ class ServerExceptionMessageTest {
             problemJson(404, "Not Found", "unhandledScenario"),
         )
 
-        val e = assertFailsWith<NotFoundException> { provider.follow(request) }
+        val e = assertFailsWith<NotFoundException> { provider.call() }
 
         assertEquals(cid, e.correlationId)
         assertEquals("Not found (status=404, errorCode=unhandledScenario, correlationId=$cid)", e.message)
@@ -127,7 +134,7 @@ class ServerExceptionMessageTest {
             problemJson(401, "Unauthorized", "unhandledScenario"),
         )
 
-        val e = assertFailsWith<UnauthorizedException> { provider.follow(request) }
+        val e = assertFailsWith<UnauthorizedException> { provider.call() }
 
         assertEquals(cid, e.correlationId)
         assertTrue(e.message!!.contains("correlationId=$cid"))
@@ -137,7 +144,7 @@ class ServerExceptionMessageTest {
     fun notFound_emptyBody_hasStatusOnly() = runTest {
         val provider = providerRespondingWith(HttpStatusCode.NotFound, "")
 
-        val e = assertFailsWith<NotFoundException> { provider.follow(request) }
+        val e = assertFailsWith<NotFoundException> { provider.call() }
 
         assertNull(e.correlationId)
         assertEquals("Not found (status=404)", e.message)
@@ -147,7 +154,7 @@ class ServerExceptionMessageTest {
     fun forbidden_unparsableBody_hasStatusOnly() = runTest {
         val provider = providerRespondingWith(HttpStatusCode.Forbidden, "<html>nope</html>")
 
-        val e = assertFailsWith<ForbiddenException> { provider.follow(request) }
+        val e = assertFailsWith<ForbiddenException> { provider.call() }
 
         assertNull(e.correlationId)
         assertEquals("Forbidden (status=403)", e.message)
