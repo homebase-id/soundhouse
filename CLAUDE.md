@@ -158,10 +158,8 @@ screen/composable, verify:
   that measure runs (a `snapshotFlow {}` body, a `derivedStateOf`, a save-scroll
   effect on the same frame the state was created) gets `Int.MAX_VALUE` back. Using
   that as `for (i in firstVisibleIndex downTo 0)` walks ~2.1B iterations and
-  freezes the UI dispatcher for seconds. Use the
-  `LazyListState.boundedFirstVisibleItemIndex(itemsSize: Int)` extension in
-  `id.homebase.core.util.ScrollPosition.kt` — it returns `null` for an empty list
-  and a clamped index otherwise.
+  freezes the UI dispatcher for seconds. Clamp it to `0 until items.size` (and
+  treat an empty list as "no index") before using it.
 
 ## Strings & Unicode
 
