@@ -112,4 +112,23 @@ class TrackStoreTest {
         store.awaitTitles(emptyList())
         assertEquals(false, store.isLoaded.value)
     }
+
+    @Test
+    fun `tracks missing on the server are removed and a failed listing removes nothing`() = runBlocking {
+        signIn()
+        val kept = track("kept", 2_000)
+        val ghost = track("ghost", 1_000)
+        seed(kept, ghost)
+        val store = TrackStore(db, credentials, eventBus, scope)
+        store.awaitTitles(listOf("kept", "ghost"))
+
+        val failing = LibraryReconciler(store, { error("network down") }, credentials, scope)
+        assertEquals(0, failing.reconcile())
+        assertEquals(listOf("kept", "ghost"), store.tracks.value.map { it.title })
+
+        val reconciler = LibraryReconciler(store, { setOf(kept.fileId) }, credentials, scope)
+        assertEquals(1, reconciler.reconcile())
+        store.awaitTitles(listOf("kept"))
+        Unit
+    }
 }

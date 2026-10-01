@@ -11,12 +11,17 @@ import id.homebase.api.file.wipeOutboxStaging
 import id.homebase.api.sync.DriveSyncManager
 import id.homebase.api.youauth.YouAuthFlowManager
 import id.homebase.audio.data.AudioDriveApi
+import id.homebase.audio.data.LibraryReconciler
 import id.homebase.audio.data.TrackManager
 import id.homebase.audio.data.TrackStore
 import id.homebase.audio.importing.TrackImporter
 import id.homebase.api.file.systemFileSystem
 import id.homebase.audio.download.DownloadStore
 import id.homebase.audio.download.downloadsDirectory
+import id.homebase.audio.download.listeningHistoryFile
+import id.homebase.audio.history.ListeningHistory
+import id.homebase.audio.history.ListeningRecorder
+import id.homebase.audio.ui.home.HomeViewModel
 import id.homebase.audio.playback.AudioStreamServer
 import id.homebase.audio.ui.common.CoverLoader
 import id.homebase.audio.playback.PlaybackController
@@ -120,6 +125,10 @@ val audioAppModule = module {
 
     single { AudioDriveApi(get(), get(), get(), get()) }
     single { TrackStore(get(), get(), get(), get()) }
+    single(createdAtStart = true) {
+        val api = get<AudioDriveApi>()
+        LibraryReconciler(get(), { api.queryTrackFiles().mapTo(HashSet()) { it.fileId } }, get(), get())
+    }
     single {
         val store = get<TrackStore>()
         TrackImporter(get<AudioDriveApi>(), get(), get(), onUploaded = store::upsert)
@@ -138,6 +147,8 @@ val audioAppModule = module {
     }
     single<TrackLocator> { DefaultTrackLocator(get(), get(), get()) }
     single { PlaybackController(get<AudioPlayer>(), get(), get()) }
+    single { ListeningHistory(listeningHistoryFile(), systemFileSystem, get(), get()) }
+    single(createdAtStart = true) { ListeningRecorder(get(), get(), get()) }
     single {
         val store = get<TrackStore>()
         val downloads = get<DownloadStore>()
@@ -153,6 +164,7 @@ val audioAppModule = module {
 
     viewModelOf(::AppLoadingViewModel)
     viewModelOf(::PlayerViewModel)
+    viewModelOf(::HomeViewModel)
     viewModelOf(::RecordViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::LibraryViewModel)

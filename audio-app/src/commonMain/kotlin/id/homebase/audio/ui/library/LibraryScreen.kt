@@ -60,7 +60,12 @@ import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenRecorder: () -> Unit) {
+fun LibraryScreen(
+    viewModel: LibraryViewModel,
+    onOpenPlayer: () -> Unit,
+    onOpenRecorder: () -> Unit,
+    actions: @Composable () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) {
@@ -103,7 +108,7 @@ fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenR
     ) { files ->
         if (!files.isNullOrEmpty()) viewModel.onFilesPicked(files)
     }
-    val actions = remember(viewModel) {
+    val trackActions = remember(viewModel) {
         TrackActions(
             download = viewModel::download,
             removeDownload = viewModel::removeDownload,
@@ -120,12 +125,7 @@ fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenR
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(AR.string.library_title)) },
-                actions = {
-                    IconButton(onClick = onOpenRecorder) {
-                        Icon(Icons.Filled.Mic, contentDescription = stringResource(AR.string.record_open))
-                    }
-                    AccountMenu(onSignOut = viewModel::signOut)
-                },
+                actions = { actions() },
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -206,29 +206,9 @@ fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenR
                         viewModel.play(track)
                         onOpenPlayer()
                     },
-                    actions = actions,
+                    actions = trackActions,
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AccountMenu(onSignOut: () -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Filled.AccountCircle, contentDescription = stringResource(AR.string.account_menu))
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(AR.string.sign_out)) },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
-                onClick = {
-                    expanded = false
-                    onSignOut()
-                },
-            )
         }
     }
 }

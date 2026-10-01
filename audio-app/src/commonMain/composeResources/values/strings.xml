@@ -72,4 +72,39 @@
     <string name="player_now_playing">Now playing</string>
     <string name="player_details">%1$s · Added %2$s</string>
     <string name="player_details_recorded">Recorded %1$s</string>
+    <string name="home_title">Home</string>
+    <string name="greeting_morning">Good morning</string>
+    <string name="greeting_afternoon">Good afternoon</string>
+    <string name="greeting_evening">Good evening</string>
+    <string name="home_play_all">Play all</string>
+    <string name="home_shuffle">Shuffle</string>
+    <string name="home_continue">Continue listening</string>
+    <string name="home_recently_played">Recently played</string>
+    <string name="home_recently_added">Recently added</string>
+    <string name="home_history_hint">Play something and it will show up here, ready to pick up where you left off.</string>
+    <string name="played_just_now">Played just now</string>
+    <plurals name="played_minutes_ago">
+        <item quantity="one">Played %1$d minute ago</item>
+        <item quantity="other">Played %1$d minutes ago</item>
+    </plurals>
+    <plurals name="played_hours_ago">
+        <item quantity="one">Played %1$d hour ago</item>
+        <item quantity="other">Played %1$d hours ago</item>
+    </plurals>
+    <string name="played_yesterday">Played yesterday</string>
+    <plurals name="played_days_ago">
+        <item quantity="one">Played %1$d day ago</item>
+        <item quantity="other">Played %1$d days ago</item>
+    </plurals>
+    <string name="played_on">Played %1$s</string>
+    <plurals name="time_left_minutes">
+        <item quantity="one">%1$d min left</item>
+        <item quantity="other">%1$d min left</item>
+    </plurals>
+    <plurals name="time_left_seconds">
+        <item quantity="one">%1$d sec left</item>
+        <item quantity="other">%1$d sec left</item>
+    </plurals>
+    <string name="tab_home">Home</string>
+    <string name="tab_library">Library</string>
 </resources>

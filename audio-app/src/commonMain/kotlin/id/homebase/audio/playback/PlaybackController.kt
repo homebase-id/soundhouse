@@ -68,10 +68,11 @@ class PlaybackController(
         })
     }
 
-    fun playQueue(tracks: List<AudioTrack>, startIndex: Int) {
+    /** [startAtMs] resumes the first track part-way; later tracks always start from the top. */
+    fun playQueue(tracks: List<AudioTrack>, startIndex: Int, startAtMs: Long = 0) {
         if (startIndex !in tracks.indices) return
         _state.update { PlaybackState(queue = tracks, index = startIndex) }
-        startCurrent()
+        startCurrent(startAtMs)
     }
 
     fun togglePlayPause() {
@@ -152,11 +153,11 @@ class PlaybackController(
         }
     }
 
-    private fun startCurrent() {
+    private fun startCurrent(startAtMs: Long = 0) {
         val track = _state.value.current ?: return
         val myGeneration = ++generation
         _state.update {
-            it.copy(isLoading = true, isPlaying = false, failed = false, positionMs = 0, durationMs = track.durationMs ?: 0)
+            it.copy(isLoading = true, isPlaying = false, failed = false, positionMs = startAtMs, durationMs = track.durationMs ?: 0)
         }
         scope.launch(playerLane) {
             try {
@@ -164,6 +165,7 @@ class PlaybackController(
                 if (myGeneration != generation) return@launch
                 player.stop()
                 player.play(source)
+                if (startAtMs > 0) player.jumpTo(startAtMs)
                 if (myGeneration != generation) return@launch
                 _state.update { it.copy(isLoading = false, isPlaying = true) }
             } catch (e: CancellationException) {

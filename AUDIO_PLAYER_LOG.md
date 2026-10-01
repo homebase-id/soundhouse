@@ -82,6 +82,30 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
 - liveTest: import of an mp3 with a cover → thumbnails listed, cover decrypts and decodes, still readable after
   rename.
 
+### Home tab, Library tab, listening history (2026-10-01)
+
+- **Tabs:** Home and Library as top-level destinations (bottom NavigationBar on phones, NavigationRail at ≥600 dp);
+  mini-player above the bar; record and account actions shared by both top bars.
+- **Home:** time-of-day greeting, Play all / Shuffle, "Continue listening" cards (cover, progress, time left; resumes
+  at the saved position), "Recently played" with relative times and the now-playing marker, "Recently added"
+  tiles, and a hint until there's history. `HomeContent` is stateless and covered by `UiRenderTest`.
+- **Listening history** (`ListeningHistory` + `ListeningRecorder`): position per track, updated every progress tick,
+  written to `<app data>/listening-history.json` at most every 5 s and immediately on pause / track change; cleared
+  on sign-out; forgotten tracks drop out because Home joins history with the library. **Decision: device-local
+  for now** — resume does not follow you to another device. Syncing it would mean per-track writes to the drive
+  (or its local app data) on every pause; worth doing once the drive-side shape is decided.
+- `PlaybackController.playQueue(…, startAtMs)` resumes the first track part-way.
+
+### Ghost tracks after hard deletes (found on the emulator, 2026-10-01)
+
+- Live-test files showed up in the signed-in emulator's library after the tests had deleted them. Cause (proven by
+  `LiveLibrarySyncTest."a track hard-deleted elsewhere disappears on reconcile"`): drive sync only reports
+  changes, and a hard-deleted file never appears as one, so other devices keep the row forever. The app's own
+  Delete is a soft delete and syncs fine.
+- Fixes: `LibraryReconciler` lists the server's track ids once per signed-in session (after the library loads) and
+  removes local rows the server no longer has — only when the listing succeeds completely. Test cleanup now soft
+  deletes before hard deleting.
+
 ### Open problems
 
 - `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and

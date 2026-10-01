@@ -92,6 +92,22 @@ class TrackStore(
         reload()
     }
 
+    /**
+     * Drops local tracks the server no longer has. Sync only reports changes, and a hard-deleted file
+     * never shows up as one, so without this its row would stay in the library forever.
+     * [serverFileIds] must be the complete set from a successful query.
+     */
+    suspend fun removeMissing(serverFileIds: Set<Uuid>): Int {
+        val creds = credentialsManager.getActiveCredentials() ?: return 0
+        val stale = _tracks.value.filter { it.fileId !in serverFileIds }
+        if (stale.isEmpty()) return 0
+        val processor = MainIndexMetaHelpers.HomebaseFileProcessor(databaseManager)
+        stale.forEach { processor.deleteEntryDriveMainIndex(creds.getIdentityId(), driveId, it.fileId) }
+        Logger.i(tag = TAG) { "Removed ${stale.size} track(s) deleted on the server" }
+        reload()
+        return stale.size
+    }
+
     private fun reset() {
         _tracks.value = emptyList()
         _isLoaded.value = false

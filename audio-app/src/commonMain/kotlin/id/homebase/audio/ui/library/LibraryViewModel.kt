@@ -3,7 +3,6 @@ package id.homebase.audio.ui.library
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import id.homebase.api.youauth.YouAuthFlowManager
 import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.data.TrackStore
 import id.homebase.api.file.FileOperationsProvider
@@ -17,10 +16,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import id.homebase.audio.importing.TrackImporter
 import id.homebase.audio.playback.PlaybackController
-import id.homebase.core.files.materializeForUpload
+import id.homebase.audio.importing.enqueuePicked
 import io.github.vinceglb.filekit.PlatformFile
-import io.github.vinceglb.filekit.name
-import io.github.vinceglb.filekit.path
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +33,6 @@ class LibraryViewModel(
     private val downloads: DownloadStore,
     private val manager: TrackManager,
     private val fileOps: FileOperationsProvider,
-    private val youAuthFlowManager: YouAuthFlowManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
@@ -124,22 +120,12 @@ class LibraryViewModel(
     }
 
     fun onFilesPicked(files: List<PlatformFile>) {
-        viewModelScope.launch {
-            files.forEach { picked ->
-                // Copy while the picker's read grant is live (Android URI grant, iOS security scope).
-                val copy = picked.materializeForUpload(fileOps)
-                importer.enqueue(copy.path, picked.name, deleteSourceAfter = copy.path != picked.path)
-            }
-        }
+        viewModelScope.launch { enqueuePicked(files, importer, fileOps) }
     }
 
     fun dismissImport(id: Uuid) = importer.dismiss(id)
 
     fun clearFinishedImports() = importer.clearFinished()
-
-    fun signOut() {
-        viewModelScope.launch { youAuthFlowManager.logout() }
-    }
 }
 
 sealed interface LibraryEvent {

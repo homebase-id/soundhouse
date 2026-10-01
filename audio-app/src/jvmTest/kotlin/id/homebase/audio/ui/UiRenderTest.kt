@@ -17,6 +17,10 @@ import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.data.AudioTrackContent
 import id.homebase.audio.data.TrackOrigin
 import id.homebase.audio.playback.PlaybackController
+import id.homebase.audio.history.ListenEntry
+import id.homebase.audio.ui.home.HomeContent
+import id.homebase.audio.ui.home.HomeUiState
+import id.homebase.audio.ui.home.ListenedTrack
 import id.homebase.audio.ui.library.EmptyLibrary
 import id.homebase.audio.ui.library.FilterChips
 import id.homebase.audio.ui.library.LibrarySort
@@ -118,6 +122,29 @@ class UiRenderTest {
             }
         }
         assertTrue(File(outDir, "library-light.png").length() > 0)
+    }
+
+    @Test
+    fun `home renders`() {
+        val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
+        val history = listOf(
+            ListenedTrack(tracks[3], ListenEntry(tracks[3].fileId.toString(), now - 20 * 60_000, 1_900_000, 3_725_000)),
+            ListenedTrack(tracks[1], ListenEntry(tracks[1].fileId.toString(), now - 3 * 3_600_000, 120_000, 312_000)),
+            ListenedTrack(tracks[0], ListenEntry(tracks[0].fileId.toString(), now - 30 * 3_600_000, 61_000, 61_000, finished = true)),
+        )
+        val state = HomeUiState(
+            isLoaded = true,
+            totalTracks = tracks.size,
+            allTracks = tracks,
+            continueListening = history.filter { it.entry.resumable },
+            recentlyPlayed = history,
+            recentlyAdded = tracks,
+            nowPlayingId = tracks[3].fileId,
+            isPlaying = true,
+        )
+        for (dark in listOf(false, true)) render("home", dark, height = 1100) {
+            HomeContent(state, {}, {}, {}, {}, {}, {}, actions = {})
+        }
     }
 
     @Test

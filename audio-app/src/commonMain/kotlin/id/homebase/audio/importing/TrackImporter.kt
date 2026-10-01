@@ -15,6 +15,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.uuid.Uuid
+import id.homebase.core.files.materializeForUpload
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.path
 
 enum class ImportStatus { Queued, Uploading, Done, Failed }
 
@@ -125,5 +129,13 @@ class TrackImporter(
 
     private companion object {
         const val TAG = "TrackImporter"
+    }
+}
+
+/** Copies each pick into the sandbox while the picker's read grant is live, then queues it. */
+suspend fun enqueuePicked(files: List<PlatformFile>, importer: TrackImporter, fileOps: FileOperationsProvider) {
+    files.forEach { picked ->
+        val copy = picked.materializeForUpload(fileOps)
+        importer.enqueue(copy.path, picked.name, deleteSourceAfter = copy.path != picked.path)
     }
 }

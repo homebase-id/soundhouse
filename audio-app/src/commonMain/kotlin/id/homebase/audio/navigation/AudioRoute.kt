@@ -10,6 +10,9 @@ sealed interface AudioRoute {
     data object Login : AudioRoute
 
     @Serializable
+    data object Home : AudioRoute
+
+    @Serializable
     data object Library : AudioRoute
 
     @Serializable

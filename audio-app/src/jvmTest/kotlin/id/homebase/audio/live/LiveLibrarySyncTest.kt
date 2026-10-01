@@ -71,4 +71,45 @@ class LiveLibrarySyncTest {
             purgeTagged(api)
         }
     }
+
+    @Test
+    fun `a track hard-deleted elsewhere disappears on reconcile`() = runBlocking {
+        val session = LiveSession.requireOrSkip()
+        val credentials = session.credentialsManager()
+        val api = session.audioDriveApi(File(workDir, "cache"), credentials)
+        purgeTagged(api)
+        val eventBus = EventBus()
+        val sync = DriveSyncManager(
+            DriveQueryProvider(HttpClientProvider.create(), credentials), credentials, eventBus, scope, db,
+            mandatoryDrives = mandatorySyncDrives.associate { it.drive.alias to it.label },
+        )
+        val store = TrackStore(db, credentials, eventBus, scope)
+        val reconciler = id.homebase.audio.data.LibraryReconciler(
+            store, { api.queryTrackFiles().mapTo(HashSet()) { it.fileId } }, credentials, scope,
+        )
+        try {
+            val source = File(workDir, "tone.mp3").apply { writeBytes(fixtureBytes("tone.mp3")) }
+            val uploaded = api.uploadTrack(
+                source.absolutePath,
+                AudioTrackContent("liveGhost ${Uuid.random().toString().take(8)}", source.length(), "audio/mpeg"),
+                tags = listOf(LIVE_TEST_TAG),
+            )
+            sync.ensureMandatoryMounted()
+            sync.start()
+            sync.syncAll()
+            withTimeout(30_000) { store.tracks.first { tracks -> tracks.any { it.fileId == uploaded.fileId } } }
+            val before = store.tracks.value.size
+
+            api.hardDeleteTrack(uploaded.fileId)
+            sync.syncAll()
+            kotlin.test.assertTrue(store.tracks.value.any { it.fileId == uploaded.fileId }, "sync alone should not see a hard delete")
+
+            kotlin.test.assertEquals(1, reconciler.reconcile())
+            withTimeout(10_000) { store.tracks.first { tracks -> tracks.none { it.fileId == uploaded.fileId } } }
+            kotlin.test.assertEquals(before - 1, store.tracks.value.size, "reconcile removed more than the ghost")
+        } finally {
+            sync.stop()
+            purgeTagged(api)
+        }
+    }
 }
