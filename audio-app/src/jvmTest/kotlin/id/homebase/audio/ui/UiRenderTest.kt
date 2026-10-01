@@ -35,7 +35,7 @@ import id.homebase.audio.ui.player.PlayerScreen
 import id.homebase.audio.ui.player.PlayerViewModel
 import id.homebase.core.audio.AudioPlaybackObserver
 import id.homebase.core.audio.AudioPlayer
-import id.homebase.core.ui.theme.HomebaseTheme
+import id.homebase.audio.ui.theme.AudioTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -92,7 +92,7 @@ class UiRenderTest {
 
     private fun render(name: String, dark: Boolean, width: Int = 412, height: Int = 892, content: @Composable () -> Unit) {
         val scene = ImageComposeScene(width = width * 2, height = height * 2, density = Density(2f)) {
-            HomebaseTheme(darkTheme = dark, followsSystemTheme = false, updatesSystemChrome = false) { content() }
+            AudioTheme(darkTheme = dark, followsSystemTheme = false, updatesSystemChrome = false) { content() }
         }
         try {
             scene.render(0)

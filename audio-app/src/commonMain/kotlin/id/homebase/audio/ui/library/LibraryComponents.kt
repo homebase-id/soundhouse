@@ -66,6 +66,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import id.homebase.audio.data.AudioTrack
+import id.homebase.audio.data.TrackOrigin
+import id.homebase.audio.ui.theme.tabular
 import id.homebase.audio.importing.ImportJob
 import id.homebase.audio.importing.ImportStatus
 import id.homebase.audio.resources.AR
@@ -101,7 +103,8 @@ import id.homebase.audio.resources.rename_confirm
 import id.homebase.audio.resources.rename_title
 import id.homebase.audio.resources.track_actions
 import id.homebase.audio.resources.track_duration_unknown
-import id.homebase.audio.resources.track_subtitle
+import id.homebase.audio.resources.track_added_on
+import id.homebase.audio.resources.track_recorded_on
 import id.homebase.audio.ui.common.NowPlayingBars
 import id.homebase.audio.ui.common.TrackCover
 import id.homebase.audio.ui.common.formatDate
@@ -195,33 +198,16 @@ internal fun TrackRow(
     onClick: () -> Unit,
     actions: TrackActions,
 ) {
-    val duration = track.durationMs?.let(::formatDuration) ?: stringResource(AR.string.track_duration_unknown)
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
-        colors = ListItemDefaults.colors(
-            containerColor = if (isCurrent) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f) else Color.Transparent,
-        ),
-        leadingContent = {
-            Box(contentAlignment = Alignment.Center) {
-                TrackCover(track, modifier = Modifier.size(52.dp))
-                if (isCurrent) {
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        NowPlayingBars(playing = isPlaying, modifier = Modifier.padding(6.dp))
-                    }
-                }
-            }
-        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        leadingContent = { TrackCover(track, modifier = Modifier.size(52.dp)) },
         headlineContent = {
             Text(
                 track.title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = if (isCurrent) FontWeight.SemiBold else null,
                 color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
         },
@@ -246,7 +232,7 @@ internal fun TrackRow(
                     Spacer(Modifier.size(4.dp))
                 }
                 Text(
-                    stringResource(AR.string.track_subtitle, duration, formatDate(track.dateAddedMs)),
+                    trackOriginLine(track),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -254,13 +240,35 @@ internal fun TrackRow(
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (downloadProgress != null) {
-                    CircularProgressIndicator(progress = { downloadProgress }, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                when {
+                    downloadProgress != null -> CircularProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    isCurrent -> NowPlayingBars(
+                        playing = isPlaying,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(width = 18.dp, height = 16.dp),
+                    )
+                    else -> Text(
+                        track.durationMs?.let(::formatDuration) ?: stringResource(AR.string.track_duration_unknown),
+                        style = MaterialTheme.typography.labelLarge.tabular(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 TrackMenu(track, downloaded, downloading = downloadProgress != null, actions)
             }
         },
     )
+}
+
+/** "Added Sep 20, 2026" or "Recorded Sep 20, 2026". */
+@Composable
+internal fun trackOriginLine(track: AudioTrack): String {
+    val date = formatDate(track.dateAddedMs)
+    return if (track.content.origin == TrackOrigin.Recorded) stringResource(AR.string.track_recorded_on, date)
+    else stringResource(AR.string.track_added_on, date)
 }
 
 @Composable

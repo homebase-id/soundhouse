@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -25,17 +24,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.runtime.remember
+import kotlin.math.PI
+import kotlin.math.sin
+import kotlin.random.Random
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
 /** Gradient colours, a readable content colour and a gradient direction, picked deterministically per track. */
 data class ArtworkPalette(val start: Color, val end: Color, val content: Color, val angleIndex: Int)
 
-private val HUE_STEPS = listOf(0f, 35f, 70f, 140f, 180f, 215f, 260f, 300f)
+// Offsets from the theme primary's hue (Homebase blue): indigo, violet, plum, cyan, teal and one
+// amber-dusk echoing the accent. Wider rotation reached lime and yellow-green, which read as cheap.
+private val HUE_STEPS = listOf(0f, 22f, 48f, 82f, -28f, -52f, 165f, 12f)
 private const val ANGLES = 4
 
 /** Hue step and gradient direction in one number; the same seed always gets the same artwork. */
@@ -48,12 +52,12 @@ fun artworkVariant(seed: String): Int = abs(seed.hashCode() % (HUE_STEPS.size * 
 fun ColorScheme.artworkPalette(seed: String): ArtworkPalette {
     val variant = artworkVariant(seed)
     val (hue, saturation, lightness) = primary.toHsl()
-    val rotated = (hue + HUE_STEPS[variant % HUE_STEPS.size]) % 360f
+    val rotated = (hue + HUE_STEPS[variant % HUE_STEPS.size] + 360f) % 360f
     // Dark themes have a light primary; artwork there sits deeper so it doesn't glare.
     val dark = surface.luminance() < 0.5f
-    val startLightness = if (dark) 0.42f else lightness.coerceIn(0.4f, 0.6f)
-    val start = Color.hsl(rotated, saturation.coerceIn(0.35f, 0.7f), startLightness)
-    val end = Color.hsl((rotated + 28f) % 360f, (saturation * 0.85f).coerceIn(0.3f, 0.65f), startLightness + 0.1f)
+    val startLightness = if (dark) 0.36f else lightness.coerceIn(0.38f, 0.5f)
+    val start = Color.hsl(rotated, saturation.coerceIn(0.32f, 0.52f), startLightness)
+    val end = Color.hsl((rotated + 24f) % 360f, (saturation * 0.8f).coerceIn(0.28f, 0.48f), startLightness + 0.12f)
     val content = if (start.luminance() > 0.45f) Color.Black.copy(alpha = 0.78f) else Color.White
     return ArtworkPalette(start, end, content, variant / HUE_STEPS.size)
 }
@@ -73,15 +77,25 @@ private fun Color.toHsl(): Triple<Float, Float, Float> {
     return Triple(hue, saturation, lightness)
 }
 
-/** First user-perceived character of [title], uppercased; never splits a surrogate pair. */
-fun artworkGlyph(title: String): String {
-    val trimmed = title.trim()
-    if (trimmed.isEmpty()) return "♪"
-    val end = if (trimmed.length > 1 && trimmed[0].isHighSurrogate()) 2 else 1
-    return trimmed.substring(0, end).uppercase()
+/**
+ * A track's soundprint: [bars] amplitudes (0..1) seeded by [seed], shaped like a phrase of sound
+ * (swelling and fading) so it reads as audio rather than noise. Same seed, same print, on every device.
+ */
+fun soundprint(seed: String, bars: Int): List<Float> {
+    val random = Random(seed.hashCode())
+    val phase = random.nextFloat() * PI.toFloat()
+    val swells = 1 + random.nextInt(3)
+    var previous = random.nextFloat()
+    return List(bars) { index ->
+        val position = (index + 0.5f) / bars
+        val envelope = 0.35f + 0.65f * abs(sin(phase + position * PI.toFloat() * swells))
+        // Neighbouring bars lean on each other, like a real waveform.
+        previous = (previous * 0.45f + random.nextFloat() * 0.55f)
+        (envelope * (0.35f + 0.65f * previous)).coerceIn(0.12f, 1f)
+    }
 }
 
-/** Cover art for tracks that have none: a theme-coloured gradient with the title's first letter. Size it with [modifier]. */
+/** Generated cover for tracks without art: a theme-tinted gradient carrying the track's soundprint. */
 @Composable
 fun TrackArtwork(
     title: String,
@@ -94,22 +108,27 @@ fun TrackArtwork(
         modifier = modifier
             .clip(RoundedCornerShape(cornerRadius))
             .background(gradient(palette)),
-        contentAlignment = Alignment.Center,
     ) {
-        val side = minOf(maxWidth, maxHeight).value
-        val glyphSize = (side * if (side > 120f) 0.3f else 0.42f).sp
+        val bars = if (minOf(maxWidth, maxHeight) < 80.dp) 7 else 19
+        val print = remember(seed, bars) { soundprint(seed, bars) }
         Canvas(Modifier.fillMaxSize()) {
-            drawCircle(palette.content.copy(alpha = 0.10f), radius = size.minDimension * 0.55f, center = Offset(size.width, 0f))
-            drawCircle(palette.content.copy(alpha = 0.07f), radius = size.minDimension * 0.35f, center = Offset(0f, size.height))
+            val width = size.width * 0.64f
+            val slot = width / bars
+            val stroke = slot * 0.55f
+            val left = (size.width - width) / 2
+            val maxHeight = size.height * 0.58f
+            print.forEachIndexed { index, amplitude ->
+                val x = left + (index + 0.5f) * slot
+                val height = (amplitude * maxHeight).coerceAtLeast(stroke)
+                drawLine(
+                    color = palette.content.copy(alpha = 0.92f),
+                    start = Offset(x, size.height / 2 - height / 2),
+                    end = Offset(x, size.height / 2 + height / 2),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round,
+                )
+            }
         }
-        Text(
-            text = artworkGlyph(title),
-            color = palette.content,
-            fontSize = glyphSize,
-            lineHeight = glyphSize,
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Medium,
-        )
     }
 }
 

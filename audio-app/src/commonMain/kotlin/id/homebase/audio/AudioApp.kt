@@ -10,7 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.homebase.audio.navigation.AudioNavHost
 import id.homebase.core.settings.ThemeState
 import id.homebase.core.settings.UserPreferences
-import id.homebase.core.ui.theme.HomebaseTheme
+import id.homebase.audio.ui.theme.AudioTheme
 import org.koin.compose.koinInject
 
 @Composable
@@ -22,7 +22,7 @@ fun AudioApp() {
         ThemeState.Dark -> true
         ThemeState.Light -> false
     }
-    HomebaseTheme(darkTheme = darkTheme, followsSystemTheme = prefState.theme == ThemeState.System) {
+    AudioTheme(darkTheme = darkTheme, followsSystemTheme = prefState.theme == ThemeState.System) {
         CompositionLocalProvider(LocalCoverLoader provides koinInject<CoverLoader>()) {
             AudioNavHost()
         }

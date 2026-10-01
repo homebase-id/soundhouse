@@ -54,8 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.homebase.audio.resources.AR
 import id.homebase.audio.resources.navigate_back
-import id.homebase.audio.resources.player_details
-import id.homebase.audio.resources.player_details_recorded
+import id.homebase.audio.resources.track_added_on
+import id.homebase.audio.resources.track_recorded_on
 import id.homebase.audio.resources.player_failed
 import id.homebase.audio.resources.player_next
 import id.homebase.audio.resources.player_nothing_playing
@@ -68,6 +68,7 @@ import id.homebase.audio.ui.common.TrackCover
 import id.homebase.audio.ui.common.artworkPalette
 import id.homebase.audio.ui.common.formatDate
 import id.homebase.audio.ui.common.formatDuration
+import id.homebase.audio.ui.theme.tabular
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -164,8 +165,8 @@ private fun TrackHeading(uiState: PlayerUiState, title: String) {
         if (date != null) {
             Spacer(Modifier.height(4.dp))
             Text(
-                if (uiState.recorded) stringResource(AR.string.player_details_recorded, date)
-                else stringResource(AR.string.player_details, uiState.format ?: "", date),
+                if (uiState.recorded) stringResource(AR.string.track_recorded_on, date)
+                else stringResource(AR.string.track_added_on, date),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -192,12 +193,12 @@ private fun SeekSection(uiState: PlayerUiState, viewModel: PlayerViewModel) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 formatDuration((fraction * duration).toLong()),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 formatDuration(uiState.durationMs),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

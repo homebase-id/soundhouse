@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.Button
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -30,7 +31,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,10 +48,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.importing.playableExtensions
 import id.homebase.audio.resources.AR
-import id.homebase.audio.resources.greeting_afternoon
-import id.homebase.audio.resources.greeting_evening
-import id.homebase.audio.resources.greeting_morning
 import id.homebase.audio.resources.home_continue
+import id.homebase.audio.resources.home_newest
+import id.homebase.audio.resources.home_play
+import id.homebase.audio.resources.home_resume
+import id.homebase.audio.resources.home_wordmark
+import id.homebase.audio.ui.theme.tabular
 import id.homebase.audio.resources.home_history_hint
 import id.homebase.audio.resources.home_play_all
 import id.homebase.audio.resources.home_recently_added
@@ -67,10 +69,7 @@ import id.homebase.audio.ui.library.EmptyLibrary
 import io.github.vinceglb.filekit.dialogs.FileKitMode
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.stringResource
-import kotlin.time.Clock
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -114,7 +113,7 @@ fun HomeContent(
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(title = { Text(greeting()) }, actions = { actions() }, scrollBehavior = scrollBehavior)
+            LargeTopAppBar(title = { Text(stringResource(AR.string.home_wordmark)) }, actions = { actions() }, scrollBehavior = scrollBehavior)
         },
     ) { padding ->
         if (!uiState.isLoaded) {
@@ -129,8 +128,28 @@ fun HomeContent(
                 item { EmptyLibrary(onImport = onImport, onRecord = onOpenRecorder) }
                 return@LazyColumn
             }
+            val resume = uiState.continueListening.firstOrNull()
+            val newest = uiState.recentlyAdded.firstOrNull()
             item {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                when {
+                    resume != null -> Hero(
+                        track = resume.track,
+                        detail = timeLeft(resume.entry.remainingMs),
+                        progress = resume.entry.progress,
+                        actionLabel = stringResource(AR.string.home_resume),
+                        onPlay = { onResume(resume) },
+                    )
+                    newest != null -> Hero(
+                        track = newest,
+                        detail = stringResource(AR.string.home_newest),
+                        progress = null,
+                        actionLabel = stringResource(AR.string.home_play),
+                        onPlay = { onPlayAdded(newest) },
+                    )
+                }
+            }
+            item {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { onPlayAll(false) }) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
@@ -143,14 +162,11 @@ fun HomeContent(
                     }
                 }
             }
-            if (uiState.continueListening.isNotEmpty()) {
+            val moreInProgress = uiState.continueListening.drop(1)
+            if (moreInProgress.isNotEmpty()) {
                 item { SectionTitle(stringResource(AR.string.home_continue)) }
-                item {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(uiState.continueListening, key = { it.track.fileId.toString() }) { item ->
-                            ContinueCard(item, onClick = { onResume(item) })
-                        }
-                    }
+                items(moreInProgress, key = { "continue-${it.track.fileId}" }) { item ->
+                    ContinueRow(item, onClick = { onResume(item) })
                 }
             }
             if (uiState.recentlyPlayed.isEmpty()) {
@@ -179,18 +195,6 @@ fun HomeContent(
 }
 
 @Composable
-private fun greeting(): String {
-    val hour = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).hour
-    return stringResource(
-        when (hour) {
-            in 5..11 -> AR.string.greeting_morning
-            in 12..17 -> AR.string.greeting_afternoon
-            else -> AR.string.greeting_evening
-        }
-    )
-}
-
-@Composable
 private fun SectionTitle(text: String) {
     Text(
         text,
@@ -201,29 +205,79 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun ContinueCard(item: ListenedTrack, onClick: () -> Unit) {
-    OutlinedCard(onClick = onClick, modifier = Modifier.width(168.dp)) {
-        TrackCover(item.track, modifier = Modifier.fillMaxWidth().height(168.dp), cornerRadius = 0.dp)
-        LinearProgressIndicator(
-            progress = { item.entry.progress },
-            modifier = Modifier.fillMaxWidth(),
-            drawStopIndicator = {},
-            gapSize = 0.dp,
-        )
-        Column(Modifier.padding(12.dp)) {
-            Text(
-                item.track.title,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                timeLeft(item.entry.remainingMs),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+private fun Hero(track: AudioTrack, detail: String, progress: Float?, actionLabel: String, onPlay: () -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        onClick = onPlay,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TrackCover(track, modifier = Modifier.size(112.dp), cornerRadius = 20.dp)
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        track.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (progress != null) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        color = MaterialTheme.colorScheme.tertiary,
+                        trackColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        drawStopIndicator = {},
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+                Spacer(Modifier.width(16.dp))
+                Button(onClick = onPlay) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(actionLabel)
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun ContinueRow(item: ListenedTrack, onClick: () -> Unit) {
+    ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        leadingContent = { TrackCover(item.track, modifier = Modifier.size(48.dp)) },
+        headlineContent = { Text(item.track.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = {
+            Column {
+                Spacer(Modifier.height(6.dp))
+                LinearProgressIndicator(
+                    progress = { item.entry.progress },
+                    color = MaterialTheme.colorScheme.tertiary,
+                    trackColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    drawStopIndicator = {},
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        trailingContent = {
+            Text(
+                timeLeft(item.entry.remainingMs),
+                style = MaterialTheme.typography.labelMedium.tabular(),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+    )
 }
 
 @Composable
@@ -231,20 +285,7 @@ private fun RecentRow(item: ListenedTrack, isCurrent: Boolean, isPlaying: Boolea
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        leadingContent = {
-            Box(contentAlignment = Alignment.Center) {
-                TrackCover(item.track, modifier = Modifier.size(48.dp))
-                if (isCurrent) {
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        modifier = Modifier.size(26.dp),
-                    ) {
-                        NowPlayingBars(playing = isPlaying, modifier = Modifier.padding(6.dp))
-                    }
-                }
-            }
-        },
+        leadingContent = { TrackCover(item.track, modifier = Modifier.size(48.dp)) },
         headlineContent = {
             Text(
                 item.track.title,
@@ -260,6 +301,17 @@ private fun RecentRow(item: ListenedTrack, isCurrent: Boolean, isPlaying: Boolea
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
+        trailingContent = if (isCurrent) {
+            {
+                NowPlayingBars(
+                    playing = isPlaying,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(width = 18.dp, height = 16.dp),
+                )
+            }
+        } else {
+            null
+        },
     )
 }
 
@@ -271,7 +323,7 @@ private fun AddedTile(track: AudioTrack, onClick: () -> Unit) {
         Text(track.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(
             track.durationMs?.let(::formatDuration) ?: stringResource(AR.string.track_duration_unknown),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.tabular(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

@@ -1,7 +1,7 @@
 package id.homebase.audio.ui
 
 import androidx.compose.material3.lightColorScheme
-import id.homebase.audio.ui.common.artworkGlyph
+import id.homebase.audio.ui.common.soundprint
 import id.homebase.audio.ui.common.artworkPalette
 import id.homebase.audio.ui.common.artworkVariant
 import kotlin.test.Test
@@ -10,11 +10,13 @@ import kotlin.test.assertTrue
 
 class TrackArtworkTest {
     @Test
-    fun `glyph is the first character uppercased and never half an emoji`() {
-        assertEquals("M", artworkGlyph("  morning walk"))
-        assertEquals("🎵", artworkGlyph("🎵 tune"))
-        assertEquals("♪", artworkGlyph("   "))
-        assertEquals("Ü", artworkGlyph("über"))
+    fun `soundprints are stable per track bounded and differ between tracks`() {
+        val a = soundprint("track-a", 19)
+        assertEquals(a, soundprint("track-a", 19))
+        assertEquals(19, a.size)
+        assertTrue(a.all { it in 0.12f..1f })
+        assertTrue(a != soundprint("track-b", 19))
+        assertTrue(a.max() - a.min() > 0.2f, "a soundprint should have visible shape: $a")
     }
 
     @Test

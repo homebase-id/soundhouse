@@ -71,6 +71,7 @@ import id.homebase.audio.resources.record_title
 import id.homebase.audio.ui.common.LevelBars
 import id.homebase.audio.ui.common.formatDateTime
 import id.homebase.audio.ui.common.formatDuration
+import id.homebase.audio.ui.theme.tabular
 import id.homebase.core.audio.rememberRecordAudioPermissionState
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
@@ -157,7 +158,7 @@ fun RecordContent(
             RecordPhase.Recording -> {
                 Text(
                     formatDuration(uiState.elapsedMs),
-                    style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum"),
+                    style = MaterialTheme.typography.displayLarge.tabular(),
                     fontWeight = FontWeight.Light,
                 )
                 Text(
@@ -169,7 +170,7 @@ fun RecordContent(
                 LevelBars(
                     levels = uiState.levels.takeLast(LIVE_BARS),
                     slots = LIVE_BARS,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth().height(96.dp),
                 )
                 Spacer(Modifier.height(40.dp))
@@ -224,7 +225,7 @@ private fun Recorded(
             LevelBars(
                 levels = waveformBars(uiState.levels, PREVIEW_BARS),
                 color = MaterialTheme.colorScheme.outlineVariant,
-                playedColor = MaterialTheme.colorScheme.primary,
+                playedColor = MaterialTheme.colorScheme.tertiary,
                 playedFraction = played,
                 modifier = Modifier
                     .fillMaxWidth()

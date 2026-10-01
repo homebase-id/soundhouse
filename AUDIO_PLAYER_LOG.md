@@ -126,7 +126,27 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
   media controls; "Continue listening" resumes at the saved position.
 - The emulator's AVD data partition was raised from 6 GB to 16 GB (wipe required; `config.ini.bak-6G` kept).
 
+### Design pass with the frontend-design + mobile-android-design skills (2026-10-01)
+
+- **Direction:** a private sound archive. Brand type pairing from the Homebase design manual (Montserrat Alternates
+  display/headline/title-large, Montserrat text; previously only login used it) via `AudioTheme`; one audio accent,
+  VU-meter amber, as the `tertiary` role for "sound happening" (resume progress, now-playing bars, record meter);
+  Homebase blue stays for actions; red only on the record button. No Material You dynamic colour (it would replace
+  the identity).
+- **The one bold element — soundprints:** seeded per-track waveform on a gradient instead of letter avatars.
+  Hues limited to a band around the brand blue (indigo/violet/plum/cyan/teal + one amber-dusk); the full hue wheel
+  produced lime/yellow-green that read as cheap.
+- **Defaults removed after review:** time-of-day greeting heading → "audio" wordmark + one resume hero; identical
+  continue cards → hero + rows; "1:01 · Sep 21" middle-dot meta → duration in a right column (tabular figures)
+  and "Added …"/"Recorded …"; "MP3 · Added …" on the player → "Added …"; now-playing overlay on artwork → amber bars
+  in the row's trailing slot; decorative circles on artwork removed.
+- Tried and dropped: letter glyph artwork; full hue rotation; wavy seek bar (user asked for straight).
+
 ### Open problems
+
+- **Slow cold start (found on the emulator):** first frame after 9–14 s (`ActivityTaskManager: Displayed … +13s854ms`,
+  debug build, emulator). Not investigated yet — needs a startup trace (e.g. `adb shell am start -W`, Perfetto, or
+  timing around `DatabaseManager.initializeWithRecovery` + `startKoin` in `MainApplication`) before any fix.
 
 - `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and
   never again. Details below.

@@ -9,7 +9,6 @@
     <string name="library_sort_newest">Newest</string>
     <string name="library_sort_title_ascending">A–Z</string>
     <string name="library_sort_title_descending">Z–A</string>
-    <string name="track_subtitle">%1$s · %2$s</string>
     <string name="track_duration_unknown">–:––</string>
     <string name="import_action">Import</string>
     <string name="import_queued">Waiting…</string>
@@ -70,12 +69,7 @@
     <string name="record_action">Record</string>
     <string name="account_menu">Account</string>
     <string name="player_now_playing">Now playing</string>
-    <string name="player_details">%1$s · Added %2$s</string>
-    <string name="player_details_recorded">Recorded %1$s</string>
     <string name="home_title">Home</string>
-    <string name="greeting_morning">Good morning</string>
-    <string name="greeting_afternoon">Good afternoon</string>
-    <string name="greeting_evening">Good evening</string>
     <string name="home_play_all">Play all</string>
     <string name="home_shuffle">Shuffle</string>
     <string name="home_continue">Continue listening</string>
@@ -108,4 +102,10 @@
     <string name="tab_home">Home</string>
     <string name="tab_library">Library</string>
     <string name="record_listening">Recording</string>
+    <string name="track_added_on">Added %1$s</string>
+    <string name="track_recorded_on">Recorded %1$s</string>
+    <string name="home_wordmark">audio</string>
+    <string name="home_resume">Resume</string>
+    <string name="home_play">Play</string>
+    <string name="home_newest">Newest in your library</string>
 </resources>
