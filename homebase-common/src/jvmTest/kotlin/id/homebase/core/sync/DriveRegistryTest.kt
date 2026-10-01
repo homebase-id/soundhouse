@@ -21,7 +21,6 @@ import id.homebase.api.serialization.OdinSystemSerializer
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.api.sync.database.MainIndexMetaHelpers
 import id.homebase.core.config.LabeledDrive
-import id.homebase.core.config.feedLabeledDrive
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +43,9 @@ import kotlin.test.assertTrue
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalCoroutinesApi::class)
+// The registry stores whatever optional drives the app activates; Chat's Feed drive is just a stand-in.
+private val feedLabeledDrive = LabeledDrive(drive = SystemDriveConstants.feedDrive, label = "Feed")
+
 class DriveRegistryTest {
 
     // ---------- loadDrives (read path) ----------

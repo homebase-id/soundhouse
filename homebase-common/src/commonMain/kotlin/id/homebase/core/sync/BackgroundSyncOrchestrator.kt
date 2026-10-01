@@ -6,7 +6,6 @@ import id.homebase.api.client.drives.files.DriveFileHttpProvider
 import id.homebase.api.sync.DriveSyncManager
 import id.homebase.api.youauth.YouAuthState
 import id.homebase.core.auth.AuthConnectionCoordinator
-import id.homebase.core.config.chatTargetDrive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
