@@ -1,8 +1,78 @@
 # Homebase Simple Audio — build log
 
+## Final summary (2026-09-30)
+
+All six required features are built on branch `audio-player` (local commits only, no remote). Final run: every
+jvmTest rerun from scratch across all modules, 2,348 tests, 0 failures; `liveTest` 7/7 against the real test
+identity, output checked for the token and secret (none present). The gate (`scripts/gate.sh --apps`: JVM, Android
+and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDebug`,
+`desktopApp:createDistributable`) is green at every commit.
+
+### What works, per platform
+
+| | Desktop (JVM) | Android | iOS |
+|---|---|---|---|
+| Sign in (YouAuth, Audio drive R/W only) | ✅ loopback callback | ✅ `homebase-audio://` deep link | compiles |
+| Library: list, sort, search, live updates | ✅ | ✅ | compiles |
+| Import with progress + title/duration | ✅ (bundled ffprobe) | ✅ (MediaMetadataRetriever) | compiles (duration only, no Ogg) |
+| Streaming playback, seek, next/previous | ✅ (ffmpeg over loopback HTTP) | ✅ MediaPlayer over loopback HTTP — **not run on a device** | stub: `AVAudioPlayer` can't stream |
+| Record → preview → name → save | ✅ (WAV) | ✅ (AAC/m4a) | compiles |
+| Offline download, plays from disk, remove | ✅ | ✅ | compiles |
+| Rename, delete (with confirmation) | ✅ | ✅ | compiles |
+| Stretch: mini-player | ✅ | ✅ | compiles |
+| Stretch: background playback + media controls | n/a (keeps playing) | built (foreground service + MediaSession) — **not run on a device** | — |
+
+### What liveTest proved against the real server
+
+1. Upload of an mp3 with monotonic progress, then query-batch finds it with the right title and size.
+2. Decrypted range reads from byte 0, mid-file and the tail; a full download that is byte-identical to the original.
+3. Rename, including a range read after the rename. This found the server's mustRotateKeyHeaderIvWhenUpdating rule.
+4. Soft delete.
+5. The copied drive sync pulls an upload into the local index the Library reads, and drops it after delete.
+6. The real importer reads title and duration with ffprobe and uploads.
+7. The loopback stream server serves drive ranges, and ffmpeg probes the URL and decodes from a 4 s seek.
+8. A recorded-clip round trip, using a WAV synthesized in the desktop recorder's exact format.
+9. An offline copy is byte-identical and plays from disk; after removal, playback streams again.
+10. Rename and delete through `TrackManager`, the local index, the download store and the queue together.
+
+### Stubbed / not done
+
+- **iOS:** compiles, including test sources, but there's no Xcode host app (stretch) and no streaming (needs an
+  `AVPlayer`-based `AudioPlayer`).
+- **Android:** playback and background controls are built but have not been run on a device or emulator in this
+  session. Desktop is the platform proven end to end.
+- **Playlists:** not started (stretch).
+- **Desktop packaging** bundles only the build host's ffmpeg. A Windows or Linux build has to be made on that OS.
+
+### Open problems
+
+- `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and
+  never again. Details below.
+- Copied homebase-common jvmTests write non-secret keys (`pending_upgrade_first_seen_ms`,
+  `location_last_step_cumulative`) to the dev app dir's `shared_preferences.properties`, the same way they wrote to
+  `HomebaseChatDev` in chat-kmp.
+
+### How to sign in and try it by hand
+
+- **Desktop:** `./gradlew desktopApp:run`. Enter your Homebase identity, approve in the browser (Read+Write on the
+  Audio drive only), and the browser returns to the app via a localhost callback. Dev data lives in
+  `~/Library/Application Support/HomebaseSimpleAudioDev`.
+- **Android:** `./gradlew androidApp:installDebug` (`id.homebase.audio.debug`). Sign in the same way; the owner page
+  redirects back through `homebase-audio://`.
+- Then: **Import** (FAB) picks audio files; tap a track to stream it; the ⋮ menu has Download / Remove download /
+  Rename / Delete; the mic in the top bar records.
+- **Live tests:** `./gradlew :audio-app:liveTest` (needs `~/.config/homebase-audio-test/session.json`; never logs
+  it out).
+
+### Before real use / before the first PR
+
+- **Give the app its own app ID.** It signs in as Homebase Chat (`2d78140138044b57b4aad8e4e2ef39f4`). Change
+  `AppConfig.APP_ID` and `AppConfig.APP_SLUG` together.
+- **Run `/simplify`** on the branch before opening the first PR.
+
 ## Status
 
-- **Current phase:** Phase 2 features 1–6 done; stretch: mini-player done. Next: playlists or iOS host app (remaining stretch goals).
+- **Current phase:** Done (features 1–6 + mini-player + Android background playback). Remaining stretch: playlists, iOS host app.
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -72,6 +142,8 @@
 ## Next
 
 - Remaining stretch goals: playlists, iOS Xcode host app (and an `AVPlayer`-based iOS player for streaming).
+- Also added: `AudioModulesTest` resolves the whole Koin graph (every screen's view model and every service) against
+  a temp `user.home`, so wiring mistakes fail in jvmTest instead of after sign-in.
 
 ## Decisions
 
