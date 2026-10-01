@@ -144,10 +144,19 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
 
 ### Open problems
 
-- **Slow cold start (found on the emulator):** first frame after 9–14 s (`ActivityTaskManager: Displayed … +13s854ms`,
-  debug build, emulator). Not investigated yet — needs a startup trace (e.g. `adb shell am start -W`, Perfetto, or
-  timing around `DatabaseManager.initializeWithRecovery` + `startKoin` in `MainApplication`) before any fix.
-
+- **Slow cold start — traced 2026-10-01** (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed,
+  8.3–10.4 s after `cmd package compile -m speed` (so 3–4 s is debug/JIT/verification overhead that a
+  release + baseline-profile install wouldn't pay). ART sampling trace (`am start --start-profiler … --sampling
+  500`) of the main thread: `handleBindApplication` 2.4 s, of which `MainApplication.onCreate` 2.0 s =
+  **HTTP client creation 1.25 s** (built eagerly via the `createdAtStart` auth coordinator; 0.48 s of it is
+  `HttpClientProviderKt.<clinit>`) + **SQLCipher DB open 0.5 s** (runBlocking); first frames 7.1 s
+  (recompose 3.3 s, draw 3.0 s, measure/layout 1.9 s) with no single app hotspot — framework text/layout/draw
+  running cold, emulator GL is software (`EGL_emulation`); `stringResource` first load 0.36 s blocking.
+- **Found while tracing — the app syncs other apps' drives:** the copied `DriveRegistry` (registry file on the
+  Chat drive) served Moments, Location and Stickers, and `AuthConnectionCoordinator` mounted them, synced them and
+  put them on the websocket (`WS[1] ctor (drives=4)`). Possible only because the borrowed Chat app ID's
+  registration grants those drives (`readable drive grants resolved (count=13)`). The audio app should mount the
+  Audio drive only.
 - `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and
   never again. Details below.
 - Copied homebase-common jvmTests write non-secret keys (`pending_upgrade_first_seen_ms`,
