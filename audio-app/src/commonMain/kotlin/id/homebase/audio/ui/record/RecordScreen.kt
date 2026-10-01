@@ -1,6 +1,11 @@
 package id.homebase.audio.ui.record
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Mic
@@ -27,6 +34,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -37,6 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.homebase.audio.resources.AR
@@ -47,6 +58,7 @@ import id.homebase.audio.resources.record_discard
 import id.homebase.audio.resources.record_failed
 import id.homebase.audio.resources.record_grant_permission
 import id.homebase.audio.resources.record_hint
+import id.homebase.audio.resources.record_listening
 import id.homebase.audio.resources.record_name_label
 import id.homebase.audio.resources.record_permission_needed
 import id.homebase.audio.resources.record_preview_pause
@@ -56,11 +68,15 @@ import id.homebase.audio.resources.record_save
 import id.homebase.audio.resources.record_start
 import id.homebase.audio.resources.record_stop
 import id.homebase.audio.resources.record_title
+import id.homebase.audio.ui.common.LevelBars
 import id.homebase.audio.ui.common.formatDateTime
 import id.homebase.audio.ui.common.formatDuration
 import id.homebase.core.audio.rememberRecordAudioPermissionState
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
+
+private const val LIVE_BARS = 48
+private const val PREVIEW_BARS = 56
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,82 +108,165 @@ fun RecordScreen(viewModel: RecordViewModel, onBack: () -> Unit, onSaved: () -> 
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            when (uiState.phase) {
-                RecordPhase.Idle -> if (permission.hasPermission) {
-                    RecordButton(recording = false, onClick = { viewModel.startRecording(defaultName) })
-                    Spacer(Modifier.height(16.dp))
-                    Text(stringResource(AR.string.record_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    Text(stringResource(AR.string.record_permission_needed), style = MaterialTheme.typography.bodyLarge)
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = permission::requestPermission) { Text(stringResource(AR.string.record_grant_permission)) }
-                }
-
-                RecordPhase.Recording -> {
-                    Text(formatDuration(uiState.elapsedMs), style = MaterialTheme.typography.displayMedium)
-                    Spacer(Modifier.height(32.dp))
-                    RecordButton(recording = true, onClick = viewModel::stopRecording)
-                }
-
-                RecordPhase.Recorded -> Recorded(uiState, viewModel, defaultName)
-            }
-        }
-    }
-}
-
-@Composable
-private fun RecordButton(recording: Boolean, onClick: () -> Unit) {
-    FilledIconButton(
-        onClick = onClick,
-        modifier = Modifier.size(96.dp),
-        colors = IconButtonDefaults.filledIconButtonColors(
-            containerColor = if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-        ),
-    ) {
-        if (recording) {
-            Icon(Icons.Filled.Stop, contentDescription = stringResource(AR.string.record_stop), modifier = Modifier.size(48.dp))
-        } else {
-            Icon(Icons.Filled.Mic, contentDescription = stringResource(AR.string.record_start), modifier = Modifier.size(48.dp))
-        }
-    }
-}
-
-@Composable
-private fun Recorded(uiState: RecordUiState, viewModel: RecordViewModel, defaultName: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        FilledIconButton(onClick = viewModel::togglePreview, modifier = Modifier.size(64.dp)) {
-            if (uiState.isPreviewPlaying) {
-                Icon(Icons.Filled.Pause, contentDescription = stringResource(AR.string.record_preview_pause))
-            } else {
-                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(AR.string.record_preview_play))
-            }
-        }
-        Spacer(Modifier.size(16.dp))
-        Text(
-            stringResource(AR.string.record_preview_time, formatDuration(uiState.previewPositionMs), formatDuration(uiState.previewDurationMs)),
-            style = MaterialTheme.typography.titleMedium,
+        RecordContent(
+            uiState = uiState,
+            hasPermission = permission.hasPermission,
+            onRequestPermission = permission::requestPermission,
+            onStart = { viewModel.startRecording(defaultName) },
+            onStop = viewModel::stopRecording,
+            onTogglePreview = viewModel::togglePreview,
+            onSeekPreview = viewModel::seekPreview,
+            onNameChange = viewModel::onNameChange,
+            onSave = viewModel::save,
+            onDiscard = viewModel::discard,
+            modifier = Modifier.fillMaxSize().padding(padding),
         )
+    }
+}
+
+@Composable
+fun RecordContent(
+    uiState: RecordUiState,
+    hasPermission: Boolean,
+    onRequestPermission: () -> Unit,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onTogglePreview: () -> Unit,
+    onSeekPreview: (Float) -> Unit,
+    onNameChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDiscard: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        when (uiState.phase) {
+            RecordPhase.Idle -> if (hasPermission) {
+                PulsingRecordButton(recording = false, level = 0f, onClick = onStart)
+                Spacer(Modifier.height(24.dp))
+                Text(stringResource(AR.string.record_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text(stringResource(AR.string.record_permission_needed), style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = onRequestPermission) { Text(stringResource(AR.string.record_grant_permission)) }
+            }
+
+            RecordPhase.Recording -> {
+                Text(
+                    formatDuration(uiState.elapsedMs),
+                    style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum"),
+                    fontWeight = FontWeight.Light,
+                )
+                Text(
+                    stringResource(AR.string.record_listening),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                Spacer(Modifier.height(32.dp))
+                LevelBars(
+                    levels = uiState.levels.takeLast(LIVE_BARS),
+                    slots = LIVE_BARS,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth().height(96.dp),
+                )
+                Spacer(Modifier.height(40.dp))
+                PulsingRecordButton(recording = true, level = uiState.levels.lastOrNull() ?: 0f, onClick = onStop)
+            }
+
+            RecordPhase.Recorded -> Recorded(uiState, onTogglePreview, onSeekPreview, onNameChange, onSave, onDiscard, onStart)
+        }
+    }
+}
+
+@Composable
+private fun PulsingRecordButton(recording: Boolean, level: Float, onClick: () -> Unit) {
+    val halo by animateFloatAsState(if (recording) 1f + level * 0.55f else 1f, animationSpec = spring(stiffness = 600f))
+    val haloColor = if (recording) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(168.dp)) {
+        Box(Modifier.size(112.dp).scale(halo).background(haloColor, CircleShape))
+        FilledIconButton(
+            onClick = onClick,
+            modifier = Modifier.size(96.dp),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            ),
+        ) {
+            if (recording) {
+                Icon(Icons.Filled.Stop, contentDescription = stringResource(AR.string.record_stop), modifier = Modifier.size(44.dp))
+            } else {
+                Icon(Icons.Filled.Mic, contentDescription = stringResource(AR.string.record_start), modifier = Modifier.size(44.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun Recorded(
+    uiState: RecordUiState,
+    onTogglePreview: () -> Unit,
+    onSeekPreview: (Float) -> Unit,
+    onNameChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDiscard: () -> Unit,
+    onRecordAgain: () -> Unit,
+) {
+    val duration = uiState.previewDurationMs.coerceAtLeast(1)
+    val played = (uiState.previewPositionMs.toFloat() / duration).coerceIn(0f, 1f)
+    Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            LevelBars(
+                levels = waveformBars(uiState.levels, PREVIEW_BARS),
+                color = MaterialTheme.colorScheme.outlineVariant,
+                playedColor = MaterialTheme.colorScheme.primary,
+                playedFraction = played,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(72.dp)
+                    .pointerInput(Unit) { detectTapGestures { onSeekPreview(it.x / size.width) } },
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FilledIconButton(onClick = onTogglePreview, modifier = Modifier.size(52.dp)) {
+                    if (uiState.isPreviewPlaying) {
+                        Icon(Icons.Filled.Pause, contentDescription = stringResource(AR.string.record_preview_pause))
+                    } else {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(AR.string.record_preview_play))
+                    }
+                }
+                Spacer(Modifier.size(16.dp))
+                Text(
+                    stringResource(
+                        AR.string.record_preview_time,
+                        formatDuration(uiState.previewPositionMs),
+                        formatDuration(uiState.previewDurationMs),
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
     }
     Spacer(Modifier.height(24.dp))
     OutlinedTextField(
         value = uiState.name,
-        onValueChange = viewModel::onNameChange,
+        onValueChange = onNameChange,
         label = { Text(stringResource(AR.string.record_name_label)) },
         singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth(),
     )
     Spacer(Modifier.height(24.dp))
-    Button(onClick = viewModel::save, enabled = uiState.name.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+    Button(onClick = onSave, enabled = uiState.name.isNotBlank(), modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth()) {
         Text(stringResource(AR.string.record_save))
     }
     Spacer(Modifier.height(8.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        TextButton(onClick = viewModel::discard) { Text(stringResource(AR.string.record_discard)) }
-        OutlinedButton(onClick = { viewModel.startRecording(defaultName) }) { Text(stringResource(AR.string.record_again)) }
+    Row(Modifier.widthIn(max = 480.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        TextButton(onClick = onDiscard) { Text(stringResource(AR.string.record_discard)) }
+        OutlinedButton(onClick = onRecordAgain) { Text(stringResource(AR.string.record_again)) }
     }
 }

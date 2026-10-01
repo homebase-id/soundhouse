@@ -28,6 +28,9 @@ import id.homebase.audio.ui.library.SearchPill
 import id.homebase.audio.ui.library.TrackActions
 import id.homebase.audio.ui.library.TrackRow
 import id.homebase.audio.ui.player.MiniPlayer
+import id.homebase.audio.ui.record.RecordContent
+import id.homebase.audio.ui.record.RecordPhase
+import id.homebase.audio.ui.record.RecordUiState
 import id.homebase.audio.ui.player.PlayerScreen
 import id.homebase.audio.ui.player.PlayerViewModel
 import id.homebase.core.audio.AudioPlaybackObserver
@@ -144,6 +147,29 @@ class UiRenderTest {
         )
         for (dark in listOf(false, true)) render("home", dark, height = 1100) {
             HomeContent(state, {}, {}, {}, {}, {}, {}, actions = {})
+        }
+    }
+
+    @Test
+    fun `record screen renders while recording and in preview`() {
+        val levels = List(140) { i -> (kotlin.math.sin(i / 4.0) * 0.4 + 0.5 + (i % 7) * 0.03).toFloat().coerceIn(0f, 1f) }
+        val recording = RecordUiState(phase = RecordPhase.Recording, elapsedMs = 83_000, levels = levels)
+        val recorded = RecordUiState(
+            phase = RecordPhase.Recorded,
+            name = "Kitchen idea",
+            levels = levels,
+            previewDurationMs = 11_200,
+            previewPositionMs = 4_100,
+            isPreviewPlaying = true,
+        )
+        for ((name, state) in listOf("record-live" to recording, "record-preview" to recorded)) {
+            render(name, dark = false) {
+                RecordContent(
+                    uiState = state, hasPermission = true, onRequestPermission = {}, onStart = {}, onStop = {},
+                    onTogglePreview = {}, onSeekPreview = {}, onNameChange = {}, onSave = {}, onDiscard = {},
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
+                )
+            }
         }
     }
 

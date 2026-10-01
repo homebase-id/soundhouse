@@ -61,6 +61,7 @@ class RecordViewModelTest {
             path = fileName
         }
         override fun stopRecording(): String? = path?.also { File(it).writeBytes(ByteArray(bytes)) }
+        override fun currentLevel(): Float = 0.25f
     }
 
     private class SilentPlayer : AudioPlayer {
@@ -103,6 +104,8 @@ class RecordViewModelTest {
         val (vm, importer) = viewModel(recorder, target)
         vm.startRecording("Recording default")
         assertEquals("Recording default", vm.awaitPhase(RecordPhase.Recording).name)
+        val levels = withTimeout(5_000) { vm.uiState.first { it.levels.size >= 3 } }.levels
+        assertTrue(levels.all { it == 0.5f }, "levels should be the square root of the recorder's 0.25: $levels")
         vm.stopRecording()
         vm.awaitPhase(RecordPhase.Recorded)
         vm.onNameChange("Kitchen idea")

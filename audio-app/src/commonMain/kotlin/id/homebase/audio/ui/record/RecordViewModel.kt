@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock
+import kotlin.math.sqrt
 import kotlin.time.TimeSource
 
 enum class RecordPhase { Idle, Recording, Recorded }
@@ -38,7 +39,21 @@ data class RecordUiState(
     val isPreviewPlaying: Boolean = false,
     val previewPositionMs: Long = 0,
     val previewDurationMs: Long = 0,
+    /** Input level samples (0..1) taken every [LEVEL_INTERVAL_MS] while recording. */
+    val levels: List<Float> = emptyList(),
 )
+
+const val LEVEL_INTERVAL_MS = 80L
+
+/** Averages [levels] into [bars] buckets for a fixed-width waveform; short clips are stretched, not padded. */
+fun waveformBars(levels: List<Float>, bars: Int): List<Float> {
+    if (levels.isEmpty() || bars <= 0) return emptyList()
+    return List(bars) { bar ->
+        val from = bar * levels.size / bars
+        val to = maxOf(from + 1, (bar + 1) * levels.size / bars)
+        levels.subList(from, minOf(to, levels.size)).average().toFloat()
+    }
+}
 
 sealed interface RecordEvent {
     data object Saved : RecordEvent
@@ -90,8 +105,12 @@ class RecordViewModel(
                 val started = TimeSource.Monotonic.markNow()
                 timerJob = launch {
                     while (true) {
-                        _uiState.update { it.copy(elapsedMs = started.elapsedNow().inWholeMilliseconds) }
-                        delay(200)
+                        // Square root lifts quiet speech so the meter moves like the ear hears it.
+                        val level = sqrt(recorder.currentLevel().coerceIn(0f, 1f))
+                        _uiState.update {
+                            it.copy(elapsedMs = started.elapsedNow().inWholeMilliseconds, levels = it.levels + level)
+                        }
+                        delay(LEVEL_INTERVAL_MS)
                     }
                 }
             } catch (e: CancellationException) {
@@ -132,6 +151,21 @@ class RecordViewModel(
                 if (state.previewPositionMs > 0) previewPlayer.resume() else previewPlayer.play(path)
                 _uiState.update { it.copy(isPreviewPlaying = true) }
             }
+        }
+    }
+
+    fun seekPreview(fraction: Float) {
+        val path = recordingPath ?: return
+        val state = _uiState.value
+        if (state.phase != RecordPhase.Recorded || state.previewDurationMs <= 0) return
+        val target = (fraction.coerceIn(0f, 1f) * state.previewDurationMs).toLong()
+        _uiState.update { it.copy(previewPositionMs = target) }
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!state.isPreviewPlaying && state.previewPositionMs == 0L) {
+                previewPlayer.play(path)
+                _uiState.update { it.copy(isPreviewPlaying = true) }
+            }
+            previewPlayer.jumpTo(target)
         }
     }
 

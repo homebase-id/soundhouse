@@ -67,6 +67,7 @@ class JvmAudioRecorder : AudioRecorder {
                         val bytesRead = line?.read(buffer, 0, buffer.size) ?: 0
 
                         if (bytesRead > 0) {
+                            peakSinceLastRead = maxOf(peakSinceLastRead, peakOf(buffer, bytesRead, format))
                             outputStream.write(buffer, 0, bytesRead)
                             totalBytesRead += bytesRead
 
@@ -115,6 +116,24 @@ class JvmAudioRecorder : AudioRecorder {
             Logger.e(throwable = e, tag = TAG) { "Failed to start recording" }
             throw e
         }
+    }
+
+    @Volatile
+    private var peakSinceLastRead = 0f
+
+    override fun currentLevel(): Float = peakSinceLastRead.also { peakSinceLastRead = 0f }
+
+    private fun peakOf(buffer: ByteArray, length: Int, format: AudioFormat): Float {
+        if (format.sampleSizeInBits != 16) return 0f
+        var peak = 0
+        var i = 0
+        while (i + 1 < length) {
+            val sample = if (format.isBigEndian) (buffer[i].toInt() shl 8) or (buffer[i + 1].toInt() and 0xff)
+            else (buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xff)
+            peak = maxOf(peak, kotlin.math.abs(sample.toShort().toInt()))
+            i += 2
+        }
+        return peak / 32767f
     }
 
     override fun stopRecording(): String? {

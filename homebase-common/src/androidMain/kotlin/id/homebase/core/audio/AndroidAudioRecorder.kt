@@ -34,6 +34,10 @@ class AndroidAudioRecorder(
         }
     }
 
+    // MediaRecorder reports the peak since the last call, which is exactly a poll interval's level.
+    override fun currentLevel(): Float =
+        runCatching { (recorder?.maxAmplitude ?: 0) / 32767f }.getOrDefault(0f).coerceIn(0f, 1f)
+
     override fun stopRecording(): String? {
         recorder?.stop()
         recorder?.release()

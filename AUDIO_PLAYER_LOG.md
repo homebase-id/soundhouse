@@ -106,6 +106,14 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
   removes local rows the server no longer has — only when the listing succeeds completely. Test cleanup now soft
   deletes before hard deleting.
 
+### Recording screen polish (2026-10-01)
+
+- `AudioRecorder.currentLevel()` (new, default 0 so other actuals are untouched): Android
+  `MediaRecorder.maxAmplitude`, desktop peak of each captured 16-bit buffer; iOS not measured yet.
+- Record screen: large timer, live level meter (square-root scaled so speech reads naturally), stop button whose halo
+  follows the input level; preview card with a waveform built from the levels captured while recording (no second
+  decode), filled up to the play position, tap to seek. `RecordContent` is stateless and rendered by `UiRenderTest`.
+
 ### Open problems
 
 - `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and
