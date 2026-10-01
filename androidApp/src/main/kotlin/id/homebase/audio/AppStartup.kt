@@ -5,6 +5,8 @@ import id.homebase.api.sync.database.DatabaseDriverFactory
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.audio.di.allAudioModules
 import id.homebase.audio.di.startAudioServices
+import id.homebase.audio.importing.TrackImporter
+import id.homebase.audio.importing.isActive
 import id.homebase.audio.playback.PlaybackController
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
@@ -43,6 +45,14 @@ object AppStartup {
             }
             koin.startAudioServices()
             _ready.value = true
+
+            launch {
+                koin.get<TrackImporter>().jobs
+                    .map { jobs -> jobs.any { it.isActive } }
+                    .distinctUntilChanged()
+                    .filter { it }
+                    .collect { launch(Dispatchers.Main) { UploadService.start(app) } }
+            }
 
             // The service owns the foreground state; it is started whenever a track starts loading.
             koin.get<PlaybackController>().state

@@ -125,6 +125,8 @@ class LibraryViewModel(
 
     fun dismissImport(id: Uuid) = importer.dismiss(id)
 
+    fun retryImport(id: Uuid) = importer.retry(id)
+
     fun clearFinishedImports() = importer.clearFinished()
 }
 

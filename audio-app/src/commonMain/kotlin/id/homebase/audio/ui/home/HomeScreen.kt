@@ -66,6 +66,8 @@ import id.homebase.audio.ui.common.formatDuration
 import id.homebase.audio.ui.common.playedAgo
 import id.homebase.audio.ui.common.timeLeft
 import id.homebase.audio.ui.library.EmptyLibrary
+import id.homebase.audio.ui.library.ImportPanel
+import kotlin.uuid.Uuid
 import io.github.vinceglb.filekit.dialogs.FileKitMode
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
@@ -92,6 +94,9 @@ fun HomeScreen(
         onResume = { viewModel.resume(it); onOpenPlayer() },
         onPlayRecent = { viewModel.playRecent(it); onOpenPlayer() },
         onPlayAdded = { viewModel.playAdded(it); onOpenPlayer() },
+        onDismissImport = viewModel::dismissImport,
+        onRetryImport = viewModel::retryImport,
+        onClearFinishedImports = viewModel::clearFinishedImports,
         actions = actions,
     )
 }
@@ -106,6 +111,9 @@ fun HomeContent(
     onResume: (ListenedTrack) -> Unit,
     onPlayRecent: (ListenedTrack) -> Unit,
     onPlayAdded: (AudioTrack) -> Unit,
+    onDismissImport: (Uuid) -> Unit,
+    onRetryImport: (Uuid) -> Unit,
+    onClearFinishedImports: () -> Unit,
     actions: @Composable () -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -124,8 +132,11 @@ fun HomeContent(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = 24.dp),
         ) {
+            if (uiState.imports.isNotEmpty()) {
+                item { ImportPanel(jobs = uiState.imports, onDismiss = onDismissImport, onRetry = onRetryImport, onClearFinished = onClearFinishedImports) }
+            }
             if (uiState.totalTracks == 0) {
-                item { EmptyLibrary(onImport = onImport, onRecord = onOpenRecorder) }
+                if (uiState.imports.isEmpty()) item { EmptyLibrary(onImport = onImport, onRecord = onOpenRecorder) }
                 return@LazyColumn
             }
             val resume = uiState.continueListening.firstOrNull()

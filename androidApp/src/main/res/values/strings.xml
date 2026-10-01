@@ -1,8 +1,11 @@
 <resources>
-    <string name="app_name">Homebase Simple Audio</string>
+    <string name="app_name">Simply Audio</string>
     <string name="playback_channel">Playback</string>
     <string name="playback_play">Play</string>
     <string name="playback_pause">Pause</string>
     <string name="playback_next">Next</string>
     <string name="playback_previous">Previous</string>
+    <string name="upload_channel">Uploads</string>
+    <string name="upload_notification_title">Uploading to your Homebase</string>
+    <string name="upload_notification_retrying">Connection lost. Trying again shortly…</string>
 </resources>

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Homebase Simple Audio</string>
+    <string name="app_name">Simply Audio</string>
     <string name="sign_out">Sign out</string>
     <string name="library_no_matches">No tracks match your search</string>
     <string name="library_search_hint">Search by title</string>
@@ -14,7 +14,16 @@
     <string name="import_queued">Waiting…</string>
     <string name="import_done">Added to your library</string>
     <string name="import_failed">Couldn't upload this file</string>
+    <string name="import_failed_connection">The connection dropped during the upload. Check your connection and try again.</string>
+    <string name="import_failed_too_large">This file is too large for your Homebase to accept.</string>
+    <string name="import_failed_not_allowed">Your Homebase didn't allow this upload. Sign out and in again, then retry.</string>
+    <string name="import_failed_server">Your Homebase couldn't save this file. Try again later.</string>
+    <string name="import_failed_unreadable">Couldn't read this file on your device.</string>
     <string name="import_dismiss">Dismiss</string>
+    <string name="import_retry">Retry upload</string>
+    <string name="import_retrying">Connection lost. Trying again shortly…</string>
+    <string name="upload_channel">Uploads</string>
+    <string name="upload_notification_title">Uploading to your Homebase</string>
     <string name="import_clear_finished">Clear finished</string>
     <string name="navigate_back">Back</string>
     <string name="player_play">Play</string>

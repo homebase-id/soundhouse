@@ -8,6 +8,7 @@ import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.data.TrackStore
 import id.homebase.audio.history.ListenEntry
 import id.homebase.audio.history.ListeningHistory
+import id.homebase.audio.importing.ImportJob
 import id.homebase.audio.importing.TrackImporter
 import id.homebase.audio.importing.enqueuePicked
 import id.homebase.audio.playback.PlaybackController
@@ -52,7 +53,7 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch {
-            combine(trackStore.tracks, trackStore.isLoaded, history.entries, playback.state) { tracks, loaded, entries, playing ->
+            combine(trackStore.tracks, trackStore.isLoaded, history.entries, playback.state, importer.jobs) { tracks, loaded, entries, playing, jobs ->
                 val (continueListening, recentlyPlayed, recentlyAdded) = dashboardSections(tracks, entries)
                 HomeUiState(
                     isLoaded = loaded,
@@ -63,6 +64,7 @@ class HomeViewModel(
                     recentlyAdded = recentlyAdded,
                     nowPlayingId = playing.current?.fileId,
                     isPlaying = playing.isPlaying || playing.isLoading,
+                    imports = jobs,
                 )
             }.collect { state -> _uiState.update { state } }
         }
@@ -92,6 +94,12 @@ class HomeViewModel(
     fun onFilesPicked(files: List<PlatformFile>) {
         viewModelScope.launch { enqueuePicked(files, importer, fileOps) }
     }
+
+    fun dismissImport(id: Uuid) = importer.dismiss(id)
+
+    fun retryImport(id: Uuid) = importer.retry(id)
+
+    fun clearFinishedImports() = importer.clearFinished()
 }
 
 @Immutable
@@ -104,4 +112,5 @@ data class HomeUiState(
     val recentlyAdded: List<AudioTrack> = emptyList(),
     val nowPlayingId: Uuid? = null,
     val isPlaying: Boolean = false,
+    val imports: List<ImportJob> = emptyList(),
 )

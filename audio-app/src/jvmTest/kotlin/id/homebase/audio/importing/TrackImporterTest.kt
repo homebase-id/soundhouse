@@ -1,6 +1,8 @@
 package id.homebase.audio.importing
 
+import id.homebase.api.client.NetworkException
 import id.homebase.api.client.drives.HomebaseFile
+import id.homebase.api.file.SourceUnavailableException
 import id.homebase.audio.data.AudioTrackContent
 import id.homebase.audio.data.TestFileOps
 import id.homebase.audio.data.TrackOrigin
@@ -11,11 +13,13 @@ import id.homebase.audio.data.trackContentJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import java.io.File
+import java.net.SocketException
 import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -34,7 +38,11 @@ class TrackImporterTest {
         dir.deleteRecursively()
     }
 
-    private class FakeTarget(private val failFor: String? = null) : TrackUploadTarget {
+    private class FakeTarget(
+        private val failFor: String? = null,
+        private var connectionFailures: Int = 0,
+        private val hang: Boolean = false,
+    ) : TrackUploadTarget {
         val uploaded = mutableListOf<AudioTrackContent>()
         val covers = mutableListOf<ByteArray?>()
         override suspend fun uploadTrack(
@@ -46,7 +54,12 @@ class TrackImporterTest {
             onProgress: (Float) -> Unit,
         ): UploadedTrack {
             covers += coverArt
+            if (hang) awaitCancellation()
             if (content.fileName == failFor) error("server said no")
+            if (connectionFailures > 0) {
+                connectionFailures--
+                throw NetworkException(SocketException("Software caused connection abort"))
+            }
             onProgress(0.5f)
             onProgress(1f)
             uploaded += content
@@ -83,6 +96,14 @@ class TrackImporterTest {
     }
 
     @Test
+    fun `failures are classified by walking the cause chain`() {
+        val dropped = NetworkException(SocketException("Software caused connection abort"))
+        assertEquals(ImportFailure.Connection, importFailureOf(RuntimeException("upload failed", dropped)))
+        assertEquals(ImportFailure.Unreadable, importFailureOf(SourceUnavailableException("/gone.mp3")))
+        assertEquals(ImportFailure.Unknown, importFailureOf(IllegalStateException("boom")))
+    }
+
+    @Test
     fun `a failure marks only that job and the queue keeps going`() = runBlocking {
         val importer = TrackImporter(
             FakeTarget(failFor = "bad.mp3"), TestFileOps(dir), scope,
@@ -115,5 +136,111 @@ class TrackImporterTest {
         assertEquals(TrackOrigin.Recorded, target.uploaded.single().origin)
         assertEquals(listOf<ByteArray?>(null), target.covers)
         assertFalse(source.exists())
+    }
+
+    private val queueFile get() = File(dir, "state/imports.json").path
+    private val stagingDir get() = File(dir, "state/imports").path
+
+    private suspend fun TrackImporter.settled() = withTimeout(5_000) {
+        jobs.first { jobs -> jobs.isNotEmpty() && jobs.none { it.isActive } }
+    }
+
+    @Test
+    fun `a dropped connection is retried until the upload lands`() = runBlocking {
+        val target = FakeTarget(connectionFailures = 2)
+        val importer = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) }, retryDelaysMs = listOf(1, 1, 1),
+        )
+        importer.enqueue(file("big.mp3", 1).path, "big.mp3")
+        assertEquals(ImportStatus.Done, importer.settled().single().status)
+        assertEquals(1, target.uploaded.size)
+    }
+
+    @Test
+    fun `after the last retry the job fails with its reason and keeps its copy for a manual retry`() = runBlocking {
+        val target = FakeTarget(connectionFailures = 3)
+        val importer = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) }, retryDelaysMs = listOf(1, 1),
+            queueFile = queueFile, stagingDir = stagingDir,
+        )
+        val source = file("copy.mp3", 1)
+        importer.enqueue(source.path, "copy.mp3", deleteSourceAfter = true)
+        val failed = importer.settled().single()
+        assertEquals(ImportStatus.Failed, failed.status)
+        assertEquals(ImportFailure.Connection, failed.failure)
+        assertFalse(source.exists())
+        assertEquals(1, File(stagingDir).listFiles()!!.size)
+
+        importer.retry(failed.id)
+        withTimeout(5_000) { importer.jobs.first { it.single().status == ImportStatus.Done } }
+        assertEquals(1, target.uploaded.size)
+        assertTrue(File(stagingDir).listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun `dismissing a failed import deletes its app-owned copy`() = runBlocking {
+        val importer = TrackImporter(
+            FakeTarget(failFor = "bad.mp3"), TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) },
+            queueFile = queueFile, stagingDir = stagingDir,
+        )
+        importer.enqueue(file("bad.mp3", 1).path, "bad.mp3", deleteSourceAfter = true)
+        val failed = importer.settled().single()
+        assertEquals(ImportFailure.Unknown, failed.failure)
+        importer.dismiss(failed.id)
+        assertTrue(importer.jobs.value.isEmpty())
+        assertTrue(File(stagingDir).listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun `the queue survives a restart and picks up where it stopped`() = runBlocking {
+        val firstRun = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val interrupted = TrackImporter(
+            FakeTarget(hang = true), TestFileOps(dir), firstRun, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) },
+            queueFile = queueFile, stagingDir = stagingDir,
+        )
+        interrupted.enqueue(file("long.mp3", 1).path, "long.mp3", deleteSourceAfter = true)
+        withTimeout(5_000) { interrupted.jobs.first { it.single().status == ImportStatus.Uploading } }
+        withTimeout(5_000) { while (!File(queueFile).exists()) kotlinx.coroutines.delay(10) }
+        firstRun.cancel()
+
+        val target = FakeTarget()
+        val resumed = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) },
+            queueFile = queueFile, stagingDir = stagingDir,
+        )
+        assertEquals(ImportStatus.Done, resumed.settled().single().status)
+        assertEquals("long.mp3", target.uploaded.single().fileName)
+        assertTrue(File(stagingDir).listFiles()!!.isEmpty())
+    }
+
+    @Test
+    fun `a failed import is still listed as failed after a restart`() = runBlocking {
+        val firstRun = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val first = TrackImporter(
+            FakeTarget(failFor = "bad.mp3"), TestFileOps(dir), firstRun, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) },
+            queueFile = queueFile, stagingDir = stagingDir,
+        )
+        first.enqueue(file("bad.mp3", 1).path, "bad.mp3", deleteSourceAfter = true)
+        first.settled()
+        withTimeout(5_000) { while (!File(queueFile).readText().contains("Unknown")) kotlinx.coroutines.delay(10) }
+        firstRun.cancel()
+
+        val target = FakeTarget()
+        val second = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) },
+            queueFile = queueFile, stagingDir = stagingDir,
+        )
+        val restored = withTimeout(5_000) { second.jobs.first { it.isNotEmpty() } }.single()
+        assertEquals(ImportStatus.Failed, restored.status)
+        second.retry(restored.id)
+        withTimeout(5_000) { second.jobs.first { it.single().status == ImportStatus.Done } }
+        assertEquals(1, target.uploaded.size)
     }
 }

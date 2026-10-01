@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
@@ -69,6 +70,7 @@ import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.data.TrackOrigin
 import id.homebase.audio.ui.theme.tabular
 import id.homebase.audio.importing.ImportJob
+import id.homebase.audio.importing.ImportFailure
 import id.homebase.audio.importing.ImportStatus
 import id.homebase.audio.resources.AR
 import id.homebase.audio.resources.cancel
@@ -85,6 +87,13 @@ import id.homebase.audio.resources.import_clear_finished
 import id.homebase.audio.resources.import_dismiss
 import id.homebase.audio.resources.import_done
 import id.homebase.audio.resources.import_failed
+import id.homebase.audio.resources.import_retry
+import id.homebase.audio.resources.import_retrying
+import id.homebase.audio.resources.import_failed_connection
+import id.homebase.audio.resources.import_failed_not_allowed
+import id.homebase.audio.resources.import_failed_server
+import id.homebase.audio.resources.import_failed_too_large
+import id.homebase.audio.resources.import_failed_unreadable
 import id.homebase.audio.resources.import_files
 import id.homebase.audio.resources.import_queued
 import id.homebase.audio.resources.library_downloaded_empty
@@ -423,8 +432,17 @@ internal fun DeleteDialog(track: AudioTrack, onConfirm: () -> Unit, onDismiss: (
     )
 }
 
+private fun importFailureReason(failure: ImportFailure?): StringResource? = when (failure) {
+    ImportFailure.Connection -> AR.string.import_failed_connection
+    ImportFailure.TooLarge -> AR.string.import_failed_too_large
+    ImportFailure.NotAllowed -> AR.string.import_failed_not_allowed
+    ImportFailure.Server -> AR.string.import_failed_server
+    ImportFailure.Unreadable -> AR.string.import_failed_unreadable
+    ImportFailure.Unknown, null -> null
+}
+
 @Composable
-internal fun ImportPanel(jobs: List<ImportJob>, onDismiss: (Uuid) -> Unit, onClearFinished: () -> Unit) {
+internal fun ImportPanel(jobs: List<ImportJob>, onDismiss: (Uuid) -> Unit, onRetry: (Uuid) -> Unit, onClearFinished: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         jobs.forEach { job ->
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -440,16 +458,35 @@ internal fun ImportPanel(jobs: List<ImportJob>, onDismiss: (Uuid) -> Unit, onCle
                             progress = { job.progress },
                             modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                         )
+                        ImportStatus.Retrying -> Text(
+                            stringResource(AR.string.import_retrying),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         ImportStatus.Done -> Text(
                             stringResource(AR.string.import_done),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                         )
-                        ImportStatus.Failed -> Text(
-                            stringResource(AR.string.import_failed),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
+                        ImportStatus.Failed -> {
+                            Text(
+                                stringResource(AR.string.import_failed),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            importFailureReason(job.failure)?.let { reason ->
+                                Text(
+                                    stringResource(reason),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+                if (job.status == ImportStatus.Failed) {
+                    IconButton(onClick = { onRetry(job.id) }) {
+                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(AR.string.import_retry))
                     }
                 }
                 if (job.status == ImportStatus.Failed || job.status == ImportStatus.Done) {

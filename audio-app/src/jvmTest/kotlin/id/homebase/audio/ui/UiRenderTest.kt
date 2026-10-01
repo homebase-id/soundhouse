@@ -146,7 +146,7 @@ class UiRenderTest {
             isPlaying = true,
         )
         for (dark in listOf(false, true)) render("home", dark, height = 1100) {
-            HomeContent(state, {}, {}, {}, {}, {}, {}, actions = {})
+            HomeContent(state, {}, {}, {}, {}, {}, {}, {}, {}, {}, actions = {})
         }
     }
 

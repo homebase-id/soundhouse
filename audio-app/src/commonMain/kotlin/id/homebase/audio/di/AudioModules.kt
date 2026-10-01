@@ -18,6 +18,8 @@ import id.homebase.audio.importing.TrackImporter
 import id.homebase.api.file.systemFileSystem
 import id.homebase.audio.download.DownloadStore
 import id.homebase.audio.download.downloadsDirectory
+import id.homebase.audio.download.importQueueFile
+import id.homebase.audio.download.importStagingDirectory
 import id.homebase.audio.download.listeningHistoryFile
 import id.homebase.audio.history.ListeningHistory
 import id.homebase.audio.history.ListeningRecorder
@@ -134,7 +136,13 @@ val audioAppModule = module {
     }
     single {
         val store = get<TrackStore>()
-        TrackImporter(get<AudioDriveApi>(), get(), get(), onUploaded = store::upsert)
+        TrackImporter(
+            get<AudioDriveApi>(), get(), get(),
+            onUploaded = store::upsert,
+            queueFile = importQueueFile(),
+            stagingDir = importStagingDirectory(),
+            eventBus = get(),
+        )
     }
 
     single { AudioStreamServer() }

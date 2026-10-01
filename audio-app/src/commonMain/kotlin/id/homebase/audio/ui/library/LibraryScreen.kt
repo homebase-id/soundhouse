@@ -187,6 +187,7 @@ fun LibraryScreen(
                     ImportPanel(
                         jobs = uiState.imports,
                         onDismiss = viewModel::dismissImport,
+                        onRetry = viewModel::retryImport,
                         onClearFinished = viewModel::clearFinishedImports,
                     )
                 }

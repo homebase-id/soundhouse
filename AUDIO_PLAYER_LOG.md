@@ -164,6 +164,29 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
   no errors). Desktop still ships it (not measured there).
 - **After:** 5.5–9.0 s AOT-compiled (4 runs: 9.0, 7.6, 5.5, 6.5) vs 8.3–10.4 s before.
 
+### Release build, own app ID, "Simply Audio" (2026-10-01)
+
+- Release builds use R8 (shrink + optimise, `-dontobfuscate`, rules adapted from chat-kmp plus `-dontwarn` for the
+  Ktor-server reflection paths that the kotlin-reflect exclusion removes). Launches and streams on the emulator and a
+  Galaxy S23; R8 hasn't been exercised beyond that.
+- `:baselineprofile` module (androidx.benchmark 1.5.0) with `StartupProfileGenerator` and `profileinstaller` in the app.
+  Profile not generated yet: it needs a signed-in `id.homebase.audio` on the device to cover Home/Library.
+- Own app registration: new `AppConfig.APP_ID` (generated), slug `audio`, name "Simply Audio" (launcher, window,
+  desktop package, data dir `SimplyAudio[Dev]`). The borrowed Chat ID is gone, so existing installs must sign in again
+  and `liveTest`'s session (minted for the Chat ID) likely needs replacing.
+
+### Imports that survive the background (2026-10-01)
+
+- Cause, reproduced on the emulator: after switching to another app the process becomes cached (oom adj 900) and
+  ~10 s later `ActivityManager: freezing <pid> id.homebase.audio`. A frozen process can't send, so a long upload's
+  connection died ("Software caused connection abort" on the S23) and nothing retried it.
+- `UploadService` (androidApp): `dataSync` foreground service with progress notification plus wake/Wi-Fi locks while
+  any import is queued/uploading/retrying; stops when the queue is idle; `onTimeout` handles Android 15's 6 h cap.
+- `TrackImporter`: connection failures retry with backoff (10 s → 5 min, 5 tries) as `Retrying`; then `Failed` with an
+  `ImportFailure` reason shown in the UI and a Retry button. The queue persists in `imports.json`; app-owned copies
+  move from the cache to `imports/` and are deleted only on success or dismiss. Sign-out drops the queue.
+- Home shows the import panel too. Not verified on a device with a real upload yet (no signed-in emulator).
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first
