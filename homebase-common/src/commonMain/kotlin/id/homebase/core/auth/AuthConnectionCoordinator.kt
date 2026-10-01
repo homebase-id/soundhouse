@@ -82,6 +82,11 @@ class AuthConnectionCoordinator(
      * Authenticated) rather than fail closed (hangs on "syncing").
      */
     startsHeadless: Boolean = false,
+    /**
+     * False for an app that only ever syncs its mandatory drives: the cross-device registry (which
+     * lives on the Chat drive) is never read, so no optional drive is mounted, synced or subscribed.
+     */
+    private val useDriveRegistry: Boolean = true,
 ) {
     // SupervisorJob so one child's failure doesn't cancel its siblings, plus a
     // top-level handler so an *uncaught* exception in any child (notably a transient
@@ -283,7 +288,8 @@ class AuthConnectionCoordinator(
                 // promoteToForeground() a few hundred ms later, so it cannot tell a
                 // background wake from a user-visible cold start at this point.
                 // Unconditional: BG sync's syncAll() needs the drive list.
-                val initialDrives = driveRegistry.bootstrap(deferServerReconcile = true)
+                val initialDrives =
+                    if (useDriveRegistry) driveRegistry.bootstrap(deferServerReconcile = true) else emptyList()
                 // Resolve which optional drives this app token can actually READ before mounting
                 // anything. The registry is the cross-device "activated" list and is NOT
                 // permission-aware: a drive activated on another device (or before a permission
@@ -357,11 +363,7 @@ class AuthConnectionCoordinator(
                 // bootstrap result so the chat-drive sync that later writes the same file
                 // into the local index doesn't trigger a spurious onMount for drives that
                 // are already mounted.
-                driveRegistry.start(
-                    onMount = { drive -> mountDrive(drive, persist = false) },
-                    onUnmount = { driveId -> unmountDrive(driveId, persist = false) },
-                    initialBaseline = initialDrives.mapTo(HashSet()) { it.drive.alias },
-                )
+                startRegistryObserver(initialDrives)
                 scheduleRegistryReconcile(initialDrives)
                 // Resolve read grants off the critical path and prune any live drive we've lost
                 // the grant for (rare). Kicked after connect() so the WS refresh has a client.
@@ -446,11 +448,7 @@ class AuthConnectionCoordinator(
             runPostAuthenticatedOnce()
             connect(extraDrives = drives)
             startPeerConnections(drives)
-            driveRegistry.start(
-                onMount = { drive -> mountDrive(drive, persist = false) },
-                onUnmount = { driveId -> unmountDrive(driveId, persist = false) },
-                initialBaseline = drives.mapTo(HashSet()) { it.drive.alias },
-            )
+            startRegistryObserver(drives)
             scheduleRegistryReconcile(drives)
             loadProfile()
             // Retry point: a cold background wake may have missed the grant fetch on a dead
@@ -541,7 +539,8 @@ class AuthConnectionCoordinator(
         // Filter to drives this app token can read — covers reconnects (extraDrives == null →
         // loadDrives()) and the login/promote paths, so an ungranted drive is never put on the
         // WebSocket subscription where it would make the server close the socket.
-        val optionalDrives = (extraDrives ?: driveRegistry.loadDrives()).retainGrantedDrives()
+        val optionalDrives =
+            (extraDrives ?: if (useDriveRegistry) driveRegistry.loadDrives() else emptyList()).retainGrantedDrives()
         _connectionState.update { it.copy(isConnecting = true) }
         wsClient =
             OdinWebSocketClient(
@@ -711,7 +710,7 @@ class AuthConnectionCoordinator(
      */
     suspend fun mountDrive(drive: LabeledDrive, persist: Boolean = true) {
         // Must not throw: callers activate add-ons from a viewModelScope with no handler.
-        if (persist) driveRegistry.addDriveBestEffort(drive)
+        if (persist && useDriveRegistry) driveRegistry.addDriveBestEffort(drive)
         val owner = drive.ownerOdinId
         val newlyMounted = driveSyncManager.mountDrive(drive.drive.alias, drive.label, owner)
         if (!newlyMounted) {
@@ -796,7 +795,7 @@ class AuthConnectionCoordinator(
      * propagate a permission-denied condition as a registry list mutation to other devices.
      */
     suspend fun unmountDrive(driveId: Uuid, persist: Boolean = true) {
-        if (persist) driveRegistry.removeDrive(driveId)
+        if (persist && useDriveRegistry) driveRegistry.removeDrive(driveId)
         driveSyncManager.unmountDrive(driveId)
         val peer = peerOwnersMutex.withLock { peerDriveOwners.remove(driveId) }
         if (peer != null) {
@@ -922,7 +921,17 @@ class AuthConnectionCoordinator(
      * Cancelled in [disconnect] so a reconcile still in flight at logout can't mount drives
      * into a dead session.
      */
+    private suspend fun startRegistryObserver(baseline: List<LabeledDrive>) {
+        if (!useDriveRegistry) return
+        driveRegistry.start(
+            onMount = { drive -> mountDrive(drive, persist = false) },
+            onUnmount = { driveId -> unmountDrive(driveId, persist = false) },
+            initialBaseline = baseline.mapTo(HashSet()) { it.drive.alias },
+        )
+    }
+
     private fun scheduleRegistryReconcile(known: List<LabeledDrive>) {
+        if (!useDriveRegistry) return
         val knownIds = known.mapTo(HashSet()) { it.drive.alias }
         registryReconcileJob?.cancel()
         registryReconcileJob = scope.launch {

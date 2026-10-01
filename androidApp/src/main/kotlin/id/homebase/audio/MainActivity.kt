@@ -4,6 +4,9 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import id.homebase.api.ActivityProvider
@@ -20,13 +23,18 @@ class MainActivity : AppCompatActivity() {
     private val youAuthFlowManager: YouAuthFlowManager by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen().setKeepOnScreenCondition { !AppStartup.ready.value }
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         ActivityProvider.initialize(this)
         FileKit.manualFileKitCoreInitialization(this)
         FileKit.init(this)
         handleIntent(intent)
-        setContent { AudioApp() }
+        setContent {
+            val ready by AppStartup.ready.collectAsStateWithLifecycle()
+            // The splash covers this; composing AudioApp earlier would build services on the main thread.
+            if (ready) AudioApp()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -41,6 +49,7 @@ class MainActivity : AppCompatActivity() {
         // Gives a sign-in callback that arrives with the resume a chance to land before
         // onAppResumed treats a closed browser as a cancelled login.
         lifecycleScope.launch {
+            AppStartup.awaitReady()
             delay(300)
             youAuthFlowManager.onAppResumed()
         }
@@ -50,7 +59,10 @@ class MainActivity : AppCompatActivity() {
         val data = intent.data ?: return
         if (data.scheme != AppConfig.DEEP_LINK_SCHEME) return
         val callbackUrl = data.toString()
-        lifecycleScope.launch { youAuthFlowManager.handleCallback(callbackUrl) }
+        lifecycleScope.launch {
+            AppStartup.awaitReady()
+            youAuthFlowManager.handleCallback(callbackUrl)
+        }
         intent.data = null
     }
 }

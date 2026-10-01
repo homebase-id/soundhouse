@@ -59,11 +59,19 @@ android {
     }
 }
 
+// ktor-server-core pulls in kotlin-reflect for config-file module loading, which the stream server
+// doesn't use; on the classpath it makes every Ktor typeOf() go through full reflection (~2 s at startup).
+configurations.matching { it.name.endsWith("RuntimeClasspath") }.configureEach {
+    exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
+}
+
 dependencies {
     implementation(project(":audio-app"))
 
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.lifecycle.runtimeCompose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.jetbrains.compose.material3)

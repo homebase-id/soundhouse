@@ -142,21 +142,33 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
   in the row's trailing slot; decorative circles on artwork removed.
 - Tried and dropped: letter glyph artwork; full hue rotation; wavy seek bar (user asked for straight).
 
+### Startup work (2026-10-01)
+
+Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 8.3–10.4 s after
+`cmd package compile -m speed`. The main thread spent 2.0 s in `MainApplication.onCreate` (HTTP client 1.25 s, SQLCipher open
+0.5 s), and the first frames took 7.1 s with no app hotspot. Traced with `am start --start-profiler … --sampling 500`.
+
+- **Audio drive only:** the copied `DriveRegistry` (registry file on the Chat drive) made the coordinator mount,
+  sync and subscribe Moments, Location and Stickers (`WS[1] ctor (drives=4)`). That was possible because the borrowed Chat
+  app ID grants 13 drives. `AuthConnectionCoordinator(useDriveRegistry = false)` skips the registry entirely;
+  verified `WS[1] ctor (drives=1)` and Audio is the only `mountDrive`.
+- **Startup off the main thread:** `AppStartup` (androidApp) starts Koin, opens the DB and builds the HTTP client
+  in parallel on background threads, then starts the long-lived services (`Koin.startAudioServices()`, which replaces
+  the `createdAtStart` flags). The AndroidX splash stays up until it's ready. `AudioApp` and the YouAuth callback/resume
+  wait for it too. `MainApplication.onCreate` dropped from 2.0 s to 0.2 s, but the splash then waited about 4.3 s on the
+  HTTP client, so the first frame barely moved (8.4–10.7 s).
+- **The HTTP client's real cost was kotlin-reflect:** Ktor's plugin setup calls `typeOf()`, and with kotlin-reflect
+  on the classpath that runs through `ReflectionFactoryImpl` (about 2 s cold). Only `ktor-server-core` (our stream
+  server) brings it in, for config-file module loading that `embeddedServer` never uses. The Android runtime
+  classpaths now exclude it. Streaming playback was re-verified on the device (PLAYING, position advancing,
+  no errors). Desktop still ships it (not measured there).
+- **After:** 5.5–9.0 s AOT-compiled (4 runs: 9.0, 7.6, 5.5, 6.5) vs 8.3–10.4 s before.
+
 ### Open problems
 
-- **Slow cold start — traced 2026-10-01** (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed,
-  8.3–10.4 s after `cmd package compile -m speed` (so 3–4 s is debug/JIT/verification overhead that a
-  release + baseline-profile install wouldn't pay). ART sampling trace (`am start --start-profiler … --sampling
-  500`) of the main thread: `handleBindApplication` 2.4 s, of which `MainApplication.onCreate` 2.0 s =
-  **HTTP client creation 1.25 s** (built eagerly via the `createdAtStart` auth coordinator; 0.48 s of it is
-  `HttpClientProviderKt.<clinit>`) + **SQLCipher DB open 0.5 s** (runBlocking); first frames 7.1 s
-  (recompose 3.3 s, draw 3.0 s, measure/layout 1.9 s) with no single app hotspot — framework text/layout/draw
-  running cold, emulator GL is software (`EGL_emulation`); `stringResource` first load 0.36 s blocking.
-- **Found while tracing — the app syncs other apps' drives:** the copied `DriveRegistry` (registry file on the
-  Chat drive) served Moments, Location and Stickers, and `AuthConnectionCoordinator` mounted them, synced them and
-  put them on the websocket (`WS[1] ctor (drives=4)`). Possible only because the borrowed Chat app ID's
-  registration grants those drives (`readable drive grants resolved (count=13)`). The audio app should mount the
-  Audio drive only.
+- **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first
+  composition/measure/draw on the main thread with software GL. A release build with R8 and a baseline profile is
+  the next lever (not done). Details in "Startup work" above.
 - `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and
   never again. Details below.
 - Copied homebase-common jvmTests write non-secret keys (`pending_upgrade_first_seen_ms`,

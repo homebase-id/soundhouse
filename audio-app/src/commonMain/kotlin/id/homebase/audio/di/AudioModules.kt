@@ -41,6 +41,7 @@ import id.homebase.core.notifications.PendingNotificationTap
 import id.homebase.core.session.IdentitySessionScope
 import id.homebase.core.settings.UserPreferences
 import id.homebase.core.sync.DriveRegistry
+import org.koin.core.Koin
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
@@ -107,7 +108,7 @@ val audioAppModule = module {
 
     // No background wake or push on any platform here, so the coordinator connects as soon as the
     // session is authenticated and keeps the websocket open.
-    single(createdAtStart = true) {
+    single {
         AuthConnectionCoordinator(
             credentialsManager = get(),
             ownerSessionRepository = get(),
@@ -120,12 +121,14 @@ val audioAppModule = module {
             securityContextProvider = get(),
             peerWebSocketManager = get(),
             identitySession = get(),
+            // Audio drive only: never read the Chat drive's cross-app registry of optional drives.
+            useDriveRegistry = false,
         )
     }
 
     single { AudioDriveApi(get(), get(), get(), get()) }
     single { TrackStore(get(), get(), get(), get()) }
-    single(createdAtStart = true) {
+    single {
         val api = get<AudioDriveApi>()
         LibraryReconciler(get(), { api.queryTrackFiles().mapTo(HashSet()) { it.fileId } }, get(), get())
     }
@@ -148,7 +151,7 @@ val audioAppModule = module {
     single<TrackLocator> { DefaultTrackLocator(get(), get(), get()) }
     single { PlaybackController(get<AudioPlayer>(), get(), get()) }
     single { ListeningHistory(listeningHistoryFile(), systemFileSystem, get(), get()) }
-    single(createdAtStart = true) { ListeningRecorder(get(), get(), get()) }
+    single { ListeningRecorder(get(), get(), get()) }
     single {
         val store = get<TrackStore>()
         val downloads = get<DownloadStore>()
@@ -171,5 +174,12 @@ val audioAppModule = module {
 }
 
 expect fun audioPlatformModule(): Module
+
+// Call once the database is open: these read it as they start.
+fun Koin.startAudioServices() {
+    get<AuthConnectionCoordinator>()
+    get<ListeningRecorder>()
+    get<LibraryReconciler>()
+}
 
 fun allAudioModules(): List<Module> = listOf(audioPlatformModule(), apiModule, audioAppModule)

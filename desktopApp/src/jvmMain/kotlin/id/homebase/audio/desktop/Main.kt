@@ -8,6 +8,7 @@ import id.homebase.api.sync.database.DatabaseDriverFactory
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.audio.AudioApp
 import id.homebase.audio.di.allAudioModules
+import id.homebase.audio.di.startAudioServices
 import id.homebase.audio.resources.AR
 import id.homebase.audio.resources.app_name
 import io.github.vinceglb.filekit.FileKit
@@ -24,7 +25,7 @@ fun main() {
     }
 
     runBlocking { DatabaseManager.initializeWithRecovery(DatabaseDriverFactory()) }
-    startKoin { modules(allAudioModules()) }
+    startKoin { modules(allAudioModules()) }.koin.startAudioServices()
     FileKit.init(appId = "HomebaseSimpleAudio")
 
     application {
