@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 2 features 1–6 done; stretch: mini-player done. Next: Android background playback.
+- **Current phase:** Phase 2 features 1–6 done; stretch: mini-player done. Next: playlists or iOS host app (remaining stretch goals).
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -63,9 +63,15 @@
 - Stretch — mini-player: now-playing bar (progress, title, play/pause, next; tap opens the Player) under the Library
   and Record screens, driven by the same app-wide `PlaybackController`.
 
+- Stretch — Android background playback: `PlaybackService` (foreground `mediaPlayback` service, framework
+  `MediaSession` + `Notification.MediaStyle`, so no new dependency): play/pause/next/previous in the notification and
+  on the lock screen, seek from system controls, notification stays (not ongoing) while paused, service stops when
+  the queue empties. Started by `MainApplication` whenever a track starts loading. **Built, not run on a device**
+  (no emulator in this session). Desktop keeps playing when the window is in the background by design.
+
 ## Next
 
-- Stretch: Android background playback with notification/lock-screen controls; then playlists, iOS host app.
+- Remaining stretch goals: playlists, iOS Xcode host app (and an `AVPlayer`-based iOS player for streaming).
 
 ## Decisions
 
