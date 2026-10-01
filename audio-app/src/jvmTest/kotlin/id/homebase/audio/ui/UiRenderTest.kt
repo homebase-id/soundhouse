@@ -1,0 +1,160 @@
+package id.homebase.audio.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import id.homebase.api.client.KeyHeader
+import id.homebase.audio.data.AudioTrack
+import id.homebase.audio.data.AudioTrackContent
+import id.homebase.audio.data.TrackOrigin
+import id.homebase.audio.playback.PlaybackController
+import id.homebase.audio.ui.library.EmptyLibrary
+import id.homebase.audio.ui.library.FilterChips
+import id.homebase.audio.ui.library.LibrarySort
+import id.homebase.audio.ui.library.SearchPill
+import id.homebase.audio.ui.library.TrackActions
+import id.homebase.audio.ui.library.TrackRow
+import id.homebase.audio.ui.player.MiniPlayer
+import id.homebase.audio.ui.player.PlayerScreen
+import id.homebase.audio.ui.player.PlayerViewModel
+import id.homebase.core.audio.AudioPlaybackObserver
+import id.homebase.core.audio.AudioPlayer
+import id.homebase.core.ui.theme.HomebaseTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeout
+import org.jetbrains.skia.EncodedImageFormat
+import java.io.File
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertTrue
+import kotlin.uuid.Uuid
+
+/**
+ * Renders the main screens with sample data and writes PNGs to build/ui-renders, so a layout can
+ * be looked at without signing in. Fails if a screen throws while composing.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class UiRenderTest {
+    private val outDir = File("build/ui-renders").apply { mkdirs() }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    @BeforeTest
+    fun setUp() = Dispatchers.setMain(Dispatchers.Default)
+
+    @AfterTest
+    fun tearDown() = scope.cancel()
+
+    private fun track(title: String, durationMs: Long?, daysAgo: Int, origin: TrackOrigin = TrackOrigin.Imported) = AudioTrack(
+        fileId = Uuid.random(),
+        uniqueId = null,
+        content = AudioTrackContent(title, 1, if (origin == TrackOrigin.Recorded) "audio/wav" else "audio/mpeg", durationMs, origin = origin),
+        dateAddedMs = 1_790_000_000_000 - daysAgo * 86_400_000L,
+        versionTag = null,
+        tags = emptyList(),
+        keyHeader = KeyHeader.empty(),
+        payloadKeyHeader = KeyHeader.empty(),
+    )
+
+    private val tracks = listOf(
+        track("Morning walk in the hills", 61_000, 0),
+        track("Bass practice — scales", 312_000, 1),
+        track("Kitchen idea", 18_000, 2, TrackOrigin.Recorded),
+        track("Live at the Paradiso", 3_725_000, 5),
+        track("Rain on the window", null, 9),
+        track("🎵 Lullaby", 194_000, 12),
+    )
+
+    private val noActions = TrackActions({}, {}, {}, {})
+
+    private fun render(name: String, dark: Boolean, width: Int = 412, height: Int = 892, content: @Composable () -> Unit) {
+        val scene = ImageComposeScene(width = width * 2, height = height * 2, density = Density(2f)) {
+            HomebaseTheme(darkTheme = dark, followsSystemTheme = false, updatesSystemChrome = false) { content() }
+        }
+        try {
+            scene.render(0)
+            val png = scene.render(500_000_000).encodeToData(EncodedImageFormat.PNG)!!.bytes
+            File(outDir, "$name-${if (dark) "dark" else "light"}.png").writeBytes(png)
+        } finally {
+            scene.close()
+        }
+    }
+
+    @Test
+    fun `library renders`() {
+        for (dark in listOf(false, true)) render("library", dark) {
+            Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(top = 24.dp)) {
+                Text("Library", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
+                SearchPill("", {}, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp))
+                FilterChips(LibrarySort.Newest, false, {}, {}, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                tracks.forEachIndexed { index, track ->
+                    TrackRow(
+                        track = track,
+                        isCurrent = index == 1,
+                        isPlaying = true,
+                        downloaded = index == 0 || index == 3,
+                        downloadProgress = if (index == 4) 0.4f else null,
+                        downloadFailed = false,
+                        onClick = {},
+                        actions = noActions,
+                    )
+                }
+            }
+        }
+        assertTrue(File(outDir, "library-light.png").length() > 0)
+    }
+
+    @Test
+    fun `empty library renders`() {
+        render("library-empty", dark = false) {
+            Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(top = 120.dp)) {
+                EmptyLibrary(onImport = {}, onRecord = {})
+            }
+        }
+    }
+
+    @Test
+    fun `player and mini player render`() = runBlocking {
+        val controller = PlaybackController(SilentPlayer(), { it.title }, scope)
+        controller.playQueue(tracks, 1)
+        withTimeout(5_000) { controller.state.first { it.isPlaying } }
+        controller.seekTo(124_000)
+        val viewModel = PlayerViewModel(controller)
+        withTimeout(5_000) { viewModel.uiState.first { it.title != null } }
+        for (dark in listOf(false, true)) render("player", dark) {
+            PlayerScreen(viewModel, onBack = {})
+        }
+        render("mini-player", dark = false, height = 120) {
+            Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+                MiniPlayer(viewModel, onOpen = {})
+            }
+        }
+    }
+
+    private class SilentPlayer : AudioPlayer {
+        override fun play(filePath: String) = Unit
+        override fun jumpTo(positionMs: Long) = Unit
+        override fun resume() = Unit
+        override fun pause() = Unit
+        override fun stop() = Unit
+        override fun release() = Unit
+        override fun setSpeed(speed: Float) = Unit
+        override fun setPlaybackObserver(observer: AudioPlaybackObserver) = Unit
+    }
+}

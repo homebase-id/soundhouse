@@ -46,6 +46,7 @@ class LibraryViewModel(
 
     private val query = MutableStateFlow("")
     private val sort = MutableStateFlow(LibrarySort.Newest)
+    private val downloadedOnly = MutableStateFlow(false)
 
     init {
         viewModelScope.launch {
@@ -59,8 +60,18 @@ class LibraryViewModel(
                     imports = jobs,
                 )
             }
-            combine(library, downloads.downloaded, downloads.inProgress, downloads.failures) { state, done, progress, failed ->
-                state.copy(downloaded = done, downloadProgress = progress, downloadFailures = failed)
+            val withDownloads = combine(library, downloads.downloaded, downloads.inProgress, downloads.failures, downloadedOnly) {
+                    state, done, progress, failed, onlyDownloaded ->
+                state.copy(
+                    tracks = if (onlyDownloaded) state.tracks.filter { it.fileId in done } else state.tracks,
+                    downloadedOnly = onlyDownloaded,
+                    downloaded = done,
+                    downloadProgress = progress,
+                    downloadFailures = failed,
+                )
+            }
+            combine(withDownloads, playback.state) { state, playing ->
+                state.copy(nowPlayingId = playing.current?.fileId, isPlaying = playing.isPlaying || playing.isLoading)
             }.collect { state -> _uiState.update { state } }
         }
         viewModelScope.launch { trackStore.reload() }
@@ -104,6 +115,10 @@ class LibraryViewModel(
         query.value = value
     }
 
+    fun onDownloadedOnlyChange(value: Boolean) {
+        downloadedOnly.value = value
+    }
+
     fun onSortChange(value: LibrarySort) {
         sort.value = value
     }
@@ -145,4 +160,7 @@ data class LibraryUiState(
     val downloaded: Set<Uuid> = emptySet(),
     val downloadProgress: Map<Uuid, Float> = emptyMap(),
     val downloadFailures: Set<Uuid> = emptySet(),
+    val downloadedOnly: Boolean = false,
+    val nowPlayingId: Uuid? = null,
+    val isPlaying: Boolean = false,
 )

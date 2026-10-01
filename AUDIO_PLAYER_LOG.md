@@ -57,6 +57,21 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
   fails without the fix.
 - **Debug APK limited to arm64-v8a + x86_64** (228 → 173 MB): the emulator ran out of install space.
 
+### Visual refresh, batch 1 (2026-10-01)
+
+- **Generated artwork** (`TrackArtwork`): per-track gradient tile with the title's first character, used in the
+  list, player and mini-player. Colours rotate the theme primary's hue per track (keeping its saturation and
+  lightness, deeper in dark themes) because the Homebase theme's colour roles are nearly one hue — using the roles
+  directly produced identical pale-blue tiles.
+- **Library**: large collapsing title, pill search, sort chips (Newest / A–Z / Z–A) plus a Downloaded filter,
+  track count, artwork rows with the playing track highlighted and an animated equalizer, inline downloaded badge,
+  collapsing Import FAB, account menu, empty state with Import / Record actions, expressive loading indicator.
+- **Player**: large artwork that eases smaller when paused, background tinted from the track's artwork, expressive
+  wavy seek bar (tap or drag, with progress semantics), shape-morphing play/pause, tonal previous/next.
+- **Mini-player**: floating rounded card with artwork and a progress line.
+- `UiRenderTest` renders Library, empty Library, Player (light/dark) and the mini-player to
+  `audio-app/build/ui-renders/*.png` with sample data, so layouts can be checked without signing in.
+
 ### Open problems
 
 - `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and

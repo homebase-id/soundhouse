@@ -3,6 +3,8 @@ package id.homebase.audio.ui.player
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import id.homebase.audio.data.TrackOrigin
+import id.homebase.audio.importing.extensionForMimeType
 import id.homebase.audio.playback.PlaybackController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +22,10 @@ class PlayerViewModel(private val controller: PlaybackController) : ViewModel() 
                 _uiState.update {
                     PlayerUiState(
                         title = state.current?.title,
+                        artworkSeed = state.current?.fileId?.toString(),
+                        format = state.current?.mimeType?.let(::extensionForMimeType)?.uppercase(),
+                        dateAddedMs = state.current?.dateAddedMs,
+                        recorded = state.current?.content?.origin == TrackOrigin.Recorded,
                         isPlaying = state.isPlaying,
                         isLoading = state.isLoading,
                         failed = state.failed,
@@ -44,6 +50,10 @@ class PlayerViewModel(private val controller: PlaybackController) : ViewModel() 
 @Immutable
 data class PlayerUiState(
     val title: String? = null,
+    val artworkSeed: String? = null,
+    val format: String? = null,
+    val dateAddedMs: Long? = null,
+    val recorded: Boolean = false,
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
     val failed: Boolean = false,

@@ -2,14 +2,13 @@
 <resources>
     <string name="app_name">Homebase Simple Audio</string>
     <string name="sign_out">Sign out</string>
-    <string name="library_empty">Your library is empty</string>
     <string name="library_no_matches">No tracks match your search</string>
     <string name="library_search_hint">Search by title</string>
     <string name="library_search_clear">Clear search</string>
     <string name="library_sort">Sort</string>
-    <string name="library_sort_newest">Newest first</string>
-    <string name="library_sort_title_ascending">Title A–Z</string>
-    <string name="library_sort_title_descending">Title Z–A</string>
+    <string name="library_sort_newest">Newest</string>
+    <string name="library_sort_title_ascending">A–Z</string>
+    <string name="library_sort_title_descending">Z–A</string>
     <string name="track_subtitle">%1$s · %2$s</string>
     <string name="track_duration_unknown">–:––</string>
     <string name="import_action">Import</string>
@@ -58,4 +57,19 @@
     <string name="delete_confirm">Delete</string>
     <string name="delete_failed">Couldn't delete the track</string>
     <string name="player_open">Open player</string>
+    <string name="library_title">Library</string>
+    <plurals name="library_track_count">
+        <item quantity="one">%1$d track</item>
+        <item quantity="other">%1$d tracks</item>
+    </plurals>
+    <string name="library_empty_title">Your library is empty</string>
+    <string name="library_empty_body">Import audio files or record something to get started. Everything is stored encrypted on your Homebase drive.</string>
+    <string name="library_downloaded_empty">No downloaded tracks yet</string>
+    <string name="chip_downloaded">Downloaded</string>
+    <string name="import_files">Import files</string>
+    <string name="record_action">Record</string>
+    <string name="account_menu">Account</string>
+    <string name="player_now_playing">Now playing</string>
+    <string name="player_details">%1$s · Added %2$s</string>
+    <string name="player_details_recorded">Recorded %1$s</string>
 </resources>
