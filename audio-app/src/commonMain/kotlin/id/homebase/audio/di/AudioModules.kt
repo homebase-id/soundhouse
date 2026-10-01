@@ -11,6 +11,7 @@ import id.homebase.api.file.wipeOutboxStaging
 import id.homebase.api.sync.DriveSyncManager
 import id.homebase.api.youauth.YouAuthFlowManager
 import id.homebase.audio.data.AudioDriveApi
+import id.homebase.audio.data.TrackManager
 import id.homebase.audio.data.TrackStore
 import id.homebase.audio.importing.TrackImporter
 import id.homebase.api.file.systemFileSystem
@@ -135,6 +136,18 @@ val audioAppModule = module {
     }
     single<TrackLocator> { DefaultTrackLocator(get(), get(), get()) }
     single { PlaybackController(get<AudioPlayer>(), get(), get()) }
+    single {
+        val store = get<TrackStore>()
+        val downloads = get<DownloadStore>()
+        val playback = get<PlaybackController>()
+        TrackManager(
+            editor = get<AudioDriveApi>(),
+            writeLocal = store::upsert,
+            removeDownload = downloads::remove,
+            onRenamed = playback::replaceTrack,
+            onDeleted = playback::removeTrack,
+        )
+    }
 
     viewModelOf(::AppLoadingViewModel)
     viewModelOf(::PlayerViewModel)

@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 2.5 Download done. Next: Phase 2.6 Manage (rename, delete).
+- **Current phase:** Phase 2 features 1–6 done. Next: stretch goals (mini-player first).
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -55,9 +55,14 @@
   fresh `.part` (download stalled "in progress"). liveTest: stream URL before download → download → locator returns
   a local file with byte-identical content that ffmpeg decodes from a seek → remove → streams again.
 
+- Phase 2.6 Manage: Rename (dialog) and Delete (confirmation dialog) in the track menu, via `TrackManager`: server
+  first, then the local drive index, offline copy and play queue; failures show a snackbar. jvmTests for ordering,
+  no-op/blank titles, failure leaving local state untouched. liveTest: rename + delete through `TrackManager` with a
+  real `TrackStore` and `DownloadStore` (offline copy survives rename, removed on delete; server soft-deletes).
+
 ## Next
 
-- Phase 2.6 Manage: rename and delete (with confirmation) from the track menu.
+- Stretch: mini-player bar across screens; then background playback / media controls, playlists, iOS host app.
 
 ## Decisions
 

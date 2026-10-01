@@ -38,6 +38,12 @@ interface TrackUploadTarget {
     suspend fun getTrackFile(fileId: Uuid): HomebaseFile?
 }
 
+interface TrackEditor {
+    suspend fun renameTrack(track: AudioTrack, newTitle: String): Uuid
+    suspend fun deleteTrack(fileId: Uuid)
+    suspend fun getTrackFile(fileId: Uuid): HomebaseFile?
+}
+
 /** Network operations on the Audio drive. Everything the app writes goes through here. */
 class AudioDriveApi(
     private val queryProvider: DriveQueryProvider,
@@ -45,7 +51,7 @@ class AudioDriveApi(
     private val fileProvider: DriveFileProvider,
     private val fileOps: FileOperationsProvider,
     private val driveId: Uuid = audioDriveId,
-) : TrackUploadTarget {
+) : TrackUploadTarget, TrackEditor {
     suspend fun queryTrackFiles(tagsAnyOf: List<Uuid>? = null): List<HomebaseFile> {
         val files = mutableListOf<HomebaseFile>()
         var cursor: String? = null
@@ -122,7 +128,7 @@ class AudioDriveApi(
         }
     }
 
-    suspend fun renameTrack(track: AudioTrack, newTitle: String): Uuid {
+    override suspend fun renameTrack(track: AudioTrack, newTitle: String): Uuid {
         val content = track.content.copy(title = newTitle)
         // The server rejects an update that reuses the header IV (mustRotateKeyHeaderIvWhenUpdating).
         val keyHeader = KeyHeader(iv = ByteArrayUtil.getRndByteArray(16), aesKey = track.keyHeader.aesKey)
@@ -147,7 +153,7 @@ class AudioDriveApi(
         return result.newVersionTag
     }
 
-    suspend fun deleteTrack(fileId: Uuid) {
+    override suspend fun deleteTrack(fileId: Uuid) {
         fileProvider.softDeleteFile(driveId, fileId)
     }
 

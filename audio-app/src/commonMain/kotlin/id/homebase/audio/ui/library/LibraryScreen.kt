@@ -41,6 +41,13 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import org.jetbrains.compose.resources.getString
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -83,6 +90,17 @@ import id.homebase.audio.resources.download_done
 import id.homebase.audio.resources.download_failed
 import id.homebase.audio.resources.download_remove
 import id.homebase.audio.resources.track_actions
+import id.homebase.audio.resources.cancel
+import id.homebase.audio.resources.delete_action
+import id.homebase.audio.resources.delete_confirm
+import id.homebase.audio.resources.delete_failed
+import id.homebase.audio.resources.delete_message
+import id.homebase.audio.resources.delete_title
+import id.homebase.audio.resources.record_name_label
+import id.homebase.audio.resources.rename_action
+import id.homebase.audio.resources.rename_confirm
+import id.homebase.audio.resources.rename_failed
+import id.homebase.audio.resources.rename_title
 import id.homebase.audio.resources.track_duration_unknown
 import id.homebase.audio.resources.track_subtitle
 import id.homebase.audio.ui.common.formatDate
@@ -94,6 +112,41 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenRecorder: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            snackbar.showSnackbar(
+                getString(
+                    when (event) {
+                        LibraryEvent.RenameFailed -> AR.string.rename_failed
+                        LibraryEvent.DeleteFailed -> AR.string.delete_failed
+                    }
+                )
+            )
+        }
+    }
+    var renaming by remember { mutableStateOf<AudioTrack?>(null) }
+    var deleting by remember { mutableStateOf<AudioTrack?>(null) }
+    renaming?.let { track ->
+        RenameDialog(
+            track = track,
+            onConfirm = { title ->
+                viewModel.rename(track, title)
+                renaming = null
+            },
+            onDismiss = { renaming = null },
+        )
+    }
+    deleting?.let { track ->
+        DeleteDialog(
+            track = track,
+            onConfirm = {
+                viewModel.delete(track)
+                deleting = null
+            },
+            onDismiss = { deleting = null },
+        )
+    }
     val importLauncher = rememberFilePickerLauncher(
         type = FileKitType.File(extensions = playableExtensions.toList()),
         mode = FileKitMode.Multiple(),
@@ -101,6 +154,7 @@ fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenR
         if (!files.isNullOrEmpty()) viewModel.onFilesPicked(files)
     }
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { importLauncher.launch() },
@@ -149,6 +203,8 @@ fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenR
                     actions = TrackActions(
                         download = viewModel::download,
                         removeDownload = viewModel::removeDownload,
+                        rename = { renaming = it },
+                        delete = { deleting = it },
                     ),
                 )
             }
@@ -159,6 +215,8 @@ fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenR
 class TrackActions(
     val download: (AudioTrack) -> Unit,
     val removeDownload: (AudioTrack) -> Unit,
+    val rename: (AudioTrack) -> Unit,
+    val delete: (AudioTrack) -> Unit,
 )
 
 @Composable
@@ -247,8 +305,63 @@ private fun TrackMenu(track: AudioTrack, downloaded: Boolean, downloading: Boole
                     },
                 )
             }
+            DropdownMenuItem(
+                text = { Text(stringResource(AR.string.rename_action)) },
+                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    actions.rename(track)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(AR.string.delete_action)) },
+                leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    actions.delete(track)
+                },
+            )
         }
     }
+}
+
+@Composable
+private fun RenameDialog(track: AudioTrack, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    var title by remember(track.fileId) { mutableStateOf(track.title) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(AR.string.rename_title)) },
+        text = {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                singleLine = true,
+                label = { Text(stringResource(AR.string.record_name_label)) },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(title) }, enabled = title.isNotBlank()) {
+                Text(stringResource(AR.string.rename_confirm))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(AR.string.cancel)) } },
+    )
+}
+
+@Composable
+private fun DeleteDialog(track: AudioTrack, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+        title = { Text(stringResource(AR.string.delete_title)) },
+        text = { Text(stringResource(AR.string.delete_message, track.title)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(AR.string.delete_confirm), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(AR.string.cancel)) } },
+    )
 }
 
 @Composable

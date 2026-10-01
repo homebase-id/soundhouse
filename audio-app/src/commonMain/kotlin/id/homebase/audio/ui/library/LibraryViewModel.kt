@@ -8,7 +8,13 @@ import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.data.TrackStore
 import id.homebase.api.file.FileOperationsProvider
 import id.homebase.audio.importing.ImportJob
+import co.touchlab.kermit.Logger
+import id.homebase.audio.data.TrackManager
 import id.homebase.audio.download.DownloadStore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import id.homebase.audio.importing.TrackImporter
 import id.homebase.audio.playback.PlaybackController
 import id.homebase.core.files.materializeForUpload
@@ -28,11 +34,15 @@ class LibraryViewModel(
     private val importer: TrackImporter,
     private val playback: PlaybackController,
     private val downloads: DownloadStore,
+    private val manager: TrackManager,
     private val fileOps: FileOperationsProvider,
     private val youAuthFlowManager: YouAuthFlowManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
+
+    private val _events = MutableSharedFlow<LibraryEvent>(extraBufferCapacity = 4)
+    val events: SharedFlow<LibraryEvent> = _events.asSharedFlow()
 
     private val query = MutableStateFlow("")
     private val sort = MutableStateFlow(LibrarySort.Newest)
@@ -68,6 +78,28 @@ class LibraryViewModel(
         viewModelScope.launch { downloads.remove(track.fileId) }
     }
 
+    fun rename(track: AudioTrack, newTitle: String) {
+        viewModelScope.launch {
+            runCatching { manager.rename(track, newTitle) }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    Logger.e(it, TAG) { "Rename of ${track.fileId} failed" }
+                    _events.emit(LibraryEvent.RenameFailed)
+                }
+        }
+    }
+
+    fun delete(track: AudioTrack) {
+        viewModelScope.launch {
+            runCatching { manager.delete(track) }
+                .onFailure {
+                    if (it is CancellationException) throw it
+                    Logger.e(it, TAG) { "Delete of ${track.fileId} failed" }
+                    _events.emit(LibraryEvent.DeleteFailed)
+                }
+        }
+    }
+
     fun onQueryChange(value: String) {
         query.value = value
     }
@@ -94,6 +126,13 @@ class LibraryViewModel(
         viewModelScope.launch { youAuthFlowManager.logout() }
     }
 }
+
+sealed interface LibraryEvent {
+    data object RenameFailed : LibraryEvent
+    data object DeleteFailed : LibraryEvent
+}
+
+private const val TAG = "LibraryViewModel"
 
 @Immutable
 data class LibraryUiState(
