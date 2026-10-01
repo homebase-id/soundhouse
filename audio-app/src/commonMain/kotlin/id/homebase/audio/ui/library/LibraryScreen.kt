@@ -43,6 +43,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.importing.playableExtensions
 import id.homebase.audio.resources.AR
+import id.homebase.audio.resources.collection_create
+import id.homebase.audio.resources.collection_failed
+import id.homebase.audio.resources.collection_new
+import id.homebase.audio.ui.collections.CollectionChips
+import id.homebase.audio.ui.collections.CollectionNameDialog
+import id.homebase.audio.ui.collections.CollectionsDialog
+import kotlin.uuid.Uuid
 import id.homebase.audio.resources.account_menu
 import id.homebase.audio.resources.delete_failed
 import id.homebase.audio.resources.import_action
@@ -64,6 +71,7 @@ fun LibraryScreen(
     viewModel: LibraryViewModel,
     onOpenPlayer: () -> Unit,
     onOpenRecorder: () -> Unit,
+    onOpenCollection: (Uuid) -> Unit,
     actions: @Composable () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -75,6 +83,7 @@ fun LibraryScreen(
                     when (event) {
                         LibraryEvent.RenameFailed -> AR.string.rename_failed
                         LibraryEvent.DeleteFailed -> AR.string.delete_failed
+                        LibraryEvent.CollectionFailed -> AR.string.collection_failed
                     }
                 )
             )
@@ -82,6 +91,35 @@ fun LibraryScreen(
     }
     var renaming by remember { mutableStateOf<AudioTrack?>(null) }
     var deleting by remember { mutableStateOf<AudioTrack?>(null) }
+    var choosingCollections by remember { mutableStateOf<AudioTrack?>(null) }
+    var creatingCollection by remember { mutableStateOf(false) }
+    choosingCollections?.let { track ->
+        CollectionsDialog(
+            track = track,
+            collections = uiState.collections.map { it.collection },
+            onSave = { selected ->
+                viewModel.setCollections(track, selected)
+                choosingCollections = null
+            },
+            onCreate = { name ->
+                viewModel.createCollection(name, withTrack = track)
+                choosingCollections = null
+            },
+            onDismiss = { choosingCollections = null },
+        )
+    }
+    if (creatingCollection) {
+        CollectionNameDialog(
+            title = stringResource(AR.string.collection_new),
+            initial = "",
+            confirmLabel = stringResource(AR.string.collection_create),
+            onConfirm = { name ->
+                viewModel.createCollection(name)
+                creatingCollection = false
+            },
+            onDismiss = { creatingCollection = false },
+        )
+    }
     renaming?.let { track ->
         RenameDialog(
             track = track,
@@ -114,6 +152,7 @@ fun LibraryScreen(
             removeDownload = viewModel::removeDownload,
             rename = { renaming = it },
             delete = { deleting = it },
+            collections = { choosingCollections = it },
         )
     }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -180,6 +219,14 @@ fun LibraryScreen(
                     onSortChange = viewModel::onSortChange,
                     onDownloadedOnlyChange = viewModel::onDownloadedOnlyChange,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            item {
+                CollectionChips(
+                    collections = uiState.collections,
+                    onOpen = onOpenCollection,
+                    onNew = { creatingCollection = true },
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
             if (uiState.imports.isNotEmpty()) {

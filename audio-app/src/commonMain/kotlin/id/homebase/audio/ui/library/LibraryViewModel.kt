@@ -9,6 +9,10 @@ import id.homebase.api.file.FileOperationsProvider
 import id.homebase.audio.importing.ImportJob
 import co.touchlab.kermit.Logger
 import id.homebase.audio.data.TrackManager
+import id.homebase.audio.data.CollectionManager
+import id.homebase.audio.data.CollectionStore
+import id.homebase.audio.ui.collections.CollectionSummary
+import id.homebase.audio.ui.collections.summarize
 import id.homebase.audio.download.DownloadStore
 import id.homebase.audio.download.OfflineKeeper
 import kotlinx.coroutines.CancellationException
@@ -35,6 +39,8 @@ class LibraryViewModel(
     private val offline: OfflineKeeper,
     private val manager: TrackManager,
     private val fileOps: FileOperationsProvider,
+    private val collectionStore: CollectionStore,
+    private val collectionManager: CollectionManager,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
@@ -68,8 +74,11 @@ class LibraryViewModel(
                     downloadFailures = failed,
                 )
             }
-            combine(withDownloads, playback.state) { state, playing ->
+            val withPlayback = combine(withDownloads, playback.state) { state, playing ->
                 state.copy(nowPlayingId = playing.current?.fileId, isPlaying = playing.isPlaying || playing.isLoading)
+            }
+            combine(withPlayback, collectionStore.collections, trackStore.tracks) { state, collections, tracks ->
+                state.copy(collections = summarize(collections, tracks))
             }.collect { state -> _uiState.update { state } }
         }
         viewModelScope.launch { trackStore.reload() }
@@ -107,6 +116,26 @@ class LibraryViewModel(
         }
     }
 
+    fun setCollections(track: AudioTrack, selected: Set<Uuid>) = collectionEdit { collectionManager.setMembership(track, selected) }
+
+    fun createCollection(name: String, withTrack: AudioTrack? = null) = collectionEdit {
+        val id = collectionManager.create(name)
+        if (withTrack != null) {
+            val created = collectionStore.collections.value.firstOrNull { it.id == id } ?: return@collectionEdit
+            collectionManager.add(listOf(withTrack), created)
+        }
+    }
+
+    private fun collectionEdit(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            runCatching { block() }.onFailure {
+                if (it is CancellationException) throw it
+                Logger.e(it, TAG) { "Collection update failed" }
+                _events.emit(LibraryEvent.CollectionFailed)
+            }
+        }
+    }
+
     fun onQueryChange(value: String) {
         query.value = value
     }
@@ -133,6 +162,7 @@ class LibraryViewModel(
 sealed interface LibraryEvent {
     data object RenameFailed : LibraryEvent
     data object DeleteFailed : LibraryEvent
+    data object CollectionFailed : LibraryEvent
 }
 
 private const val TAG = "LibraryViewModel"
@@ -151,4 +181,5 @@ data class LibraryUiState(
     val downloadedOnly: Boolean = false,
     val nowPlayingId: Uuid? = null,
     val isPlaying: Boolean = false,
+    val collections: List<CollectionSummary> = emptyList(),
 )

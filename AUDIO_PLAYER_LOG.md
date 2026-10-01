@@ -205,6 +205,19 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
 - Settings screen (account menu): keep-recent switch, Wi-Fi only, 1/2/5/10 GB, space used.
   `AudioSettings` (SharedPreferences-backed) also holds playback speed. Android needs ACCESS_NETWORK_STATE.
 
+### Collections (2026-10-01)
+
+- A collection is a header-only encrypted file on the Audio drive (file type 4411, content `{name}`, uniqueId = the
+  collection's id). Membership is a tag on the track equal to that id, so a track can be in many collections, the
+  server can query by collection, and there's no size cap on a collection. Tags that aren't collections (e.g. the
+  live-test tag) are preserved by `retagged`. Deleting a collection untags its tracks first, then soft-deletes it.
+- `CollectionStore` reads the local index like `TrackStore` (shared `queryLocalIndex`); `CollectionManager` writes
+  server-first then upserts the header locally. Track header updates reuse the rename path (IV rotation).
+- UI: track menu "Collections…" (checklist + create-and-add), collection chips + "New collection" in Library, a
+  Collections shelf on Home (non-empty ones), and a collection screen with play all/shuffle, rename/delete, and
+  "Remove from collection" on each track.
+- `LiveCollectionTest` passes against the real server (create, tag, query by tag, rename, delete, untag).
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first

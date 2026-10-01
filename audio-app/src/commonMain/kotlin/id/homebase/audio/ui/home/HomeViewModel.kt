@@ -9,6 +9,9 @@ import id.homebase.audio.data.TrackStore
 import id.homebase.audio.history.ListenEntry
 import id.homebase.audio.history.ListeningHistory
 import id.homebase.audio.importing.ImportJob
+import id.homebase.audio.data.CollectionStore
+import id.homebase.audio.ui.collections.CollectionSummary
+import id.homebase.audio.ui.collections.summarize
 import id.homebase.audio.importing.TrackImporter
 import id.homebase.audio.importing.enqueuePicked
 import id.homebase.audio.playback.PlaybackController
@@ -47,13 +50,14 @@ class HomeViewModel(
     private val playback: PlaybackController,
     private val importer: TrackImporter,
     private val fileOps: FileOperationsProvider,
+    private val collectionStore: CollectionStore,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            combine(trackStore.tracks, trackStore.isLoaded, history.entries, playback.state, importer.jobs) { tracks, loaded, entries, playing, jobs ->
+            val dashboard = combine(trackStore.tracks, trackStore.isLoaded, history.entries, playback.state, importer.jobs) { tracks, loaded, entries, playing, jobs ->
                 val (continueListening, recentlyPlayed, recentlyAdded) = dashboardSections(tracks, entries)
                 HomeUiState(
                     isLoaded = loaded,
@@ -66,6 +70,9 @@ class HomeViewModel(
                     isPlaying = playing.isPlaying || playing.isLoading,
                     imports = jobs,
                 )
+            }
+            combine(dashboard, collectionStore.collections) { state, collections ->
+                state.copy(collections = summarize(collections, state.allTracks).filter { it.trackCount > 0 })
             }.collect { state -> _uiState.update { state } }
         }
     }
@@ -113,4 +120,5 @@ data class HomeUiState(
     val nowPlayingId: Uuid? = null,
     val isPlaying: Boolean = false,
     val imports: List<ImportJob> = emptyList(),
+    val collections: List<CollectionSummary> = emptyList(),
 )

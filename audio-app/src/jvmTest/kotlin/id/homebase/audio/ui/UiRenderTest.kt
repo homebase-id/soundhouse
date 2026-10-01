@@ -1,5 +1,8 @@
 package id.homebase.audio.ui
 
+import id.homebase.audio.data.AudioCollection
+import id.homebase.audio.ui.collections.CollectionSummary
+import id.homebase.audio.ui.collections.CollectionChips
 import id.homebase.audio.ui.settings.SettingsContent
 import id.homebase.audio.ui.settings.SettingsUiState
 import id.homebase.audio.settings.InMemoryAudioSettings
@@ -91,7 +94,15 @@ class UiRenderTest {
         track("🎵 Lullaby", 194_000, 12),
     )
 
-    private val noActions = TrackActions({}, {}, {}, {})
+    private val noActions = TrackActions({}, {}, {}, {}, {})
+
+    private fun sampleCollection(name: String) = AudioCollection(Uuid.random(), Uuid.random(), name, 0, null, KeyHeader.empty())
+
+    private val collections = listOf(
+        CollectionSummary(sampleCollection("DJ mixes"), 14),
+        CollectionSummary(sampleCollection("Voice memos"), 6),
+        CollectionSummary(sampleCollection("Lectures"), 3),
+    )
 
     private fun render(name: String, dark: Boolean, width: Int = 412, height: Int = 892, content: @Composable () -> Unit) {
         val scene = ImageComposeScene(width = width * 2, height = height * 2, density = Density(2f)) {
@@ -113,6 +124,7 @@ class UiRenderTest {
                 Text("Library", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
                 SearchPill("", {}, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp))
                 FilterChips(LibrarySort.Newest, false, {}, {}, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                CollectionChips(collections, {}, {})
                 tracks.forEachIndexed { index, track ->
                     TrackRow(
                         track = track,
@@ -147,6 +159,7 @@ class UiRenderTest {
             recentlyAdded = tracks,
             nowPlayingId = tracks[3].fileId,
             isPlaying = true,
+            collections = collections,
         )
         for (dark in listOf(false, true)) render("home", dark, height = 1100) {
             HomeContent(state, {}, {}, {}, {}, {}, {}, {}, {}, {}, actions = {})

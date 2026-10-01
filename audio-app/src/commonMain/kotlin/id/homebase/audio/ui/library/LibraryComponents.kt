@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistRemove
+import id.homebase.audio.resources.collection_remove_track
+import id.homebase.audio.resources.collections_action
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -127,6 +131,8 @@ class TrackActions(
     val removeDownload: (AudioTrack) -> Unit,
     val rename: (AudioTrack) -> Unit,
     val delete: (AudioTrack) -> Unit,
+    val collections: (AudioTrack) -> Unit,
+    val removeFromCollection: ((AudioTrack) -> Unit)? = null,
 )
 
 @Composable
@@ -370,6 +376,24 @@ internal fun TrackMenu(track: AudioTrack, downloaded: Boolean, downloading: Bool
                     onClick = {
                         expanded = false
                         actions.download(track)
+                    },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(AR.string.collections_action)) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    actions.collections(track)
+                },
+            )
+            actions.removeFromCollection?.let { remove ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(AR.string.collection_remove_track)) },
+                    leadingIcon = { Icon(Icons.Filled.PlaylistRemove, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        remove(track)
                     },
                 )
             }

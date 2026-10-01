@@ -51,6 +51,14 @@ interface TrackEditor {
     suspend fun getTrackFile(fileId: Uuid): HomebaseFile?
 }
 
+interface CollectionEditor {
+    suspend fun createCollection(name: String, id: Uuid = Uuid.random()): Uuid
+    suspend fun renameCollection(collection: AudioCollection, newName: String)
+    suspend fun deleteCollection(fileId: Uuid)
+    suspend fun setTrackTags(track: AudioTrack, tags: List<Uuid>)
+    suspend fun getFile(fileId: Uuid): HomebaseFile?
+}
+
 /** Network operations on the Audio drive. Everything the app writes goes through here. */
 class AudioDriveApi(
     private val queryProvider: DriveQueryProvider,
@@ -58,7 +66,7 @@ class AudioDriveApi(
     private val fileProvider: DriveFileProvider,
     private val fileOps: FileOperationsProvider,
     private val driveId: Uuid = audioDriveId,
-) : TrackUploadTarget, TrackEditor {
+) : TrackUploadTarget, TrackEditor, CollectionEditor {
     suspend fun queryTrackFiles(tagsAnyOf: List<Uuid>? = null): List<HomebaseFile> {
         val files = mutableListOf<HomebaseFile>()
         var cursor: String? = null
@@ -140,16 +148,41 @@ class AudioDriveApi(
         }
     }
 
-    override suspend fun renameTrack(track: AudioTrack, newTitle: String): Uuid {
-        val content = track.content.copy(title = newTitle)
+    override suspend fun renameTrack(track: AudioTrack, newTitle: String): Uuid =
+        updateTrackHeader(track, track.content.copy(title = newTitle), track.tags)
+
+    override suspend fun setTrackTags(track: AudioTrack, tags: List<Uuid>) {
+        updateTrackHeader(track, track.content, tags)
+    }
+
+    override suspend fun getFile(fileId: Uuid): HomebaseFile? = fileProvider.getFileHeader(driveId, fileId)
+
+    override suspend fun createCollection(name: String, id: Uuid): Uuid {
+        val keyHeader = KeyHeader.newRandom16()
+        val result = uploadProvider.uploadFile(
+            UploadFileRequest(driveId = driveId, keyHeader = keyHeader, metadata = collectionMetadata(name, id, null).encryptContent(keyHeader)),
+        ) ?: error("Creating collection returned no result")
+        return result.fileId
+    }
+
+    override suspend fun renameCollection(collection: AudioCollection, newName: String) {
+        updateHeader(collection.fileId, collection.keyHeader, collectionMetadata(newName, collection.id, collection.versionTag))
+    }
+
+    override suspend fun deleteCollection(fileId: Uuid) {
+        fileProvider.softDeleteFile(driveId, fileId)
+    }
+
+    private suspend fun updateTrackHeader(track: AudioTrack, content: AudioTrackContent, tags: List<Uuid>): Uuid =
+        updateHeader(track.fileId, track.keyHeader, trackMetadata(content, track.uniqueId, tags, track.versionTag, track.coverPreview))
+
+    private suspend fun updateHeader(fileId: Uuid, current: KeyHeader, metadata: UploadFileMetadata): Uuid {
         // The server rejects an update that reuses the header IV (mustRotateKeyHeaderIvWhenUpdating).
-        val keyHeader = KeyHeader(iv = ByteArrayUtil.getRndByteArray(16), aesKey = track.keyHeader.aesKey)
-        val metadata = trackMetadata(content, track.uniqueId, track.tags, track.versionTag, track.coverPreview)
-            .encryptContent(keyHeader)
+        val keyHeader = KeyHeader(iv = ByteArrayUtil.getRndByteArray(16), aesKey = current.aesKey)
         val result = uploadProvider.updateFileByFileId(
             UpdateFileByFileIdRequest(
                 driveId = driveId,
-                fileId = track.fileId,
+                fileId = fileId,
                 keyHeader = keyHeader,
                 instructions = FileUpdateInstructionSet(
                     transferIv = ByteArrayUtil.getRndByteArray(16),
@@ -157,11 +190,11 @@ class AudioDriveApi(
                     recipients = emptyList(),
                     manifest = UpdateManifest.build(payloads = emptyList(), thumbnails = emptyList()),
                 ),
-                metadata = metadata,
+                metadata = metadata.encryptContent(keyHeader),
                 payloads = emptyList(),
                 thumbnails = emptyList(),
             )
-        ) ?: error("Rename of ${track.fileId} returned no result")
+        ) ?: error("Update of $fileId returned no result")
         return result.newVersionTag
     }
 
@@ -236,6 +269,17 @@ class AudioDriveApi(
             fileType = AUDIO_TRACK_FILE_TYPE,
             content = OdinSystemSerializer.serialize(content),
             previewThumbnail = preview,
+        ),
+        versionTag = versionTag,
+    )
+
+    private fun collectionMetadata(name: String, id: Uuid, versionTag: Uuid?) = UploadFileMetadata(
+        allowDistribution = false,
+        isEncrypted = true,
+        appData = UploadAppFileMetaData(
+            uniqueId = id,
+            fileType = AUDIO_COLLECTION_FILE_TYPE,
+            content = OdinSystemSerializer.serialize(AudioCollectionContent(name)),
         ),
         versionTag = versionTag,
     )

@@ -34,6 +34,9 @@ import id.homebase.audio.playback.TrackLocator
 import id.homebase.audio.ui.library.LibraryViewModel
 import id.homebase.audio.ui.player.PlayerViewModel
 import id.homebase.audio.ui.settings.SettingsViewModel
+import id.homebase.audio.ui.collections.CollectionViewModel
+import id.homebase.audio.data.CollectionStore
+import id.homebase.audio.data.CollectionManager
 import id.homebase.audio.ui.record.RecordViewModel
 import id.homebase.core.audio.AudioPlayer
 import id.homebase.audio.ui.loading.AppLoadingViewModel
@@ -164,6 +167,20 @@ val audioAppModule = module {
     }
     single<TrackLocator> { DefaultTrackLocator(get(), get(), get()) }
     single<AudioSettings> { StoredAudioSettings() }
+    single { CollectionStore(get(), get(), get(), get()) }
+    single {
+        val collections = get<CollectionStore>()
+        val tracks = get<TrackStore>()
+        val playback = get<PlaybackController>()
+        CollectionManager(
+            editor = get<AudioDriveApi>(),
+            collections = { collections.collections.value },
+            tracks = { tracks.tracks.value },
+            writeCollection = collections::upsert,
+            writeTrack = tracks::upsert,
+            onTrackChanged = playback::replaceTrack,
+        )
+    }
     single {
         val store = get<TrackStore>()
         val history = get<ListeningHistory>()
@@ -205,6 +222,7 @@ val audioAppModule = module {
     viewModelOf(::LoginViewModel)
     viewModelOf(::LibraryViewModel)
     viewModelOf(::SettingsViewModel)
+    viewModel { params -> CollectionViewModel(params.get(), get(), get(), get(), get(), get(), get(), get()) }
 }
 
 expect fun audioPlatformModule(): Module

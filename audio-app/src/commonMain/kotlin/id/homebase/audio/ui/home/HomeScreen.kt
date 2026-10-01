@@ -67,6 +67,8 @@ import id.homebase.audio.ui.common.playedAgo
 import id.homebase.audio.ui.common.timeLeft
 import id.homebase.audio.ui.library.EmptyLibrary
 import id.homebase.audio.ui.library.ImportPanel
+import id.homebase.audio.ui.collections.CollectionTile
+import id.homebase.audio.resources.collections_title
 import kotlin.uuid.Uuid
 import io.github.vinceglb.filekit.dialogs.FileKitMode
 import io.github.vinceglb.filekit.dialogs.FileKitType
@@ -79,6 +81,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenPlayer: () -> Unit,
     onOpenRecorder: () -> Unit,
+    onOpenCollection: (Uuid) -> Unit,
     actions: @Composable () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -98,6 +101,7 @@ fun HomeScreen(
         onRetryImport = viewModel::retryImport,
         onClearFinishedImports = viewModel::clearFinishedImports,
         actions = actions,
+        onOpenCollection = onOpenCollection,
     )
 }
 
@@ -115,6 +119,7 @@ fun HomeContent(
     onRetryImport: (Uuid) -> Unit,
     onClearFinishedImports: () -> Unit,
     actions: @Composable () -> Unit,
+    onOpenCollection: (Uuid) -> Unit = {},
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -191,6 +196,16 @@ fun HomeContent(
                         isPlaying = uiState.isPlaying,
                         onClick = { onPlayRecent(item) },
                     )
+                }
+            }
+            if (uiState.collections.isNotEmpty()) {
+                item { SectionTitle(stringResource(AR.string.collections_title)) }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(uiState.collections, key = { "collection-${it.collection.id}" }) { summary ->
+                            CollectionTile(summary, onClick = { onOpenCollection(summary.collection.id) })
+                        }
+                    }
                 }
             }
             item { SectionTitle(stringResource(AR.string.home_recently_added)) }

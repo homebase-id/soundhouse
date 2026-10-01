@@ -61,22 +61,7 @@ class TrackStore(
     suspend fun reload() = reloadMutex.withLock {
         val creds = credentialsManager.getActiveCredentials() ?: return@withLock
         try {
-            val records = mutableListOf<HomebaseFile>()
-            var cursor: QueryBatchCursor? = null
-            do {
-                val page = QueryBatch(creds.getIdentityId()).queryBatchAsync(
-                    dbm = databaseManager,
-                    driveId = driveId,
-                    noOfItems = PAGE_SIZE,
-                    cursor = cursor,
-                    sortOrder = QueryBatchSortOrder.NewestFirst,
-                    sortField = QueryBatchSortField.CreatedDate,
-                    fileSystemType = FileSystemType.Standard.value,
-                    filetypesAnyOf = listOf(AUDIO_TRACK_FILE_TYPE),
-                )
-                records += page.records
-                cursor = page.cursor
-            } while (page.hasMoreRows && page.records.isNotEmpty())
+            val records = queryLocalIndex(databaseManager, creds.getIdentityId(), driveId, AUDIO_TRACK_FILE_TYPE)
             _tracks.value = records.mapNotNull { it.toAudioTrackOrNull() }
         } catch (e: Exception) {
             Logger.e(e, TAG) { "Failed to load tracks from the local index" }
@@ -115,6 +100,25 @@ class TrackStore(
 
     private companion object {
         const val TAG = "TrackStore"
-        const val PAGE_SIZE = 500
     }
+}
+
+internal suspend fun queryLocalIndex(databaseManager: DatabaseManager, identityId: Uuid, driveId: Uuid, fileType: Int): List<HomebaseFile> {
+    val records = mutableListOf<HomebaseFile>()
+    var cursor: QueryBatchCursor? = null
+    do {
+        val page = QueryBatch(identityId).queryBatchAsync(
+            dbm = databaseManager,
+            driveId = driveId,
+            noOfItems = 500,
+            cursor = cursor,
+            sortOrder = QueryBatchSortOrder.NewestFirst,
+            sortField = QueryBatchSortField.CreatedDate,
+            fileSystemType = FileSystemType.Standard.value,
+            filetypesAnyOf = listOf(fileType),
+        )
+        records += page.records
+        cursor = page.cursor
+    } while (page.hasMoreRows && page.records.isNotEmpty())
+    return records
 }

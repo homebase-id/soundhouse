@@ -23,4 +23,7 @@ sealed interface AudioRoute {
 
     @Serializable
     data object Settings : AudioRoute
+
+    @Serializable
+    data class Collection(val id: String) : AudioRoute
 }

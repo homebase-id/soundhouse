@@ -47,6 +47,10 @@ import id.homebase.audio.ui.loading.AppLoadingScreen
 import id.homebase.audio.ui.player.MiniPlayer
 import id.homebase.audio.ui.player.PlayerScreen
 import id.homebase.audio.ui.settings.SettingsScreen
+import id.homebase.audio.ui.collections.CollectionScreen
+import androidx.navigation.toRoute
+import org.koin.core.parameter.parametersOf
+import kotlin.uuid.Uuid
 import id.homebase.audio.ui.record.RecordScreen
 import id.homebase.auth.login.LoginScreen
 import kotlinx.coroutines.launch
@@ -85,6 +89,7 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
     val showMiniPlayer = signedIn && (onTab || destination?.hasRoute(AudioRoute.Record::class) == true)
     val openPlayer = { navController.navigate(AudioRoute.Player) { launchSingleTop = true } }
     val openRecorder = { navController.navigate(AudioRoute.Record) { launchSingleTop = true } }
+    val openCollection = { id: Uuid -> navController.navigate(AudioRoute.Collection(id.toString())) }
     val selectTab = { tab: Tab ->
         navController.navigate(tab.route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -151,6 +156,7 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
                                 viewModel = koinViewModel(),
                                 onOpenPlayer = openPlayer,
                                 onOpenRecorder = openRecorder,
+                                onOpenCollection = openCollection,
                                 actions = topBarActions,
                             )
                         }
@@ -161,6 +167,7 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
                                 viewModel = koinViewModel(),
                                 onOpenPlayer = openPlayer,
                                 onOpenRecorder = openRecorder,
+                                onOpenCollection = openCollection,
                                 actions = topBarActions,
                             )
                         }
@@ -174,6 +181,14 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
                     }
                     composable<AudioRoute.Player> {
                         PlayerScreen(viewModel = koinViewModel(), onBack = { navController.popBackStack() })
+                    }
+                    composable<AudioRoute.Collection> { entry ->
+                        val id = Uuid.parse(entry.toRoute<AudioRoute.Collection>().id)
+                        CollectionScreen(
+                            viewModel = koinViewModel(key = id.toString()) { parametersOf(id) },
+                            onBack = { navController.popBackStack() },
+                            onOpenPlayer = openPlayer,
+                        )
                     }
                     composable<AudioRoute.Settings> {
                         SettingsScreen(viewModel = koinViewModel(), onBack = { navController.popBackStack() })
