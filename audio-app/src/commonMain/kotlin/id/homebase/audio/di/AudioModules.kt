@@ -12,6 +12,7 @@ import id.homebase.api.sync.DriveSyncManager
 import id.homebase.api.youauth.YouAuthFlowManager
 import id.homebase.audio.data.AudioDriveApi
 import id.homebase.audio.data.TrackStore
+import id.homebase.audio.importing.TrackImporter
 import id.homebase.audio.ui.library.LibraryViewModel
 import id.homebase.audio.ui.loading.AppLoadingViewModel
 import id.homebase.auth.login.LoginViewModel
@@ -107,6 +108,10 @@ val audioAppModule = module {
 
     single { AudioDriveApi(get(), get(), get(), get()) }
     single { TrackStore(get(), get(), get(), get()) }
+    single {
+        val store = get<TrackStore>()
+        TrackImporter(get<AudioDriveApi>(), get(), get(), onUploaded = store::upsert)
+    }
 
     viewModelOf(::AppLoadingViewModel)
     viewModelOf(::LoginViewModel)

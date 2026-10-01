@@ -1,6 +1,25 @@
 package id.homebase.audio.ui.library
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.TextButton
+import id.homebase.audio.importing.ImportJob
+import id.homebase.audio.importing.ImportStatus
+import id.homebase.audio.importing.playableExtensions
+import id.homebase.audio.resources.import_action
+import id.homebase.audio.resources.import_clear_finished
+import id.homebase.audio.resources.import_dismiss
+import id.homebase.audio.resources.import_done
+import id.homebase.audio.resources.import_failed
+import id.homebase.audio.resources.import_queued
+import io.github.vinceglb.filekit.dialogs.FileKitMode
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
+import kotlin.uuid.Uuid
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -61,7 +80,20 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun LibraryScreen(viewModel: LibraryViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val importLauncher = rememberFilePickerLauncher(
+        type = FileKitType.File(extensions = playableExtensions.toList()),
+        mode = FileKitMode.Multiple(),
+    ) { files ->
+        if (!files.isNullOrEmpty()) viewModel.onFilesPicked(files)
+    }
     Scaffold(
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { importLauncher.launch() },
+                icon = { Icon(Icons.Filled.FileUpload, contentDescription = null) },
+                text = { Text(stringResource(AR.string.import_action)) },
+            )
+        },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(AR.string.app_name)) },
@@ -80,6 +112,13 @@ fun LibraryScreen(viewModel: LibraryViewModel) {
                 onQueryChange = viewModel::onQueryChange,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
+            if (uiState.imports.isNotEmpty()) {
+                ImportPanel(
+                    jobs = uiState.imports,
+                    onDismiss = viewModel::dismissImport,
+                    onClearFinished = viewModel::clearFinishedImports,
+                )
+            }
             when {
                 !uiState.isLoaded -> CenteredContent { CircularProgressIndicator() }
                 uiState.totalTracks == 0 -> CenteredMessage(stringResource(AR.string.library_empty))
@@ -152,6 +191,51 @@ private fun SortMenu(selected: LibrarySort, onSelect: (LibrarySort) -> Unit) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ImportPanel(jobs: List<ImportJob>, onDismiss: (Uuid) -> Unit, onClearFinished: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        jobs.forEach { job ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(job.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    when (job.status) {
+                        ImportStatus.Queued -> Text(
+                            stringResource(AR.string.import_queued),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        ImportStatus.Uploading -> LinearProgressIndicator(
+                            progress = { job.progress },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        )
+                        ImportStatus.Done -> Text(
+                            stringResource(AR.string.import_done),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        ImportStatus.Failed -> Text(
+                            stringResource(AR.string.import_failed),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                if (job.status == ImportStatus.Failed || job.status == ImportStatus.Done) {
+                    IconButton(onClick = { onDismiss(job.id) }) {
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(AR.string.import_dismiss))
+                    }
+                }
+            }
+        }
+        if (jobs.count { it.status == ImportStatus.Done } > 1) {
+            TextButton(onClick = onClearFinished, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(AR.string.import_clear_finished))
+            }
+        }
+        HorizontalDivider(Modifier.padding(top = 4.dp))
     }
 }
 

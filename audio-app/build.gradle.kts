@@ -13,6 +13,24 @@ compose.resources {
     generateResClass = auto
 }
 
+// Desktop decodes and probes audio with ffmpeg/ffprobe (JvmAudioPlayer, FFmpegBinaryManager). All
+// platforms' binaries live in desktop-ffmpeg/; only the build host's pair goes on the classpath, so
+// a distributable built on a Mac doesn't carry the Linux and Windows copies.
+val hostFfmpegKey: String = run {
+    val os = System.getProperty("os.name").lowercase()
+    val arch = System.getProperty("os.arch").lowercase()
+    val osKey = when {
+        os.contains("mac") -> "macos"
+        os.contains("windows") -> "windows"
+        else -> "linux"
+    }
+    "$osKey-" + if (arch == "aarch64" || arch == "arm64") "arm64" else "x64"
+}
+val hostFfmpegResources by tasks.registering(Sync::class) {
+    from(rootProject.layout.projectDirectory.dir("desktop-ffmpeg/$hostFfmpegKey"))
+    into(layout.buildDirectory.dir("generated/ffmpegResources/ffmpeg/$hostFfmpegKey"))
+}
+
 kotlin {
     applyDefaultHierarchyTemplate()
 
@@ -88,6 +106,9 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutinesSwing)
+        }
+        jvmMain {
+            resources.srcDir(hostFfmpegResources.map { layout.buildDirectory.dir("generated/ffmpegResources").get() })
         }
         jvmTest.dependencies {
             implementation(compose.desktop.currentOs)

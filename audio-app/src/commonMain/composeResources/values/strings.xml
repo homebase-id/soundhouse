@@ -12,4 +12,10 @@
     <string name="library_sort_title_descending">Title Z–A</string>
     <string name="track_subtitle">%1$s · %2$s</string>
     <string name="track_duration_unknown">–:––</string>
+    <string name="import_action">Import</string>
+    <string name="import_queued">Waiting…</string>
+    <string name="import_done">Added to your library</string>
+    <string name="import_failed">Couldn't upload this file</string>
+    <string name="import_dismiss">Dismiss</string>
+    <string name="import_clear_finished">Clear finished</string>
 </resources>

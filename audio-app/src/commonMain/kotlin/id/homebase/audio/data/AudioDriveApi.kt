@@ -26,6 +26,18 @@ import kotlin.uuid.Uuid
 
 data class UploadedTrack(val fileId: Uuid, val uniqueId: Uuid, val versionTag: Uuid)
 
+interface TrackUploadTarget {
+    suspend fun uploadTrack(
+        sourcePath: String,
+        content: AudioTrackContent,
+        tags: List<Uuid> = emptyList(),
+        uniqueId: Uuid = Uuid.random(),
+        onProgress: (Float) -> Unit = {},
+    ): UploadedTrack
+
+    suspend fun getTrackFile(fileId: Uuid): HomebaseFile?
+}
+
 /** Network operations on the Audio drive. Everything the app writes goes through here. */
 class AudioDriveApi(
     private val queryProvider: DriveQueryProvider,
@@ -33,7 +45,7 @@ class AudioDriveApi(
     private val fileProvider: DriveFileProvider,
     private val fileOps: FileOperationsProvider,
     private val driveId: Uuid = audioDriveId,
-) {
+) : TrackUploadTarget {
     suspend fun queryTrackFiles(tagsAnyOf: List<Uuid>? = null): List<HomebaseFile> {
         val files = mutableListOf<HomebaseFile>()
         var cursor: String? = null
@@ -63,18 +75,18 @@ class AudioDriveApi(
     suspend fun queryTracks(tagsAnyOf: List<Uuid>? = null): List<AudioTrack> =
         queryTrackFiles(tagsAnyOf).mapNotNull { it.toAudioTrackOrNull() }
 
-    suspend fun getTrackFile(fileId: Uuid): HomebaseFile? = fileProvider.getFileHeader(driveId, fileId)
+    override suspend fun getTrackFile(fileId: Uuid): HomebaseFile? = fileProvider.getFileHeader(driveId, fileId)
 
     /**
      * Encrypts [sourcePath] into a temp file (the upload provider deletes it afterwards) and
      * uploads it as the track payload. [onProgress] is 0..1 over the bytes sent.
      */
-    suspend fun uploadTrack(
+    override suspend fun uploadTrack(
         sourcePath: String,
         content: AudioTrackContent,
-        tags: List<Uuid> = emptyList(),
-        uniqueId: Uuid = Uuid.random(),
-        onProgress: (Float) -> Unit = {},
+        tags: List<Uuid>,
+        uniqueId: Uuid,
+        onProgress: (Float) -> Unit,
     ): UploadedTrack {
         val keyHeader = KeyHeader.newRandom16()
         val encryptedPath = fileOps.createUploadTempPath("audio-", ".bin")

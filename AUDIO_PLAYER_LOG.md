@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 2.1 Library done. Next: Phase 2.2 Import.
+- **Current phase:** Phase 2.2 Import done. Next: Phase 2.3 Play (streaming).
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -25,11 +25,16 @@
   ranges from byte 0, mid-file and tail → full download byte-identical → rename (+ range read after rename) →
   soft delete; plus drive sync pulling an upload into the local index and dropping it after delete.
 
+- Phase 2.2 Import: Import FAB → FileKit multi-picker filtered to the platform's playable extensions → pick-time
+  sandbox copy (`materializeForUpload`, keeps Android URI grants / iOS security scope valid) → `TrackImporter`
+  (sequential, app-scoped queue; per-file progress panel on the Library; failures stay listed until dismissed).
+  Metadata: Android `MediaMetadataRetriever`, Desktop bundled `ffprobe`, iOS `AVURLAsset` duration only; title falls
+  back to the filename. jvmTests for the queue, title/MIME rules and real ffprobe on the fixture. liveTest adds an
+  import through the real importer (title + duration read from the file, upload, header back).
+
 ## Next
 
-- Phase 2.2 Import: file picker (mp3, m4a/aac, wav, ogg, flac), metadata (title/duration), upload with progress.
-- Phase 2.3 needs JVM ffmpeg binaries: they lived in chat-kmp `homebase-chat/src/jvmMain/resources/ffmpeg/`
-  (not copied); `JvmAudioPlayer` can't decode without them.
+- Phase 2.3 Play: loopback streaming server over decrypted ranges, player screen, next/previous.
 
 ## Decisions
 
@@ -91,6 +96,12 @@
   stream-encrypted into an upload temp first (same as `VideoPayloadProcessor.encryptVideoFile`).
 - **Delete is a soft delete** (other devices see `fileState=deleted` through sync); live tests hard-delete their own
   tagged files (`LIVE_TEST_TAG`) at start and end.
+
+- **Desktop ffmpeg/ffprobe binaries** (735 MB, all five platforms) copied from chat-kmp's
+  `homebase-chat/src/jvmMain/resources/ffmpeg/` into `desktop-ffmpeg/`. `audio-app` puts only the build host's
+  pair on the JVM classpath (`hostFfmpegResources`), so the macOS distributable is ~280 MB instead of carrying every
+  platform. Cross-platform desktop packaging would need a per-target build like chat's conveyor setup.
+- **iOS import** excludes Ogg/Opus (no AVFoundation decoder) and reads duration only.
 
 ### Fixes to the copied layer
 
