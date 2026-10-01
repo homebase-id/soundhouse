@@ -183,9 +183,8 @@ private fun SeekSection(uiState: PlayerUiState, viewModel: PlayerViewModel) {
     val duration = uiState.durationMs.coerceAtLeast(1)
     val fraction = dragFraction ?: (uiState.positionMs.toFloat() / duration)
     Column(Modifier.fillMaxWidth()) {
-        WavySeekBar(
+        SeekBar(
             fraction = fraction,
-            animated = uiState.isPlaying,
             enabled = uiState.durationMs > 0 && !uiState.isLoading,
             onDrag = { dragFraction = it },
             onSeek = { viewModel.seekTo((it * duration).toLong()) },

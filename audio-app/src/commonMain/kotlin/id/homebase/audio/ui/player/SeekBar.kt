@@ -10,8 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -29,16 +28,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.unit.dp
 
-/**
- * Seek bar drawn with the expressive wavy indicator. The wave only moves while [animated], so a
- * paused track reads as paused. [onDrag] reports the fraction under the finger; [onSeek] fires once
- * when the finger lifts or taps.
- */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+/** [onDrag] reports the fraction under the finger; [onSeek] fires once when the finger lifts or taps. */
 @Composable
-fun WavySeekBar(
+fun SeekBar(
     fraction: Float,
-    animated: Boolean,
     enabled: Boolean,
     onDrag: (Float?) -> Unit,
     onSeek: (Float) -> Unit,
@@ -91,10 +84,10 @@ fun WavySeekBar(
             ),
         contentAlignment = Alignment.CenterStart,
     ) {
-        LinearWavyProgressIndicator(
+        LinearProgressIndicator(
             progress = { currentFraction },
-            modifier = Modifier.fillMaxWidth(),
-            amplitude = { if (animated && !dragging) 1f else 0f },
+            modifier = Modifier.fillMaxWidth().height(6.dp),
+            drawStopIndicator = {},
         )
         Surface(
             shape = CircleShape,

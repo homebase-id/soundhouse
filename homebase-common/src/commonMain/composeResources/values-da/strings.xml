@@ -167,7 +167,7 @@
     <string name="app_build">Build %1$s</string>
 
     <!-- Login screen -->
-    <string name="login_title">Velkommen til Homebase</string>
+    <string name="login_title">Velkommen til Audio</string>
     <string name="login_sub_title">Log ind med dit Homebase ID</string>
     <string name="login_id_label">Homebase ID</string>
     <string name="login_id_placeholder">your.identity.id</string>
