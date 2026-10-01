@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 2 features 1–6 done. Next: stretch goals (mini-player first).
+- **Current phase:** Phase 2 features 1–6 done; stretch: mini-player done. Next: Android background playback.
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -60,9 +60,12 @@
   no-op/blank titles, failure leaving local state untouched. liveTest: rename + delete through `TrackManager` with a
   real `TrackStore` and `DownloadStore` (offline copy survives rename, removed on delete; server soft-deletes).
 
+- Stretch — mini-player: now-playing bar (progress, title, play/pause, next; tap opens the Player) under the Library
+  and Record screens, driven by the same app-wide `PlaybackController`.
+
 ## Next
 
-- Stretch: mini-player bar across screens; then background playback / media controls, playlists, iOS host app.
+- Stretch: Android background playback with notification/lock-screen controls; then playlists, iOS host app.
 
 ## Decisions
 

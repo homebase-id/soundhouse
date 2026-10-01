@@ -1,6 +1,10 @@
 package id.homebase.audio.navigation
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -14,6 +18,7 @@ import id.homebase.api.youauth.YouAuthFlowManager
 import id.homebase.api.youauth.YouAuthState
 import id.homebase.audio.ui.library.LibraryScreen
 import id.homebase.audio.ui.loading.AppLoadingScreen
+import id.homebase.audio.ui.player.MiniPlayer
 import id.homebase.audio.ui.player.PlayerScreen
 import id.homebase.audio.ui.record.RecordScreen
 import id.homebase.auth.login.LoginScreen
@@ -37,50 +42,62 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
         }
     }
 
-    NavHost(navController = navController, startDestination = AudioRoute.Loading) {
-        composable<AudioRoute.Loading> {
-            AppLoadingScreen(
-                viewModel = koinViewModel(),
-                onSignedIn = {
-                    navController.navigate(AudioRoute.Library) {
-                        popUpTo(AudioRoute.Loading) { inclusive = true }
-                    }
-                },
-                onSignedOut = {
-                    navController.navigate(AudioRoute.Login) {
-                        popUpTo(AudioRoute.Loading) { inclusive = true }
-                    }
-                },
-            )
-        }
-        composable<AudioRoute.Login> {
-            LoginScreen(
-                viewModel = koinViewModel(),
-                onNavigateHome = {
-                    navController.navigate(AudioRoute.Library) {
-                        popUpTo(AudioRoute.Login) { inclusive = true }
-                    }
-                },
-            )
-        }
-        composable<AudioRoute.Library> {
-            if (authState is YouAuthState.Authenticated) {
-                LibraryScreen(
+    val showMiniPlayer = authState is YouAuthState.Authenticated && destination != null &&
+        (destination.hasRoute(AudioRoute.Library::class) || destination.hasRoute(AudioRoute.Record::class))
+
+    Column(Modifier.fillMaxSize()) {
+        NavHost(navController = navController, startDestination = AudioRoute.Loading, modifier = Modifier.weight(1f)) {
+            composable<AudioRoute.Loading> {
+                AppLoadingScreen(
                     viewModel = koinViewModel(),
-                    onOpenPlayer = { navController.navigate(AudioRoute.Player) { launchSingleTop = true } },
-                    onOpenRecorder = { navController.navigate(AudioRoute.Record) { launchSingleTop = true } },
+                    onSignedIn = {
+                        navController.navigate(AudioRoute.Library) {
+                            popUpTo(AudioRoute.Loading) { inclusive = true }
+                        }
+                    },
+                    onSignedOut = {
+                        navController.navigate(AudioRoute.Login) {
+                            popUpTo(AudioRoute.Loading) { inclusive = true }
+                        }
+                    },
                 )
             }
+            composable<AudioRoute.Login> {
+                LoginScreen(
+                    viewModel = koinViewModel(),
+                    onNavigateHome = {
+                        navController.navigate(AudioRoute.Library) {
+                            popUpTo(AudioRoute.Login) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable<AudioRoute.Library> {
+                if (authState is YouAuthState.Authenticated) {
+                    LibraryScreen(
+                        viewModel = koinViewModel(),
+                        onOpenPlayer = { navController.navigate(AudioRoute.Player) { launchSingleTop = true } },
+                        onOpenRecorder = { navController.navigate(AudioRoute.Record) { launchSingleTop = true } },
+                    )
+                }
+            }
+            composable<AudioRoute.Record> {
+                RecordScreen(
+                    viewModel = koinViewModel(),
+                    onBack = { navController.popBackStack() },
+                    onSaved = { navController.popBackStack() },
+                )
+            }
+            composable<AudioRoute.Player> {
+                PlayerScreen(viewModel = koinViewModel(), onBack = { navController.popBackStack() })
+            }
         }
-        composable<AudioRoute.Record> {
-            RecordScreen(
+        if (showMiniPlayer) {
+            MiniPlayer(
                 viewModel = koinViewModel(),
-                onBack = { navController.popBackStack() },
-                onSaved = { navController.popBackStack() },
+                onOpen = { navController.navigate(AudioRoute.Player) { launchSingleTop = true } },
+                modifier = Modifier.navigationBarsPadding(),
             )
-        }
-        composable<AudioRoute.Player> {
-            PlayerScreen(viewModel = koinViewModel(), onBack = { navController.popBackStack() })
         }
     }
 }
