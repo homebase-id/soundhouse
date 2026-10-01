@@ -1,5 +1,7 @@
 package id.homebase.audio.di
 
+import id.homebase.core.util.IosNetworkMonitor
+import id.homebase.core.util.NetworkMonitor
 import id.homebase.api.file.FileOperationsProvider
 import id.homebase.api.file.IOSFileOperationsProvider
 import id.homebase.core.audio.AudioPlayer
@@ -25,4 +27,5 @@ actual fun audioPlatformModule(): Module = module {
             .build()
     }
     factory<AudioPlayer> { IOSAudioPlayer() }
+    single<NetworkMonitor> { IosNetworkMonitor() }
 }

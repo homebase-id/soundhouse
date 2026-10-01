@@ -10,3 +10,5 @@ fun listeningHistoryFile(): String = appDataDirectory().trimEnd('/') + "/listeni
 fun importQueueFile(): String = appDataDirectory().trimEnd('/') + "/imports.json"
 
 fun importStagingDirectory(): String = appDataDirectory().trimEnd('/') + "/imports"
+
+fun offlineStateFile(): String = appDataDirectory().trimEnd('/') + "/offline.json"

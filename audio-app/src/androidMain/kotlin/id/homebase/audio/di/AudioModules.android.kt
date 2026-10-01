@@ -1,5 +1,7 @@
 package id.homebase.audio.di
 
+import id.homebase.core.util.AndroidNetworkMonitor
+import id.homebase.core.util.NetworkMonitor
 import id.homebase.api.file.AndroidFileOperationsProvider
 import id.homebase.api.file.FileOperationsProvider
 import id.homebase.core.audio.AndroidAudioPlayer
@@ -25,4 +27,5 @@ actual fun audioPlatformModule(): Module = module {
             .build()
     }
     factory<AudioPlayer> { AndroidAudioPlayer() }
+    single<NetworkMonitor> { AndroidNetworkMonitor(androidContext()) }
 }

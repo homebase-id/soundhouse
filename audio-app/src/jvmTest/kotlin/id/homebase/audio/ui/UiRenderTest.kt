@@ -1,5 +1,7 @@
 package id.homebase.audio.ui
 
+import id.homebase.audio.ui.settings.SettingsContent
+import id.homebase.audio.ui.settings.SettingsUiState
 import id.homebase.audio.settings.InMemoryAudioSettings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -149,6 +151,12 @@ class UiRenderTest {
         for (dark in listOf(false, true)) render("home", dark, height = 1100) {
             HomeContent(state, {}, {}, {}, {}, {}, {}, {}, {}, {}, actions = {})
         }
+    }
+
+    @Test
+    fun `settings renders`() {
+        val state = SettingsUiState(automaticBytes = 1_340_000_000, ownBytes = 412_000_000)
+        render("settings", dark = false) { SettingsContent(state, {}, {}, {}, {}) }
     }
 
     @Test

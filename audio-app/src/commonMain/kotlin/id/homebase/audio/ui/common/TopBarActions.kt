@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -18,12 +19,13 @@ import androidx.compose.runtime.setValue
 import id.homebase.audio.resources.AR
 import id.homebase.audio.resources.account_menu
 import id.homebase.audio.resources.record_open
+import id.homebase.audio.resources.settings_title
 import id.homebase.audio.resources.sign_out
 import org.jetbrains.compose.resources.stringResource
 
 /** Record and account actions, shared by the top bars of both tabs. */
 @Composable
-fun TopBarActions(onOpenRecorder: () -> Unit, onSignOut: () -> Unit) {
+fun TopBarActions(onOpenRecorder: () -> Unit, onOpenSettings: () -> Unit, onSignOut: () -> Unit) {
     IconButton(onClick = onOpenRecorder) {
         Icon(Icons.Filled.Mic, contentDescription = stringResource(AR.string.record_open))
     }
@@ -33,6 +35,14 @@ fun TopBarActions(onOpenRecorder: () -> Unit, onSignOut: () -> Unit) {
             Icon(Icons.Filled.AccountCircle, contentDescription = stringResource(AR.string.account_menu))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(AR.string.settings_title)) },
+                leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    onOpenSettings()
+                },
+            )
             DropdownMenuItem(
                 text = { Text(stringResource(AR.string.sign_out)) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },

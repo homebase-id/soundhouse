@@ -48,6 +48,8 @@ class DownloadStore(
     // Downloads wait for this: the scan deletes stray .part files, which would include an in-flight one.
     private val startupScan = scope.launch(Dispatchers.IO) { rescan() }
 
+    suspend fun awaitStartupScan() = startupScan.join()
+
     fun download(track: AudioTrack) {
         if (track.fileId in _inProgress.value || localPathFor(track) != null) return
         _inProgress.update { it + (track.fileId to 0f) }

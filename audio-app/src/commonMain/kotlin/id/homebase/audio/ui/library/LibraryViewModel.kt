@@ -10,6 +10,7 @@ import id.homebase.audio.importing.ImportJob
 import co.touchlab.kermit.Logger
 import id.homebase.audio.data.TrackManager
 import id.homebase.audio.download.DownloadStore
+import id.homebase.audio.download.OfflineKeeper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -31,6 +32,7 @@ class LibraryViewModel(
     private val importer: TrackImporter,
     private val playback: PlaybackController,
     private val downloads: DownloadStore,
+    private val offline: OfflineKeeper,
     private val manager: TrackManager,
     private val fileOps: FileOperationsProvider,
 ) : ViewModel() {
@@ -79,11 +81,9 @@ class LibraryViewModel(
         playback.playQueue(queue, queue.indexOf(track).coerceAtLeast(0))
     }
 
-    fun download(track: AudioTrack) = downloads.download(track)
+    fun download(track: AudioTrack) = offline.keep(track)
 
-    fun removeDownload(track: AudioTrack) {
-        viewModelScope.launch { downloads.remove(track.fileId) }
-    }
+    fun removeDownload(track: AudioTrack) = offline.release(track)
 
     fun rename(track: AudioTrack, newTitle: String) {
         viewModelScope.launch {

@@ -46,6 +46,7 @@ import id.homebase.audio.ui.library.LibraryScreen
 import id.homebase.audio.ui.loading.AppLoadingScreen
 import id.homebase.audio.ui.player.MiniPlayer
 import id.homebase.audio.ui.player.PlayerScreen
+import id.homebase.audio.ui.settings.SettingsScreen
 import id.homebase.audio.ui.record.RecordScreen
 import id.homebase.auth.login.LoginScreen
 import kotlinx.coroutines.launch
@@ -92,7 +93,11 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
         }
     }
     val topBarActions: @Composable () -> Unit = {
-        TopBarActions(onOpenRecorder = openRecorder, onSignOut = { scope.launch { youAuthFlowManager.logout() } })
+        TopBarActions(
+            onOpenRecorder = openRecorder,
+            onOpenSettings = { navController.navigate(AudioRoute.Settings) { launchSingleTop = true } },
+            onSignOut = { scope.launch { youAuthFlowManager.logout() } },
+        )
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -169,6 +174,9 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
                     }
                     composable<AudioRoute.Player> {
                         PlayerScreen(viewModel = koinViewModel(), onBack = { navController.popBackStack() })
+                    }
+                    composable<AudioRoute.Settings> {
+                        SettingsScreen(viewModel = koinViewModel(), onBack = { navController.popBackStack() })
                     }
                 }
                 if (showMiniPlayer) {

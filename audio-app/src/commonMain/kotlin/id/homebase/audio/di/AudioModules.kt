@@ -19,6 +19,8 @@ import id.homebase.api.file.systemFileSystem
 import id.homebase.audio.download.DownloadStore
 import id.homebase.audio.download.downloadsDirectory
 import id.homebase.audio.download.importQueueFile
+import id.homebase.audio.download.OfflineKeeper
+import id.homebase.audio.download.offlineStateFile
 import id.homebase.audio.download.importStagingDirectory
 import id.homebase.audio.download.listeningHistoryFile
 import id.homebase.audio.history.ListeningHistory
@@ -31,6 +33,7 @@ import id.homebase.audio.playback.DefaultTrackLocator
 import id.homebase.audio.playback.TrackLocator
 import id.homebase.audio.ui.library.LibraryViewModel
 import id.homebase.audio.ui.player.PlayerViewModel
+import id.homebase.audio.ui.settings.SettingsViewModel
 import id.homebase.audio.ui.record.RecordViewModel
 import id.homebase.core.audio.AudioPlayer
 import id.homebase.audio.ui.loading.AppLoadingViewModel
@@ -162,6 +165,22 @@ val audioAppModule = module {
     single<TrackLocator> { DefaultTrackLocator(get(), get(), get()) }
     single<AudioSettings> { StoredAudioSettings() }
     single {
+        val store = get<TrackStore>()
+        val history = get<ListeningHistory>()
+        OfflineKeeper(
+            downloads = get(),
+            tracks = store.tracks,
+            tracksLoaded = store.isLoaded,
+            history = history.entries,
+            historyLoaded = history.isLoaded,
+            settings = get(),
+            network = get(),
+            stateFile = offlineStateFile(),
+            fileSystem = systemFileSystem,
+            scope = get(),
+        )
+    }
+    single {
         PlaybackController(get<AudioPlayer>(), get(), get(), initialSpeed = get<AudioSettings>().preferences.value.playbackSpeed)
     }
     single { ListeningHistory(listeningHistoryFile(), systemFileSystem, get(), get()) }
@@ -185,6 +204,7 @@ val audioAppModule = module {
     viewModelOf(::RecordViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::LibraryViewModel)
+    viewModelOf(::SettingsViewModel)
 }
 
 expect fun audioPlatformModule(): Module
@@ -194,6 +214,7 @@ fun Koin.startAudioServices() {
     get<AuthConnectionCoordinator>()
     get<ListeningRecorder>()
     get<LibraryReconciler>()
+    get<OfflineKeeper>()
 }
 
 fun allAudioModules(): List<Module> = listOf(audioPlatformModule(), apiModule, audioAppModule)

@@ -194,6 +194,17 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
   sleep timer (15/30/45/60 min with a live countdown, or end of track). The media session's rewind/fast-forward
   map to the same skips. `PlaybackController` keeps speed and the timer across `playQueue`; `stop()` keeps speed.
 
+### Offline listening by default (2026-10-01)
+
+- `OfflineKeeper` downloads recent listening in the background: resumable tracks first, then most recently
+  played, within a limit (default 2 GB, Wi-Fi only by default). One download at a time. Its own copies are tracked
+  in `offline.json` apart from the user's downloads, which it never removes and which don't count towards the limit.
+  Removing a kept track skips it until it's played again; downloading one makes it the user's.
+- Triggers on changes to what it wants (not every progress tick) plus a 15-minute recheck for Wi-Fi coming back;
+  it waits for the download rescan, library and history to load so a cold start doesn't evict everything.
+- Settings screen (account menu): keep-recent switch, Wi-Fi only, 1/2/5/10 GB, space used.
+  `AudioSettings` (SharedPreferences-backed) also holds playback speed. Android needs ACCESS_NETWORK_STATE.
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first

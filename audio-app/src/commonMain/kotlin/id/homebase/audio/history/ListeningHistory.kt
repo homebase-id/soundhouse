@@ -61,8 +61,14 @@ class ListeningHistory(
     private val _entries = MutableStateFlow<Map<String, ListenEntry>>(emptyMap())
     val entries: StateFlow<Map<String, ListenEntry>> = _entries.asStateFlow()
 
+    private val _isLoaded = MutableStateFlow(false)
+    val isLoaded: StateFlow<Boolean> = _isLoaded.asStateFlow()
+
     init {
-        scope.launch(Dispatchers.IO) { load() }
+        scope.launch(Dispatchers.IO) {
+            load()
+            _isLoaded.value = true
+        }
         if (eventBus != null) {
             scope.launch { eventBus.events.collect { if (it is BackendEvent.SessionEnded) clear() } }
         }

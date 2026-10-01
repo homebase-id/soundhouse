@@ -1,5 +1,6 @@
 package id.homebase.audio.di
 
+import id.homebase.core.util.NetworkMonitor
 import id.homebase.api.file.FileOperationsProvider
 import id.homebase.api.file.JvmFileOperationsProvider
 import id.homebase.core.audio.AudioPlayer
@@ -25,4 +26,6 @@ actual fun audioPlatformModule(): Module = module {
             .build()
     }
     factory<AudioPlayer> { JvmAudioPlayer() }
+    // Desktops have no metered-network signal; treat them as unmetered.
+    single<NetworkMonitor> { NetworkMonitor { true } }
 }

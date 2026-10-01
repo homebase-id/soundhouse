@@ -85,6 +85,15 @@
     <string name="import_files">Import files</string>
     <string name="record_action">Record</string>
     <string name="account_menu">Account</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_offline_heading">Offline listening</string>
+    <string name="settings_keep_recent">Keep recent listening on this device</string>
+    <string name="settings_keep_recent_detail">Tracks you're partway through and recently played download automatically, so they play without a connection.</string>
+    <string name="settings_wifi_only">Download only on Wi-Fi</string>
+    <string name="settings_limit">Space for automatic downloads</string>
+    <string name="settings_limit_gb">%1$d GB</string>
+    <string name="settings_usage_automatic">Automatic downloads use %1$s of %2$s</string>
+    <string name="settings_usage_own">Your own downloads use %1$s</string>
     <string name="player_now_playing">Now playing</string>
     <string name="home_title">Home</string>
     <string name="home_play_all">Play all</string>
