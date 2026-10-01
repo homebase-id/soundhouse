@@ -64,6 +64,9 @@ class ListeningHistory(
     private val _isLoaded = MutableStateFlow(false)
     val isLoaded: StateFlow<Boolean> = _isLoaded.asStateFlow()
 
+    // Removals made while the stored file is still loading, so the merge doesn't bring them back; null = cleared.
+    private val removedBeforeLoad = MutableStateFlow<Set<String>?>(emptySet())
+
     init {
         scope.launch(Dispatchers.IO) {
             load()
@@ -88,20 +91,23 @@ class ListeningHistory(
     }
 
     fun forget(fileId: Uuid) {
+        if (!_isLoaded.value) removedBeforeLoad.update { it?.plus(fileId.toString()) }
         _entries.update { it - fileId.toString() }
         save()
     }
 
     fun clear() {
+        if (!_isLoaded.value) removedBeforeLoad.value = null
         _entries.value = emptyMap()
         save()
     }
 
     private fun save() {
         lastSaveMs = now()
-        val snapshot = _entries.value.values.sortedByDescending { it.lastPlayedMs }.take(MAX_ENTRIES)
         scope.launch(Dispatchers.IO) {
             writeLock.withLock {
+                // Read under the lock: saves can start out of order, and the last write must be the latest state.
+                val snapshot = _entries.value.values.sortedByDescending { it.lastPlayedMs }.take(MAX_ENTRIES)
                 try {
                     val path = file.toPath()
                     path.parent?.let { fileSystem.createDirectories(it) }
@@ -124,8 +130,12 @@ class ListeningHistory(
             Logger.w(e, TAG) { "Listening history unreadable; starting fresh" }
             emptyList()
         }
-        // Progress recorded before the file finished loading wins over the stored copy.
-        _entries.update { current -> loaded.associateBy { it.fileId } + current }
+        // Progress recorded before the file finished loading wins over the stored copy. Removals are set
+        // before entries change, so a removal racing this update makes it retry and see them.
+        _entries.update { current ->
+            val removed = removedBeforeLoad.value ?: return@update current
+            loaded.filterNot { it.fileId in removed }.associateBy { it.fileId } + current
+        }
     }
 
     private companion object {

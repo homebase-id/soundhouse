@@ -74,6 +74,49 @@ class ListeningHistoryTest {
         assertEquals(42_000, restarted.entry(a)!!.positionMs)
     }
 
+    /** Reads of the stored file wait for [release], so a test can act while startup loading is in flight. */
+    private class GatedReads : okio.ForwardingFileSystem(FileSystem.SYSTEM) {
+        val release = java.util.concurrent.CountDownLatch(1)
+        override fun source(file: okio.Path): okio.Source {
+            release.await()
+            return super.source(file)
+        }
+    }
+
+    private suspend fun storedHistoryWith(vararg ids: Uuid) {
+        val writer = history()
+        ids.forEach { writer.record(it, 30_000, 100_000, force = true) }
+        awaitFile { text -> ids.all { it.toString() in text } }
+    }
+
+    @Test
+    fun `signing out while the stored history is still loading doesn't bring it back`() = runBlocking<Unit> {
+        val a = Uuid.random()
+        storedHistoryWith(a)
+        val gated = GatedReads()
+        val bus = EventBus()
+        val history = ListeningHistory(file, gated, scope, bus, now = { clock })
+        bus.emit(BackendEvent.SessionEnded)
+        withTimeout(5_000) { history.entries.first { it.isEmpty() } }
+        gated.release.countDown()
+        withTimeout(5_000) { history.isLoaded.first { it } }
+        assertTrue(history.entries.value.isEmpty())
+    }
+
+    @Test
+    fun `forgetting a track while the stored history is still loading keeps it forgotten`() = runBlocking<Unit> {
+        val a = Uuid.random()
+        val b = Uuid.random()
+        storedHistoryWith(a, b)
+        val gated = GatedReads()
+        val history = ListeningHistory(file, gated, scope, null, now = { clock })
+        history.forget(a)
+        gated.release.countDown()
+        withTimeout(5_000) { history.isLoaded.first { it } }
+        assertNull(history.entry(a))
+        assertEquals(30_000, history.entry(b)?.positionMs)
+    }
+
     @Test
     fun `sign-out and delete clear entries`() = runBlocking {
         val bus = EventBus()

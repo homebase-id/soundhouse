@@ -218,6 +218,17 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
   "Remove from collection" on each track.
 - `LiveCollectionTest` passes against the real server (create, tag, query by tag, rename, delete, untag).
 
+### Listening history races (2026-10-01)
+
+- Found when the gate failed under load (`sign-out and delete clear entries` timed out); reproduced
+  deterministically with a filesystem whose reads wait on a latch. (1) The startup load merged the stored file
+  in with `loaded + current`, so a sign-out or `forget` before the load finished was undone — the previous
+  identity's history could come back. Removals before load are now recorded and applied inside the same
+  atomic update. (2) `save()` snapshotted outside the write lock, so two quick saves could land oldest-last;
+  the snapshot is now read under the lock.
+- Process slip: commit b347ba3 (collections) was made although that gate run failed — the gate's exit code was
+  hidden by a pipe. Fixed here; gate exit codes are now checked directly.
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first
