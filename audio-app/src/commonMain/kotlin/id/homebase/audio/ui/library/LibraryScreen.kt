@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,6 +70,7 @@ import id.homebase.audio.resources.library_sort
 import id.homebase.audio.resources.library_sort_newest
 import id.homebase.audio.resources.library_sort_title_ascending
 import id.homebase.audio.resources.library_sort_title_descending
+import id.homebase.audio.resources.record_open
 import id.homebase.audio.resources.sign_out
 import id.homebase.audio.resources.track_duration_unknown
 import id.homebase.audio.resources.track_subtitle
@@ -79,7 +81,7 @@ import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit) {
+fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenRecorder: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val importLauncher = rememberFilePickerLauncher(
         type = FileKitType.File(extensions = playableExtensions.toList()),
@@ -99,6 +101,9 @@ fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit) {
             TopAppBar(
                 title = { Text(stringResource(AR.string.app_name)) },
                 actions = {
+                    IconButton(onClick = onOpenRecorder) {
+                        Icon(Icons.Filled.Mic, contentDescription = stringResource(AR.string.record_open))
+                    }
                     SortMenu(selected = uiState.sort, onSelect = viewModel::onSortChange)
                     IconButton(onClick = viewModel::signOut) {
                         Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = stringResource(AR.string.sign_out))

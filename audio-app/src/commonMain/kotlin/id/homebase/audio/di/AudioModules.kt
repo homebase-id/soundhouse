@@ -19,6 +19,7 @@ import id.homebase.audio.playback.RemoteTrackSource
 import id.homebase.audio.playback.TrackLocator
 import id.homebase.audio.ui.library.LibraryViewModel
 import id.homebase.audio.ui.player.PlayerViewModel
+import id.homebase.audio.ui.record.RecordViewModel
 import id.homebase.core.audio.AudioPlayer
 import id.homebase.audio.ui.loading.AppLoadingViewModel
 import id.homebase.auth.login.LoginViewModel
@@ -129,6 +130,7 @@ val audioAppModule = module {
 
     viewModelOf(::AppLoadingViewModel)
     viewModelOf(::PlayerViewModel)
+    viewModelOf(::RecordViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::LibraryViewModel)
 }

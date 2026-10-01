@@ -27,3 +27,14 @@ private val dateFormat = LocalDate.Format {
 
 fun formatDate(epochMs: Long, timeZone: TimeZone = TimeZone.currentSystemDefault()): String =
     Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(timeZone).date.format(dateFormat)
+
+private val dateTimeFormat = kotlinx.datetime.LocalDateTime.Format {
+    date(dateFormat)
+    chars(" ")
+    hour()
+    chars(":")
+    minute()
+}
+
+fun formatDateTime(epochMs: Long, timeZone: TimeZone = TimeZone.currentSystemDefault()): String =
+    Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(timeZone).format(dateTimeFormat)

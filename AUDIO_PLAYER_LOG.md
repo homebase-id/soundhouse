@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 2.3 Play done. Next: Phase 2.4 Record.
+- **Current phase:** Phase 2.4 Record done. Next: Phase 2.5 Download.
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -40,9 +40,16 @@
   controller behaviour. liveTest: drive track → server → HTTP ranges from 0 and mid-file, ffprobe duration, ffmpeg
   decode from a 4 s seek.
 
+- Phase 2.4 Record: Record screen (mic permission via the copied `rememberRecordAudioPermissionState`, timer,
+  stop, preview with its own `AudioPlayer`, name field defaulting to "Recording <date time>", save / discard /
+  record again). Save hands the temp file to `TrackImporter` (origin `Recorded`, title given, temp deleted after
+  upload) and returns to the Library, where the import panel shows progress. Starting a recording pauses playback.
+  jvmTests: record→name→save, empty recording, discard. liveTest: recorded-clip round trip (title/origin/duration,
+  byte-identical download, range read).
+
 ## Next
 
-- Phase 2.4 Record: mic → preview → name → upload (+ live recorded-clip round trip).
+- Phase 2.5 Download: local offline copies, downloaded tracks play from disk, show/delete local copy.
 
 ## Decisions
 
@@ -118,6 +125,10 @@
   iOS is compile-only here; streaming there needs an `AVPlayer` actual (or local download first).
 - **Android streaming is untested on a device** (no emulator attached this session); it relies on `MediaPlayer`
   HTTP + cleartext to 127.0.0.1 (allowed by `network_security_config`). Desktop streaming is proven by tests.
+
+- **Live recording test uses a synthesized clip** in the desktop recorder's exact output format (44.1 kHz 16-bit
+  mono WAV via `AudioSystem.write`, same as `JvmAudioRecorder`); a test run has no microphone. The mic capture
+  itself is the unmodified copied recorder.
 
 ### Fixes to the copied layer
 

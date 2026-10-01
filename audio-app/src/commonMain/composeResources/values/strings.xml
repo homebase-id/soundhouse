@@ -26,4 +26,20 @@
     <string name="player_position">Track %1$d of %2$d</string>
     <string name="player_failed">Couldn't play this track</string>
     <string name="player_nothing_playing">Nothing is playing</string>
+    <string name="record_title">Record</string>
+    <string name="record_open">Record audio</string>
+    <string name="record_start">Start recording</string>
+    <string name="record_stop">Stop recording</string>
+    <string name="record_default_name">Recording %1$s</string>
+    <string name="record_name_label">Name</string>
+    <string name="record_save">Save to library</string>
+    <string name="record_discard">Discard</string>
+    <string name="record_again">Record again</string>
+    <string name="record_preview_play">Play preview</string>
+    <string name="record_preview_pause">Pause preview</string>
+    <string name="record_failed">Recording didn't work. Check the microphone and its permission.</string>
+    <string name="record_permission_needed">Microphone access is needed to record</string>
+    <string name="record_grant_permission">Allow microphone</string>
+    <string name="record_hint">Tap to start recording</string>
+    <string name="record_preview_time">%1$s / %2$s</string>
 </resources>

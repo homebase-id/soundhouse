@@ -92,6 +92,14 @@ class PlaybackController(
         }
     }
 
+    fun pause() {
+        if (!_state.value.isPlaying) return
+        scope.launch(playerLane) {
+            player.pause()
+            _state.update { it.copy(isPlaying = false) }
+        }
+    }
+
     fun seekTo(positionMs: Long) {
         val state = _state.value
         if (state.current == null || state.isLoading) return
