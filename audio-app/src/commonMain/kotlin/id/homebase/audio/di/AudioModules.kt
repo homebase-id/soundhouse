@@ -18,6 +18,7 @@ import id.homebase.api.file.systemFileSystem
 import id.homebase.audio.download.DownloadStore
 import id.homebase.audio.download.downloadsDirectory
 import id.homebase.audio.playback.AudioStreamServer
+import id.homebase.audio.ui.common.CoverLoader
 import id.homebase.audio.playback.PlaybackController
 import id.homebase.audio.playback.DefaultTrackLocator
 import id.homebase.audio.playback.TrackLocator
@@ -125,6 +126,7 @@ val audioAppModule = module {
     }
 
     single { AudioStreamServer() }
+    single { CoverLoader(get()) }
     single {
         val api = get<AudioDriveApi>()
         DownloadStore(

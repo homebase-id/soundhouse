@@ -35,6 +35,7 @@ class TrackImporter(
     scope: CoroutineScope,
     private val onUploaded: suspend (HomebaseFile) -> Unit,
     private val readMetadata: suspend (String) -> AudioFileMetadata = ::readAudioMetadata,
+    private val readCover: suspend (String) -> ByteArray? = ::readCoverArt,
 ) {
     private class Request(
         val job: ImportJob,
@@ -112,6 +113,7 @@ class TrackImporter(
             sourcePath = request.path,
             content = content,
             tags = request.tags,
+            coverArt = if (request.origin == TrackOrigin.Imported) readCover(request.path) else null,
             onProgress = { progress -> setJob(id) { it.copy(progress = progress) } },
         )
         target.getTrackFile(uploaded.fileId)?.let { onUploaded(it) }

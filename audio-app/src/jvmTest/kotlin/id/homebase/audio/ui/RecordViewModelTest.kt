@@ -77,7 +77,8 @@ class RecordViewModelTest {
     private class RecordingTarget : TrackUploadTarget {
         val uploaded = mutableListOf<AudioTrackContent>()
         override suspend fun uploadTrack(
-            sourcePath: String, content: AudioTrackContent, tags: List<Uuid>, uniqueId: Uuid, onProgress: (Float) -> Unit,
+            sourcePath: String, content: AudioTrackContent, tags: List<Uuid>, uniqueId: Uuid, coverArt: ByteArray?,
+            onProgress: (Float) -> Unit,
         ): UploadedTrack {
             uploaded += content
             return UploadedTrack(Uuid.random(), uniqueId, Uuid.random())
@@ -87,7 +88,7 @@ class RecordViewModelTest {
 
     private fun viewModel(recorder: AudioRecorder, target: TrackUploadTarget): Pair<RecordViewModel, TrackImporter> {
         val fileOps = TestFileOps(dir)
-        val importer = TrackImporter(target, fileOps, scope, onUploaded = {}, readMetadata = { AudioFileMetadata(null, 900) })
+        val importer = TrackImporter(target, fileOps, scope, onUploaded = {}, readMetadata = { AudioFileMetadata(null, 900) }, readCover = { null })
         val playback = PlaybackController(SilentPlayer(), { it.title }, scope)
         return RecordViewModel(recorder, SilentPlayer(), fileOps, importer, playback) to importer
     }

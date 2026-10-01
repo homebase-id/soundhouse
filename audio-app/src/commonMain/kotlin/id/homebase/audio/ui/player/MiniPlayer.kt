@@ -30,7 +30,7 @@ import id.homebase.audio.resources.player_next
 import id.homebase.audio.resources.player_open
 import id.homebase.audio.resources.player_pause
 import id.homebase.audio.resources.player_play
-import id.homebase.audio.ui.common.TrackArtwork
+import id.homebase.audio.ui.common.TrackCover
 import org.jetbrains.compose.resources.stringResource
 
 /** Compact now-playing bar; tapping it opens the full player. Hidden when nothing is queued. */
@@ -38,7 +38,7 @@ import org.jetbrains.compose.resources.stringResource
 fun MiniPlayer(viewModel: PlayerViewModel, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val title = uiState.title ?: return
-    val seed = uiState.artworkSeed ?: return
+    val track = uiState.track ?: return
     val openLabel = stringResource(AR.string.player_open)
     Surface(
         modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -54,7 +54,7 @@ fun MiniPlayer(viewModel: PlayerViewModel, onOpen: () -> Unit, modifier: Modifie
                     .padding(start = 8.dp, end = 4.dp, top = 8.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TrackArtwork(title, seed = seed, modifier = Modifier.size(44.dp), cornerRadius = 12.dp)
+                TrackCover(track, modifier = Modifier.size(44.dp), cornerRadius = 12.dp)
                 Text(
                     title,
                     modifier = Modifier.weight(1f).padding(horizontal = 12.dp),

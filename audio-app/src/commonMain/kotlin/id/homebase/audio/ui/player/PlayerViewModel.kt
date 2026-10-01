@@ -3,6 +3,7 @@ package id.homebase.audio.ui.player
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.data.TrackOrigin
 import id.homebase.audio.importing.extensionForMimeType
 import id.homebase.audio.playback.PlaybackController
@@ -21,6 +22,7 @@ class PlayerViewModel(private val controller: PlaybackController) : ViewModel() 
             controller.state.collect { state ->
                 _uiState.update {
                     PlayerUiState(
+                        track = state.current,
                         title = state.current?.title,
                         artworkSeed = state.current?.fileId?.toString(),
                         format = state.current?.mimeType?.let(::extensionForMimeType)?.uppercase(),
@@ -49,6 +51,7 @@ class PlayerViewModel(private val controller: PlaybackController) : ViewModel() 
 
 @Immutable
 data class PlayerUiState(
+    val track: AudioTrack? = null,
     val title: String? = null,
     val artworkSeed: String? = null,
     val format: String? = null,

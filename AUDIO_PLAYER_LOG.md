@@ -72,6 +72,16 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
 - `UiRenderTest` renders Library, empty Library, Player (light/dark) and the mini-player to
   `audio-app/build/ui-renders/*.png` with sample data, so layouts can be checked without signing in.
 
+### Album art (2026-10-01)
+
+- Import reads the embedded cover (Android `MediaMetadataRetriever.embeddedPicture`, desktop ffmpeg copying the
+  attached-picture stream; iOS none yet) and uploads 320/640 px thumbnails + the tiny preview with the payload,
+  encrypted with the payload's key and IV so they keep decrypting after a rename (rename now carries the preview).
+- `CoverLoader` fetches through the cached thumbnail path and keeps an LRU of decoded images; `TrackCover` shows
+  the generated artwork and fades the real cover in. Used in list rows, player and mini-player.
+- liveTest: import of an mp3 with a cover → thumbnails listed, cover decrypts and decodes, still readable after
+  rename.
+
 ### Open problems
 
 - `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and

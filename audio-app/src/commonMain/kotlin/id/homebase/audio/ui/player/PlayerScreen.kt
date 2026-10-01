@@ -64,7 +64,7 @@ import id.homebase.audio.resources.player_pause
 import id.homebase.audio.resources.player_play
 import id.homebase.audio.resources.player_position
 import id.homebase.audio.resources.player_previous
-import id.homebase.audio.ui.common.TrackArtwork
+import id.homebase.audio.ui.common.TrackCover
 import id.homebase.audio.ui.common.artworkPalette
 import id.homebase.audio.ui.common.formatDate
 import id.homebase.audio.ui.common.formatDuration
@@ -114,7 +114,8 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
             },
         ) { padding ->
             val title = uiState.title
-            if (title == null || seed == null) {
+            val track = uiState.track
+            if (title == null || seed == null || track == null) {
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Text(stringResource(AR.string.player_nothing_playing), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -129,9 +130,9 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
                     if (uiState.isPlaying) 1f else 0.9f,
                     animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f),
                 )
-                TrackArtwork(
-                    title = title,
-                    seed = seed,
+                TrackCover(
+                    track = track,
+                    minPixels = 640,
                     cornerRadius = 32.dp,
                     modifier = Modifier
                         .widthIn(max = 420.dp)

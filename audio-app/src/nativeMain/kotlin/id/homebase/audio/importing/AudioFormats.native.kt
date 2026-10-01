@@ -13,5 +13,7 @@ actual suspend fun readAudioMetadata(path: String): AudioFileMetadata {
     return AudioFileMetadata(title = null, durationMs = durationMs)
 }
 
+actual suspend fun readCoverArt(path: String): ByteArray? = null
+
 // AVFoundation has no Ogg/Opus decoder.
 actual val playableExtensions: Set<String> = allAudioExtensions - setOf("ogg", "oga", "opus")

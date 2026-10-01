@@ -103,7 +103,7 @@ import id.homebase.audio.resources.track_actions
 import id.homebase.audio.resources.track_duration_unknown
 import id.homebase.audio.resources.track_subtitle
 import id.homebase.audio.ui.common.NowPlayingBars
-import id.homebase.audio.ui.common.TrackArtwork
+import id.homebase.audio.ui.common.TrackCover
 import id.homebase.audio.ui.common.formatDate
 import id.homebase.audio.ui.common.formatDuration
 import org.jetbrains.compose.resources.StringResource
@@ -203,7 +203,7 @@ internal fun TrackRow(
         ),
         leadingContent = {
             Box(contentAlignment = Alignment.Center) {
-                TrackArtwork(track.title, seed = track.fileId.toString(), modifier = Modifier.size(52.dp))
+                TrackCover(track, modifier = Modifier.size(52.dp))
                 if (isCurrent) {
                     Surface(
                         shape = MaterialTheme.shapes.small,

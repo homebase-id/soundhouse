@@ -2,6 +2,7 @@ package id.homebase.audio.data
 
 import id.homebase.api.client.KeyHeader
 import id.homebase.api.client.drives.HomebaseFile
+import id.homebase.api.client.drives.upload.EmbeddedThumb
 import id.homebase.api.serialization.OdinSystemSerializer
 import id.homebase.core.config.audioLabeledDrive
 import kotlinx.serialization.Serializable
@@ -29,6 +30,9 @@ data class AudioTrackContent(
     val origin: TrackOrigin = TrackOrigin.Imported,
 )
 
+/** A cover thumbnail stored with the payload; [lastModified] versions the thumbnail cache key. */
+data class CoverThumb(val width: Int, val height: Int, val lastModified: Long?)
+
 class AudioTrack(
     val fileId: Uuid,
     val uniqueId: Uuid?,
@@ -39,7 +43,11 @@ class AudioTrack(
     val keyHeader: KeyHeader,
     /** File key with the payload's own IV; the header IV rotates on every update, the payload's doesn't. */
     val payloadKeyHeader: KeyHeader,
+    val covers: List<CoverThumb> = emptyList(),
+    val coverPreview: EmbeddedThumb? = null,
 ) {
+    val hasCover: Boolean get() = covers.isNotEmpty()
+
     val title: String get() = content.title
     val durationMs: Long? get() = content.durationMs
     val sizeBytes: Long get() = content.sizeBytes
@@ -70,5 +78,11 @@ fun HomebaseFile.toAudioTrackOrNull(): AudioTrack? {
         tags = appData.tags.orEmpty(),
         keyHeader = keyHeader,
         payloadKeyHeader = KeyHeader(iv = payloadIv, aesKey = keyHeader.aesKey),
+        covers = payload.thumbnails.orEmpty().mapNotNull { thumb ->
+            val width = thumb.pixelWidth ?: return@mapNotNull null
+            val height = thumb.pixelHeight ?: return@mapNotNull null
+            CoverThumb(width, height, payload.lastModified)
+        }.sortedBy { it.width },
+        coverPreview = appData.previewThumbnail,
     )
 }

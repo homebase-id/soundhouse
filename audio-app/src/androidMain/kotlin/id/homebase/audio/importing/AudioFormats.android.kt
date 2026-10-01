@@ -20,4 +20,16 @@ actual suspend fun readAudioMetadata(path: String): AudioFileMetadata = withCont
     }
 }
 
+actual suspend fun readCoverArt(path: String): ByteArray? = withContext(Dispatchers.IO) {
+    val retriever = MediaMetadataRetriever()
+    try {
+        retriever.setDataSource(path)
+        retriever.embeddedPicture
+    } catch (_: RuntimeException) {
+        null
+    } finally {
+        retriever.release()
+    }
+}
+
 actual val playableExtensions: Set<String> = allAudioExtensions

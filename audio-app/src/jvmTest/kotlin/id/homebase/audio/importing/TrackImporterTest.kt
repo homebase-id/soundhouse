@@ -36,13 +36,16 @@ class TrackImporterTest {
 
     private class FakeTarget(private val failFor: String? = null) : TrackUploadTarget {
         val uploaded = mutableListOf<AudioTrackContent>()
+        val covers = mutableListOf<ByteArray?>()
         override suspend fun uploadTrack(
             sourcePath: String,
             content: AudioTrackContent,
             tags: List<Uuid>,
             uniqueId: Uuid,
+            coverArt: ByteArray?,
             onProgress: (Float) -> Unit,
         ): UploadedTrack {
+            covers += coverArt
             if (content.fileName == failFor) error("server said no")
             onProgress(0.5f)
             onProgress(1f)
@@ -64,6 +67,7 @@ class TrackImporterTest {
             target, TestFileOps(dir), scope,
             onUploaded = { stored += it },
             readMetadata = { path -> if (path.endsWith("a.mp3")) AudioFileMetadata("Tagged", 1234) else AudioFileMetadata(null, null) },
+            readCover = { path -> if (path.endsWith("a.mp3")) byteArrayOf(1, 2, 3) else null },
         )
         importer.enqueue(file("a.mp3", 10).path, "a.mp3")
         importer.enqueue(file("b side.flac", 20).path, "b side.flac")
@@ -74,6 +78,7 @@ class TrackImporterTest {
         assertEquals(listOf(10L, 20L), target.uploaded.map { it.sizeBytes })
         assertEquals(listOf("audio/mpeg", "audio/flac"), target.uploaded.map { it.mimeType })
         assertEquals(2, stored.size)
+        assertEquals(listOf(listOf<Byte>(1, 2, 3), null), target.covers.map { it?.toList() })
         assertTrue(importer.jobs.value.all { it.progress == 1f })
     }
 
@@ -98,12 +103,17 @@ class TrackImporterTest {
     @Test
     fun `recordings keep their given title and the app-owned source is deleted`() = runBlocking {
         val target = FakeTarget()
-        val importer = TrackImporter(target, TestFileOps(dir), scope, onUploaded = {}, readMetadata = { AudioFileMetadata("ignored", 5) })
+        val importer = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata("ignored", 5) },
+            readCover = { error("recordings have no cover to read") },
+        )
         val source = file("rec.m4a", 3)
         importer.enqueue(source.path, "rec.m4a", title = "Voice memo", origin = TrackOrigin.Recorded, deleteSourceAfter = true)
         withTimeout(5_000) { importer.jobs.first { it.single().status == ImportStatus.Done } }
         assertEquals("Voice memo", target.uploaded.single().title)
         assertEquals(TrackOrigin.Recorded, target.uploaded.single().origin)
+        assertEquals(listOf<ByteArray?>(null), target.covers)
         assertFalse(source.exists())
     }
 }

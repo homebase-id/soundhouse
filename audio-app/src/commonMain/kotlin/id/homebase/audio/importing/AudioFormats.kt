@@ -5,6 +5,9 @@ data class AudioFileMetadata(val title: String?, val durationMs: Long?)
 /** Title and duration straight from the container; either may be null when the format doesn't say. */
 expect suspend fun readAudioMetadata(path: String): AudioFileMetadata
 
+/** The embedded cover image (JPEG/PNG bytes) if the file carries one. */
+expect suspend fun readCoverArt(path: String): ByteArray?
+
 /** Extensions this platform's player can decode. */
 expect val playableExtensions: Set<String>
 

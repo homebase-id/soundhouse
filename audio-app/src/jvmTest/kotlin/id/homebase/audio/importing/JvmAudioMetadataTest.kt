@@ -40,4 +40,22 @@ class JvmAudioMetadataTest {
         assertEquals(AudioFileMetadata("Upper", 12_500), parsed)
         assertEquals(AudioFileMetadata(null, null), parseFfprobeFormat("garbage"))
     }
+
+    @Test
+    fun `cover art is extracted when present and absent otherwise`() = runBlocking {
+        val withCover = fixture("tone-with-cover.mp3")
+        val plain = fixture("tone.mp3")
+        try {
+            val cover = assertNotNull(readCoverArt(withCover.absolutePath))
+            assertTrue(cover.size > 100, "cover too small: ${cover.size}")
+            assertEquals(null, readCoverArt(plain.absolutePath))
+        } finally {
+            withCover.delete()
+            plain.delete()
+        }
+    }
+
+    private fun fixture(name: String): File = Files.createTempFile("fx", ".mp3").toFile().also { out ->
+        javaClass.getResourceAsStream("/fixtures/$name")!!.use { input -> out.outputStream().use { input.copyTo(it) } }
+    }
 }

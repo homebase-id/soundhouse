@@ -8,6 +8,12 @@ import id.homebase.api.client.drives.QueryBatchSortField
 import id.homebase.api.client.drives.QueryBatchSortOrder
 import id.homebase.api.client.drives.files.DriveFileProvider
 import id.homebase.api.client.drives.files.PayloadFile
+import id.homebase.api.client.drives.files.ThumbnailFile
+import id.homebase.api.client.drives.upload.EmbeddedThumb
+import id.homebase.api.image.ThumbnailInstruction
+import id.homebase.api.image.createThumbnails
+import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CancellationException
 import id.homebase.api.client.drives.query.DriveQueryProvider
 import id.homebase.api.client.drives.query.FileQueryParams
 import id.homebase.api.client.drives.upload.DriveUploadProvider
@@ -32,6 +38,7 @@ interface TrackUploadTarget {
         content: AudioTrackContent,
         tags: List<Uuid> = emptyList(),
         uniqueId: Uuid = Uuid.random(),
+        coverArt: ByteArray? = null,
         onProgress: (Float) -> Unit = {},
     ): UploadedTrack
 
@@ -92,16 +99,19 @@ class AudioDriveApi(
         content: AudioTrackContent,
         tags: List<Uuid>,
         uniqueId: Uuid,
+        coverArt: ByteArray?,
         onProgress: (Float) -> Unit,
     ): UploadedTrack {
         val keyHeader = KeyHeader.newRandom16()
+        val art = coverArt?.let { coverThumbnails(it, keyHeader) }
         val encryptedPath = fileOps.createUploadTempPath("audio-", ".bin")
         try {
             fileOps.writeStream(
                 encryptedPath,
                 AesCbc.streamEncryptWithCbc(fileOps.readFileAsFlow(sourcePath), keyHeader.aesKey, keyHeader.iv),
             )
-            val metadata = trackMetadata(content, uniqueId, tags, versionTag = null).encryptContent(keyHeader)
+            val metadata = trackMetadata(content, uniqueId, tags, versionTag = null, preview = art?.preview)
+                .encryptContent(keyHeader)
             val result = uploadProvider.uploadFile(
                 UploadFileRequest(
                     driveId = driveId,
@@ -114,8 +124,10 @@ class AudioDriveApi(
                             contentType = content.mimeType,
                             isPreEncrypted = true,
                             iv = keyHeader.iv,
+                            previewThumbnail = art?.preview,
                         )
                     ),
+                    thumbnails = art?.thumbnails.orEmpty(),
                 ),
                 onProgress = { sent, total ->
                     if (total != null && total > 0) onProgress((sent.toFloat() / total).coerceIn(0f, 1f))
@@ -132,7 +144,7 @@ class AudioDriveApi(
         val content = track.content.copy(title = newTitle)
         // The server rejects an update that reuses the header IV (mustRotateKeyHeaderIvWhenUpdating).
         val keyHeader = KeyHeader(iv = ByteArrayUtil.getRndByteArray(16), aesKey = track.keyHeader.aesKey)
-        val metadata = trackMetadata(content, track.uniqueId, track.tags, track.versionTag)
+        val metadata = trackMetadata(content, track.uniqueId, track.tags, track.versionTag, track.coverPreview)
             .encryptContent(keyHeader)
         val result = uploadProvider.updateFileByFileId(
             UpdateFileByFileIdRequest(
@@ -171,6 +183,20 @@ class AudioDriveApi(
             onDownloadProgress = null,
         )?.bytes ?: error("Payload of ${track.fileId} not found")
 
+    /** Decrypted bytes of the smallest cover thumbnail at least [minPixels] wide, or the largest there is. */
+    suspend fun readCover(track: AudioTrack, minPixels: Int): ByteArray? {
+        val thumb = track.covers.firstOrNull { it.width >= minPixels } ?: track.covers.lastOrNull() ?: return null
+        return fileProvider.getThumbBytesDecrypted(
+            driveId = driveId,
+            fileId = track.fileId,
+            payloadKey = AUDIO_PAYLOAD_KEY,
+            keyHeader = track.payloadKeyHeader,
+            width = thumb.width,
+            height = thumb.height,
+            lastModified = thumb.lastModified,
+        )?.bytes
+    }
+
     suspend fun downloadTo(track: AudioTrack, outputPath: String, onProgress: (Float) -> Unit = {}): Boolean =
         fileProvider.streamPayloadDecryptedToPath(
             driveId = driveId,
@@ -182,11 +208,25 @@ class AudioDriveApi(
             onProgress = onProgress,
         )
 
+    private class CoverThumbnails(val preview: EmbeddedThumb?, val thumbnails: List<ThumbnailFile>)
+
+    /** Thumbnails are encrypted with the payload's key and IV, so they read back like the audio. */
+    private suspend fun coverThumbnails(image: ByteArray, keyHeader: KeyHeader): CoverThumbnails? = try {
+        val (_, preview, thumbnails) = createThumbnails(image, AUDIO_PAYLOAD_KEY, COVER_SIZES)
+        CoverThumbnails(preview, thumbnails.map { it.copy(thumbnailBytes = keyHeader.encryptDataAes(it.thumbnailBytes)) })
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Logger.w(e, TAG) { "Cover art could not be decoded; uploading without it" }
+        null
+    }
+
     private fun trackMetadata(
         content: AudioTrackContent,
         uniqueId: Uuid?,
         tags: List<Uuid>,
         versionTag: Uuid?,
+        preview: EmbeddedThumb? = null,
     ) = UploadFileMetadata(
         allowDistribution = false,
         isEncrypted = true,
@@ -195,11 +235,17 @@ class AudioDriveApi(
             tags = tags.ifEmpty { null },
             fileType = AUDIO_TRACK_FILE_TYPE,
             content = OdinSystemSerializer.serialize(content),
+            previewThumbnail = preview,
         ),
         versionTag = versionTag,
     )
 
     private companion object {
+        const val TAG = "AudioDriveApi"
         const val PAGE_SIZE = 200
+        val COVER_SIZES = listOf(
+            ThumbnailInstruction(quality = 84, maxPixelDimension = 320, maxBytes = 40 * 1024),
+            ThumbnailInstruction(quality = 84, maxPixelDimension = 640, maxBytes = 120 * 1024),
+        )
     }
 }
