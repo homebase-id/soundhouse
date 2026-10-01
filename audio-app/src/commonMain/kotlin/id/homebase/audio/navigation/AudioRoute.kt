@@ -11,4 +11,7 @@ sealed interface AudioRoute {
 
     @Serializable
     data object Library : AudioRoute
+
+    @Serializable
+    data object Player : AudioRoute
 }

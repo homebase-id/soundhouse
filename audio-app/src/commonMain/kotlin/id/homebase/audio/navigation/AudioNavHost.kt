@@ -14,6 +14,7 @@ import id.homebase.api.youauth.YouAuthFlowManager
 import id.homebase.api.youauth.YouAuthState
 import id.homebase.audio.ui.library.LibraryScreen
 import id.homebase.audio.ui.loading.AppLoadingScreen
+import id.homebase.audio.ui.player.PlayerScreen
 import id.homebase.auth.login.LoginScreen
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -63,8 +64,14 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
         }
         composable<AudioRoute.Library> {
             if (authState is YouAuthState.Authenticated) {
-                LibraryScreen(viewModel = koinViewModel())
+                LibraryScreen(
+                    viewModel = koinViewModel(),
+                    onOpenPlayer = { navController.navigate(AudioRoute.Player) { launchSingleTop = true } },
+                )
             }
+        }
+        composable<AudioRoute.Player> {
+            PlayerScreen(viewModel = koinViewModel(), onBack = { navController.popBackStack() })
         }
     }
 }

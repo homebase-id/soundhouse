@@ -80,33 +80,41 @@ class TrackImporter(
     private suspend fun run(request: Request) {
         val id = request.job.id
         setJob(id) { it.copy(status = ImportStatus.Uploading) }
-        try {
-            val fileName = request.job.fileName
-            val metadata = readMetadata(request.path)
-            val content = AudioTrackContent(
-                title = request.title?.trim()?.takeIf { it.isNotEmpty() } ?: trackTitle(metadata, fileName),
-                sizeBytes = fileOps.getFileSize(request.path),
-                mimeType = mimeTypeForFileName(fileName),
-                durationMs = metadata.durationMs,
-                fileName = fileName,
-                origin = request.origin,
-            )
-            val uploaded = target.uploadTrack(
-                sourcePath = request.path,
-                content = content,
-                tags = request.tags,
-                onProgress = { progress -> setJob(id) { it.copy(progress = progress) } },
-            )
-            target.getTrackFile(uploaded.fileId)?.let { onUploaded(it) }
-            setJob(id) { it.copy(status = ImportStatus.Done, progress = 1f) }
+        val succeeded = try {
+            upload(request)
+            true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Logger.e(e, TAG) { "Import of ${request.job.fileName} failed" }
-            setJob(id) { it.copy(status = ImportStatus.Failed) }
+            false
         } finally {
             if (request.deleteSourceAfter) fileOps.deleteTempFile(request.path)
         }
+        setJob(id) {
+            if (succeeded) it.copy(status = ImportStatus.Done, progress = 1f) else it.copy(status = ImportStatus.Failed)
+        }
+    }
+
+    private suspend fun upload(request: Request) {
+        val id = request.job.id
+        val fileName = request.job.fileName
+        val metadata = readMetadata(request.path)
+        val content = AudioTrackContent(
+            title = request.title?.trim()?.takeIf { it.isNotEmpty() } ?: trackTitle(metadata, fileName),
+            sizeBytes = fileOps.getFileSize(request.path),
+            mimeType = mimeTypeForFileName(fileName),
+            durationMs = metadata.durationMs,
+            fileName = fileName,
+            origin = request.origin,
+        )
+        val uploaded = target.uploadTrack(
+            sourcePath = request.path,
+            content = content,
+            tags = request.tags,
+            onProgress = { progress -> setJob(id) { it.copy(progress = progress) } },
+        )
+        target.getTrackFile(uploaded.fileId)?.let { onUploaded(it) }
     }
 
     private fun setJob(id: Uuid, change: (ImportJob) -> ImportJob) {

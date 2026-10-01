@@ -1,5 +1,6 @@
 package id.homebase.audio.ui.library
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.Close
@@ -78,7 +79,7 @@ import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(viewModel: LibraryViewModel) {
+fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val importLauncher = rememberFilePickerLauncher(
         type = FileKitType.File(extensions = playableExtensions.toList()),
@@ -123,24 +124,27 @@ fun LibraryScreen(viewModel: LibraryViewModel) {
                 !uiState.isLoaded -> CenteredContent { CircularProgressIndicator() }
                 uiState.totalTracks == 0 -> CenteredMessage(stringResource(AR.string.library_empty))
                 uiState.tracks.isEmpty() -> CenteredMessage(stringResource(AR.string.library_no_matches))
-                else -> TrackList(uiState.tracks)
+                else -> TrackList(uiState.tracks, onTrackClick = { track ->
+                    viewModel.play(track)
+                    onOpenPlayer()
+                })
             }
         }
     }
 }
 
 @Composable
-private fun TrackList(tracks: List<AudioTrack>) {
+private fun TrackList(tracks: List<AudioTrack>, onTrackClick: (AudioTrack) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
         items(tracks, key = { it.fileId.toString() }) { track ->
-            TrackRow(track)
+            TrackRow(track, onClick = { onTrackClick(track) })
             HorizontalDivider()
         }
     }
 }
 
 @Composable
-private fun TrackRow(track: AudioTrack) {
+private fun TrackRow(track: AudioTrack, onClick: () -> Unit) {
     val duration = track.durationMs?.let(::formatDuration) ?: stringResource(AR.string.track_duration_unknown)
     ListItem(
         headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -148,6 +152,7 @@ private fun TrackRow(track: AudioTrack) {
             Text(stringResource(AR.string.track_subtitle, duration, formatDate(track.dateAddedMs)))
         },
         leadingContent = { Icon(Icons.Filled.MusicNote, contentDescription = null) },
+        modifier = Modifier.clickable(onClick = onClick),
     )
 }
 

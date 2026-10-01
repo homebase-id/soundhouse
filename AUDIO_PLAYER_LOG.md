@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 2.2 Import done. Next: Phase 2.3 Play (streaming).
+- **Current phase:** Phase 2.3 Play done. Next: Phase 2.4 Record.
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -32,9 +32,17 @@
   back to the filename. jvmTests for the queue, title/MIME rules and real ffprobe on the fixture. liveTest adds an
   import through the real importer (title + duration read from the file, upload, header back).
 
+- Phase 2.3 Play: `AudioStreamServer` (ktor-server CIO on 127.0.0.1, random path secret, `Range`/HEAD support,
+  streams 256 KB decrypted chunks with one-chunk read-ahead), `PlaybackController` (single app player, serial
+  player lane, queue = library as shown, play/pause, seek, next/previous with restart-after-3 s, auto-advance,
+  failure + retry), Player screen (seek bar, elapsed/total, prev/play-pause/next). jvmTests: range parsing, server
+  bytes/HEAD/404/416, first bytes delivered before later chunks exist, ffprobe+ffmpeg seek against the server,
+  controller behaviour. liveTest: drive track → server → HTTP ranges from 0 and mid-file, ffprobe duration, ffmpeg
+  decode from a 4 s seek.
+
 ## Next
 
-- Phase 2.3 Play: loopback streaming server over decrypted ranges, player screen, next/previous.
+- Phase 2.4 Record: mic → preview → name → upload (+ live recorded-clip round trip).
 
 ## Decisions
 
@@ -102,6 +110,14 @@
   pair on the JVM classpath (`hostFfmpegResources`), so the macOS distributable is ~280 MB instead of carrying every
   platform. Cross-platform desktop packaging would need a per-target build like chat's conveyor setup.
 - **iOS import** excludes Ogg/Opus (no AVFoundation decoder) and reads duration only.
+
+- **Players get a URL.** The existing `AudioPlayer` actuals take a path string; Android `MediaPlayer` and the
+  desktop ffmpeg pipeline both accept `http://` and seek with `Range`, so streaming needed no new player, only the
+  loopback server. Desktop seek = ffmpeg restart with `-ss` → ranged GET at the new offset.
+- **iOS playback does not stream** (stubbed): `IOSAudioPlayer` is `AVAudioPlayer`, which only opens local files.
+  iOS is compile-only here; streaming there needs an `AVPlayer` actual (or local download first).
+- **Android streaming is untested on a device** (no emulator attached this session); it relies on `MediaPlayer`
+  HTTP + cleartext to 127.0.0.1 (allowed by `network_security_config`). Desktop streaming is proven by tests.
 
 ### Fixes to the copied layer
 

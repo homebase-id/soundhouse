@@ -13,7 +13,13 @@ import id.homebase.api.youauth.YouAuthFlowManager
 import id.homebase.audio.data.AudioDriveApi
 import id.homebase.audio.data.TrackStore
 import id.homebase.audio.importing.TrackImporter
+import id.homebase.audio.playback.AudioStreamServer
+import id.homebase.audio.playback.PlaybackController
+import id.homebase.audio.playback.RemoteTrackSource
+import id.homebase.audio.playback.TrackLocator
 import id.homebase.audio.ui.library.LibraryViewModel
+import id.homebase.audio.ui.player.PlayerViewModel
+import id.homebase.core.audio.AudioPlayer
 import id.homebase.audio.ui.loading.AppLoadingViewModel
 import id.homebase.auth.login.LoginViewModel
 import id.homebase.core.auth.AuthConnectionCoordinator
@@ -113,7 +119,16 @@ val audioAppModule = module {
         TrackImporter(get<AudioDriveApi>(), get(), get(), onUploaded = store::upsert)
     }
 
+    single { AudioStreamServer() }
+    single<TrackLocator> {
+        val server = get<AudioStreamServer>()
+        val api = get<AudioDriveApi>()
+        TrackLocator { track -> server.urlFor(track.fileId.toString(), RemoteTrackSource(api, track)) }
+    }
+    single { PlaybackController(get<AudioPlayer>(), get(), get()) }
+
     viewModelOf(::AppLoadingViewModel)
+    viewModelOf(::PlayerViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::LibraryViewModel)
 }

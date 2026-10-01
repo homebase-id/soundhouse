@@ -9,6 +9,7 @@ import id.homebase.audio.data.TrackStore
 import id.homebase.api.file.FileOperationsProvider
 import id.homebase.audio.importing.ImportJob
 import id.homebase.audio.importing.TrackImporter
+import id.homebase.audio.playback.PlaybackController
 import id.homebase.core.files.materializeForUpload
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.name
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
 class LibraryViewModel(
     private val trackStore: TrackStore,
     private val importer: TrackImporter,
+    private val playback: PlaybackController,
     private val fileOps: FileOperationsProvider,
     private val youAuthFlowManager: YouAuthFlowManager,
 ) : ViewModel() {
@@ -47,6 +49,12 @@ class LibraryViewModel(
             }.collect { state -> _uiState.update { state } }
         }
         viewModelScope.launch { trackStore.reload() }
+    }
+
+    /** Plays [track] with the list as shown (filter and sort applied) as the queue. */
+    fun play(track: AudioTrack) {
+        val queue = _uiState.value.tracks
+        playback.playQueue(queue, queue.indexOf(track).coerceAtLeast(0))
     }
 
     fun onQueryChange(value: String) {

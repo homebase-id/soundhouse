@@ -89,6 +89,8 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.cio)
             implementation(libs.kermit)
             implementation(libs.okio)
             implementation(libs.filekit.core)
