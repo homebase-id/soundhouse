@@ -14,11 +14,10 @@ import id.homebase.api.youauth.UsernameStorage
 import id.homebase.api.youauth.YouAuthFlowManager
 import id.homebase.api.youauth.YouAuthState
 import id.homebase.core.auth.AuthConnectionCoordinator
-import id.homebase.core.config.AUTO_CONNECTIONS_CIRCLE_ID
 import id.homebase.core.config.AppConfig
-import id.homebase.core.config.CONFIRMED_CONNECTIONS_CIRCLE_ID
 import id.homebase.core.config.appPermissions
 import id.homebase.core.config.circleDriveTargetRequest
+import id.homebase.core.config.loginCircleIds
 import id.homebase.core.config.createAccountReturnUrl
 import id.homebase.core.config.targetDriveAccessRequest
 import id.homebase.core.notifications.NotificationService
@@ -220,8 +219,7 @@ class LoginViewModel(
                     drives = targetDriveAccessRequest,
                     permissions = appPermissions,
                     circleDrives = circleDriveTargetRequest,
-                    circles =
-                        listOf(CONFIRMED_CONNECTIONS_CIRCLE_ID, AUTO_CONNECTIONS_CIRCLE_ID)
+                    circles = loginCircleIds
                 )
                 Logger.i(tag = "LoginViewModel", messageString = "Auth URL ready, launching browser")
                 _uiState.update { it.copy(uiEvent = LoginUiEvent.OpenAuthUrl(authUrl)) }

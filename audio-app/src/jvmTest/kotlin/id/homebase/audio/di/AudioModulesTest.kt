@@ -1,6 +1,7 @@
 package id.homebase.audio.di
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import coil3.ImageLoader
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.audio.data.TrackManager
 import id.homebase.audio.download.DownloadStore
@@ -57,6 +58,8 @@ class AudioModulesTest {
     fun `every screen and service resolves`() {
         val koin = startKoin { modules(allAudioModules()) }.koin
         assertNotNull(koin.get<AuthConnectionCoordinator>())
+        // Injected straight from composables (PublicAvatar on the login screen), not via a view model.
+        assertNotNull(koin.get<ImageLoader>())
         assertNotNull(koin.get<PlaybackController>())
         assertNotNull(koin.get<TrackLocator>())
         assertNotNull(koin.get<DownloadStore>())

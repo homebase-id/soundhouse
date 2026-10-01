@@ -107,4 +107,39 @@ class DownloadStoreTest {
         withTimeout(5_000) { store.downloaded.first { track.fileId in it } }
         assertNull(store.localPathFor(track(size = 11, fileId = track.fileId)))
     }
+
+    @Test
+    fun `the startup rescan never deletes a download that is in flight`() = runBlocking {
+        val listGate = java.util.concurrent.CountDownLatch(1)
+        val slowListing = object : okio.ForwardingFileSystem(FileSystem.SYSTEM) {
+            override fun list(dir: okio.Path): List<okio.Path> {
+                listGate.await()
+                return super.list(dir)
+            }
+        }
+        val partWritten = CompletableDeferred<Unit>()
+        val finishDownload = CompletableDeferred<Unit>()
+        dir.mkdirs()
+        val store = DownloadStore(
+            directory = dir.absolutePath,
+            downloader = { _, path, _ ->
+                File(path).writeBytes(ByteArray(10))
+                partWritten.complete(Unit)
+                finishDownload.await()
+                true
+            },
+            scope = scope,
+            fileSystem = slowListing,
+        )
+        val track = track(10)
+        store.download(track)
+        // Let the rescan list the directory while the download may be holding a .part file.
+        kotlinx.coroutines.withTimeoutOrNull(1_000) { partWritten.await() }
+        listGate.countDown()
+        kotlinx.coroutines.delay(200)
+        finishDownload.complete(Unit)
+        withTimeout(5_000) { store.downloaded.first { track.fileId in it } }
+        assertNotNull(store.localPathFor(track))
+        Unit
+    }
 }

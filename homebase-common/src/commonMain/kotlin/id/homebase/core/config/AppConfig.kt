@@ -411,19 +411,9 @@ fun getMomentsPermissionExtensionConfig(): PermissionExtensionConfig {
     )
 }
 
-// Circle drive requests
-val circleDriveTargetRequest: List<TargetDriveAccessRequest> =
-    listOf(
-        TargetDriveAccessRequest(
-            alias = chatTargetDrive.alias.toString(),
-            type = chatTargetDrive.type.toString(),
-            name = "Chat Drive",
-            description = "Drive which contains all the chat messages",
-            permissions = listOf(DrivePermission.Write, DrivePermission.React),
-            driveSlug = CHAT_DRIVE_SLUG,
-            driveTypeSlug = CHAT_DRIVE_TYPE_SLUG,
-        )
-    )
+// Sign-in asks for the Audio drive only: no circle drives and no circles.
+val circleDriveTargetRequest: List<TargetDriveAccessRequest> = emptyList()
+val loginCircleIds: List<String> = emptyList()
 
 /**
  * Get the permission extension config for checking missing permissions. Uses the same drives and

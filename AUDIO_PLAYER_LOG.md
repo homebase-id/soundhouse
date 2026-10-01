@@ -44,6 +44,19 @@ and iOS-simulator compile of main and test, all jvmTests, `androidApp:assembleDe
 - **Playlists:** not started (stretch).
 - **Desktop packaging** bundles only the build host's ffmpeg. A Windows or Linux build has to be made on that OS.
 
+### Fixes after first Android run (2026-10-01)
+
+- **Login crashed on Android** (`NoDefinitionFoundException: coil3.ImageLoader`, from `PublicAvatar` on the
+  login screen). chat-kmp registers a Coil `ImageLoader` in its platform module; the audio app didn't. Now each
+  platform module registers one with `PublicImageFetcher` and no disk cache; `AudioModulesTest` resolves it.
+- **Sign-in still requested Chat drive circle access** (circle drive Write+React for two connection circles), so it
+  wasn't "Audio drive only". `circleDriveTargetRequest` and the new `loginCircleIds` are empty; `LoginRequestTest`
+  pins the exact request.
+- **DownloadStore race:** the startup rescan deletes stray `.part` files and could delete an in-flight download's
+  `.part` (seen as a gate timeout under load). Downloads now wait for the scan; a test forces the interleaving and
+  fails without the fix.
+- **Debug APK limited to arm64-v8a + x86_64** (228 → 173 MB): the emulator ran out of install space.
+
 ### Open problems
 
 - `DriveRegistryTest.observerEmitsUnmountWhenBatchCarriesShrunkList` (copied) failed once under load early on and

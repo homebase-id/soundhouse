@@ -47,6 +47,8 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+            // Phones and the emulator only: the copied ffmpeg-kit and SQLCipher ship ~40 MB of .so per ABI.
+            ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("debug")
         }

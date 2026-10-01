@@ -45,15 +45,15 @@ class DownloadStore(
     private val _failures = MutableStateFlow<Set<Uuid>>(emptySet())
     val failures: StateFlow<Set<Uuid>> = _failures.asStateFlow()
 
-    init {
-        scope.launch(Dispatchers.IO) { rescan() }
-    }
+    // Downloads wait for this: the scan deletes stray .part files, which would include an in-flight one.
+    private val startupScan = scope.launch(Dispatchers.IO) { rescan() }
 
     fun download(track: AudioTrack) {
         if (track.fileId in _inProgress.value || localPathFor(track) != null) return
         _inProgress.update { it + (track.fileId to 0f) }
         _failures.update { it - track.fileId }
         scope.launch(Dispatchers.IO) {
+            startupScan.join()
             val finalPath = pathFor(track)
             val partPath = "$finalPath.part".toPath()
             val stored = try {
