@@ -2,6 +2,7 @@ package id.homebase.audio.ui.library
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileUpload
@@ -35,6 +36,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -72,6 +78,11 @@ import id.homebase.audio.resources.library_sort_title_ascending
 import id.homebase.audio.resources.library_sort_title_descending
 import id.homebase.audio.resources.record_open
 import id.homebase.audio.resources.sign_out
+import id.homebase.audio.resources.download_action
+import id.homebase.audio.resources.download_done
+import id.homebase.audio.resources.download_failed
+import id.homebase.audio.resources.download_remove
+import id.homebase.audio.resources.track_actions
 import id.homebase.audio.resources.track_duration_unknown
 import id.homebase.audio.resources.track_subtitle
 import id.homebase.audio.ui.common.formatDate
@@ -129,27 +140,53 @@ fun LibraryScreen(viewModel: LibraryViewModel, onOpenPlayer: () -> Unit, onOpenR
                 !uiState.isLoaded -> CenteredContent { CircularProgressIndicator() }
                 uiState.totalTracks == 0 -> CenteredMessage(stringResource(AR.string.library_empty))
                 uiState.tracks.isEmpty() -> CenteredMessage(stringResource(AR.string.library_no_matches))
-                else -> TrackList(uiState.tracks, onTrackClick = { track ->
-                    viewModel.play(track)
-                    onOpenPlayer()
-                })
+                else -> TrackList(
+                    uiState = uiState,
+                    onTrackClick = { track ->
+                        viewModel.play(track)
+                        onOpenPlayer()
+                    },
+                    actions = TrackActions(
+                        download = viewModel::download,
+                        removeDownload = viewModel::removeDownload,
+                    ),
+                )
             }
         }
     }
 }
 
+class TrackActions(
+    val download: (AudioTrack) -> Unit,
+    val removeDownload: (AudioTrack) -> Unit,
+)
+
 @Composable
-private fun TrackList(tracks: List<AudioTrack>, onTrackClick: (AudioTrack) -> Unit) {
+private fun TrackList(uiState: LibraryUiState, onTrackClick: (AudioTrack) -> Unit, actions: TrackActions) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 88.dp)) {
-        items(tracks, key = { it.fileId.toString() }) { track ->
-            TrackRow(track, onClick = { onTrackClick(track) })
+        items(uiState.tracks, key = { it.fileId.toString() }) { track ->
+            TrackRow(
+                track = track,
+                downloaded = track.fileId in uiState.downloaded,
+                downloadProgress = uiState.downloadProgress[track.fileId],
+                downloadFailed = track.fileId in uiState.downloadFailures,
+                onClick = { onTrackClick(track) },
+                actions = actions,
+            )
             HorizontalDivider()
         }
     }
 }
 
 @Composable
-private fun TrackRow(track: AudioTrack, onClick: () -> Unit) {
+private fun TrackRow(
+    track: AudioTrack,
+    downloaded: Boolean,
+    downloadProgress: Float?,
+    downloadFailed: Boolean,
+    onClick: () -> Unit,
+    actions: TrackActions,
+) {
     val duration = track.durationMs?.let(::formatDuration) ?: stringResource(AR.string.track_duration_unknown)
     ListItem(
         headlineContent = { Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -157,8 +194,61 @@ private fun TrackRow(track: AudioTrack, onClick: () -> Unit) {
             Text(stringResource(AR.string.track_subtitle, duration, formatDate(track.dateAddedMs)))
         },
         leadingContent = { Icon(Icons.Filled.MusicNote, contentDescription = null) },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                when {
+                    downloadProgress != null -> CircularProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    downloaded -> Icon(
+                        Icons.Filled.DownloadDone,
+                        contentDescription = stringResource(AR.string.download_done),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    downloadFailed -> Icon(
+                        Icons.Filled.ErrorOutline,
+                        contentDescription = stringResource(AR.string.download_failed),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+                TrackMenu(track, downloaded, downloading = downloadProgress != null, actions)
+            }
+        },
         modifier = Modifier.clickable(onClick = onClick),
     )
+}
+
+@Composable
+private fun TrackMenu(track: AudioTrack, downloaded: Boolean, downloading: Boolean, actions: TrackActions) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(AR.string.track_actions, track.title))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (downloaded) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(AR.string.download_remove)) },
+                    leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        actions.removeDownload(track)
+                    },
+                )
+            } else if (!downloading) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(AR.string.download_action)) },
+                    leadingIcon = { Icon(Icons.Filled.Download, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        actions.download(track)
+                    },
+                )
+            }
+        }
+    }
 }
 
 @Composable

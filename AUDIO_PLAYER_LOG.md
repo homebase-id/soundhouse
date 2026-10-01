@@ -2,7 +2,7 @@
 
 ## Status
 
-- **Current phase:** Phase 2.4 Record done. Next: Phase 2.5 Download.
+- **Current phase:** Phase 2.5 Download done. Next: Phase 2.6 Manage (rename, delete).
 - **Source:** chat-kmp @ `6b083f6ffbddc19ab399c603f4fd38db2092bc2f` (clean working tree at copy time; files taken with `git archive HEAD`).
 
 ## Done
@@ -47,9 +47,17 @@
   jvmTests: record→name→save, empty recording, discard. liveTest: recorded-clip round trip (title/origin/duration,
   byte-identical download, range read).
 
+- Phase 2.5 Download: `DownloadStore` (decrypted copy per track in app data — Android `filesDir/downloads`,
+  desktop `<app data>/downloads`, iOS Application Support — written via `.part` + atomic move, valid only when the
+  size matches the track; rescans on start and drops stray `.part` files), per-track overflow menu (Download /
+  Remove download), progress ring, downloaded/failed badges. `DefaultTrackLocator` plays the local file when a
+  complete copy exists, else streams. jvmTests found and fixed a bug where the old-copy cleanup also deleted the
+  fresh `.part` (download stalled "in progress"). liveTest: stream URL before download → download → locator returns
+  a local file with byte-identical content that ffmpeg decodes from a seek → remove → streams again.
+
 ## Next
 
-- Phase 2.5 Download: local offline copies, downloaded tracks play from disk, show/delete local copy.
+- Phase 2.6 Manage: rename and delete (with confirmation) from the track menu.
 
 ## Decisions
 

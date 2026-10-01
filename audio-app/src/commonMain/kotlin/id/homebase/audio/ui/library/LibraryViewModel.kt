@@ -8,6 +8,7 @@ import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.data.TrackStore
 import id.homebase.api.file.FileOperationsProvider
 import id.homebase.audio.importing.ImportJob
+import id.homebase.audio.download.DownloadStore
 import id.homebase.audio.importing.TrackImporter
 import id.homebase.audio.playback.PlaybackController
 import id.homebase.core.files.materializeForUpload
@@ -26,6 +27,7 @@ class LibraryViewModel(
     private val trackStore: TrackStore,
     private val importer: TrackImporter,
     private val playback: PlaybackController,
+    private val downloads: DownloadStore,
     private val fileOps: FileOperationsProvider,
     private val youAuthFlowManager: YouAuthFlowManager,
 ) : ViewModel() {
@@ -37,7 +39,7 @@ class LibraryViewModel(
 
     init {
         viewModelScope.launch {
-            combine(trackStore.tracks, trackStore.isLoaded, query, sort, importer.jobs) { tracks, loaded, q, s, jobs ->
+            val library = combine(trackStore.tracks, trackStore.isLoaded, query, sort, importer.jobs) { tracks, loaded, q, s, jobs ->
                 LibraryUiState(
                     tracks = arrangeTracks(tracks, q, s),
                     totalTracks = tracks.size,
@@ -46,6 +48,9 @@ class LibraryViewModel(
                     isLoaded = loaded,
                     imports = jobs,
                 )
+            }
+            combine(library, downloads.downloaded, downloads.inProgress, downloads.failures) { state, done, progress, failed ->
+                state.copy(downloaded = done, downloadProgress = progress, downloadFailures = failed)
             }.collect { state -> _uiState.update { state } }
         }
         viewModelScope.launch { trackStore.reload() }
@@ -55,6 +60,12 @@ class LibraryViewModel(
     fun play(track: AudioTrack) {
         val queue = _uiState.value.tracks
         playback.playQueue(queue, queue.indexOf(track).coerceAtLeast(0))
+    }
+
+    fun download(track: AudioTrack) = downloads.download(track)
+
+    fun removeDownload(track: AudioTrack) {
+        viewModelScope.launch { downloads.remove(track.fileId) }
     }
 
     fun onQueryChange(value: String) {
@@ -92,4 +103,7 @@ data class LibraryUiState(
     val sort: LibrarySort = LibrarySort.Newest,
     val isLoaded: Boolean = false,
     val imports: List<ImportJob> = emptyList(),
+    val downloaded: Set<Uuid> = emptySet(),
+    val downloadProgress: Map<Uuid, Float> = emptyMap(),
+    val downloadFailures: Set<Uuid> = emptySet(),
 )

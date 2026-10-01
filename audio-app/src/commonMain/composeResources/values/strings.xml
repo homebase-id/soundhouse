@@ -42,4 +42,9 @@
     <string name="record_grant_permission">Allow microphone</string>
     <string name="record_hint">Tap to start recording</string>
     <string name="record_preview_time">%1$s / %2$s</string>
+    <string name="track_actions">More actions for %1$s</string>
+    <string name="download_action">Download for offline</string>
+    <string name="download_remove">Remove download</string>
+    <string name="download_done">Downloaded</string>
+    <string name="download_failed">Download failed</string>
 </resources>
