@@ -1,5 +1,55 @@
 # Refine log (branch refine-night2)
 
+## Summary (morning of 2026-10-03)
+
+Everything in REFINE_TONIGHT.md is done. 8 local commits on `refine-night2`; nothing merged into main, nothing pushed.
+
+| Module | Before | After |
+|---|---|---|
+| homebase-notifshared | 301 | removed (module was empty) |
+| homebase-api | 65,897 | 40,886 |
+| homebase-common | 13,657 | 9,798 |
+| homebase-auth | 3,430 | 3,427 |
+| audio-app | 10,600 | 10,567 |
+| androidApp / desktopApp / baselineprofile | 595 | 595 |
+| **Kotlin total** | **94,480** | **65,273 (−29,207, −31%)** |
+
+- Release APK: **111.5 MB → 35.9 MB** (FFmpeg-kit's native libraries were most of it).
+- Repo: ~190 MB of binaries gone (154 MB iOS ffmpegkit xcframework, 33 MB local Maven repo with the FFmpeg-kit AAR).
+- Branch diff: 1,425 files, +609 / −290,300 (most of the deletions are the xcframework).
+
+What went: the video pipeline and FFmpeg-kit (A); peer websockets, push notifications (kmpnotifier/Firebase
+Messaging, Nucleus, PDFBox) and contacts lookups (B); the outbox pipeline, six chat-only database wrappers and further
+dead code from the reachability / unused-name / R8 passes (C); unused strings, dependencies and catalog entries (D);
+stale comments and the profile-editing classes they exposed (E); the empty homebase-notifshared module.
+
+Verification: every milestone passed the full gate (JVM, Android, iOS-simulator compiles of main and tests; all
+jvmTests; debug APK; desktop distributable), the R8 release build, liveTest 10/10 against the real server, and a
+release-APK launch on the emulator with no crash; D and E also launched the desktop app cleanly. Final liveTest on the
+last commit: 10/10.
+
+Behaviour changes (all intended):
+- No push call after sign-in (it was failing with 403 on the phone); no c2dm permission; Firebase messaging gone.
+- The auth coordinator no longer toggles/flushes the (always empty) outbox; the outbox table and schema remain.
+- Sign-in name/avatar now come only from the public profile — which is where they already came from, since the
+  Contacts drive is never synced in Soundhouse.
+
+Kept on purpose:
+- VideoQuality / VideoMetadata / VideoProcessingPhase (types inside server-returned or stored formats).
+- Desktop ffmpeg (FFmpegBinaryManager) — audio playback and metadata on desktop use it.
+- The Outbox table and every other table, their SQLDelight adapters, and the schema (logout still drops/recreates all).
+- Runtime-discovered libraries with no imports: Ktor engines, SQLite JDBC, JNA, Coil artifacts.
+- Headless mode in AuthConnectionCoordinator: it can no longer turn on in Soundhouse (startsHeadless defaults to false
+  and nothing sets it), but removing it is a logic change rather than dead code — left for you to decide.
+- ~100 R8/name candidates that are used on desktop, iOS or in tests, or that the cut script can't remove cleanly.
+
+Process notes: two silent tooling traps were found and fixed in scripts/deadcode (cut-loop resets unstaged edits,
+so script edits must be staged; `--fast` skips iOS, so an R8 cut once removed an iOS-only member — caught both times by
+the full compile before any commit). Every cut was audited: each removed hunk starts with a candidate declaration.
+
+Your call: review with `git log main..refine-night2` and merge when happy; decide on headless mode; give the
+app its own launcher test on the phone after merging (sign-in, import, play, record, offline, collections).
+
 Instructions: REFINE_TONIGHT.md. Commits are local; nothing merged into main.
 
 ## Baseline (main @ 00fbd03)
@@ -26,7 +76,7 @@ Release APK: 111,510,189 bytes.
 - [x] C. Dead-code passes again (reach, names, R8 methods) + outbox + chat DB wrappers
 - [x] D. Resources / dependencies / catalog freed by A–C
 - [x] E. Comments in touched files
-- [ ] Final: gate, release, liveTest, summary
+- [x] Final: gate, release, liveTest, summary
 
 ## Log
 
