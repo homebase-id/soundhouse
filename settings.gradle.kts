@@ -37,7 +37,6 @@ dependencyResolutionManagement {
 include(":homebase-common")
 include(":homebase-auth")
 include(":homebase-api")
-include(":homebase-notifshared")
 
 include(":audio-app")
 include(":androidApp")

@@ -77,7 +77,6 @@ kotlin {
 
         commonMain.dependencies {
             api(project(":homebase-api"))
-            api(project(":homebase-notifshared"))
 
             implementation(libs.atomicfu)
             implementation(libs.jetbrains.compose.runtime)

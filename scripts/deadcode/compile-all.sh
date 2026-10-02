@@ -4,7 +4,7 @@
 cd "$(dirname "$0")/../.."
 WORK="${DEADCODE_WORK:-/tmp/deadcode}"; mkdir -p "$WORK"
 T=()
-for m in homebase-notifshared homebase-api homebase-common homebase-auth audio-app; do
+for m in homebase-api homebase-common homebase-auth audio-app; do
   T+=(":$m:compileKotlinJvm" ":$m:compileTestKotlinJvm" ":$m:compileAndroidMain" ":$m:compileAndroidHostTest")
   [[ "${1:-}" == "--fast" ]] || T+=(":$m:compileKotlinIosSimulatorArm64" ":$m:compileTestKotlinIosSimulatorArm64")
 done

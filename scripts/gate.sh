@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-MODULES=(homebase-notifshared homebase-api homebase-common homebase-auth)
+MODULES=(homebase-api homebase-common homebase-auth)
 APP_MODULES=()
 [[ -d audio-app ]] && MODULES+=(audio-app)
 

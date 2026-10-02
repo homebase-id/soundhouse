@@ -16,7 +16,6 @@ commit). Treat them as a vendored layer: change the minimum needed, don't refact
 homebase-api          — HTTP client (Ktor), SQLDelight DB, crypto, drive sync, websocket
 homebase-common       — theme, settings, auth coordinator, audio player/recorder actuals
 homebase-auth         — YouAuth login screen + view model
-homebase-notifshared  — tiny shared notification types
     ↑
 audio-app             — the app: drive service layer, streaming server, screens, Koin modules
     ↑
