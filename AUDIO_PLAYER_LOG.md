@@ -229,6 +229,14 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
 - Process slip: commit b347ba3 (collections) was made although that gate run failed — the gate's exit code was
   hidden by a pipe. Fixed here; gate exit codes are now checked directly.
 
+### App icon (2026-10-02)
+
+- New "soundprint" icon: white waveform bars on a blue-to-violet gradient. Android adaptive layers (foreground,
+  background, monochrome for themed icons and notifications, legacy) at all five densities, desktop icns/ico/png,
+  and the SVG masters in `icons/source/` for future edits. Checked: exact sizes, transparent foreground/monochrome,
+  opaque background, glyph radius 116.5 px of the 132 px safe circle (no launcher clipping), previews in circle,
+  squircle and rounded-square masks and at 48 px.
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first
