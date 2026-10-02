@@ -111,22 +111,6 @@ class DriveMainIndexWrapper(
     suspend fun countAll(): Long =
         databaseManager.readValue("countAll") { delegate.countAll().executeAsOne() }
 
-    /**
-     * Row shape for the Defragmenter's streaming scan — carries enough to
-     *  - call [HomebaseFile.isSoftDeleted] from the deserialised jsonHeader,
-     *  - page forward by rowId,
-     *  - compare what's stored on the SQL side ([userDate], [archivalStatus])
-     *    against what the deserialised header says, so the classifier can
-     *    detect SQL/header drift without a second read.
-     */
-    data class PagedScanRow(
-        val rowId: Long,
-        val fileId: Uuid,
-        val userDate: Long,
-        val archivalStatus: Long,
-        val jsonHeader: String,
-    )
-
     suspend fun upsertDriveMainIndex(
         identityId: Uuid,
         driveId: Uuid,

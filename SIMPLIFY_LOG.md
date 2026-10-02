@@ -176,3 +176,10 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - One intentional behaviour change: TrackImporter's save now reads the queue under its write lock, the same race
   fixed in ListeningHistory before (two quick saves could land oldest-last).
 - Verified: all-target compile, gate --apps exit 0.
+
+### 13. Final sweep
+- Re-ran both passes after the dependency and helper changes: 3 more unreachable files (profile-attribute parsing,
+  markdown plain-text, peer file-exists response) with their 2 tests, and the last declarations whose names went
+  unused (8 files). A comment that named the deleted parser as an example was trimmed.
+- Verified: all-target compile, gate --apps exit 0.
+- Kotlin lines → 93,925.

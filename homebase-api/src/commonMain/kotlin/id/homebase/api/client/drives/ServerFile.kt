@@ -95,7 +95,7 @@ private suspend fun FileMetadata.decryptAppData(
     } catch (e: Throwable) {
         // Mirrors the AES-decrypt soft-fail immediately below: one file's undecodable content
         // must not take down the whole batch (DriveQueryProvider.mapQueryBatchResponse's
-        // documented contract). A caller-side parser (e.g. ProfileAttributeParse) that requires
+        // documented contract). A caller-side parser that requires
         // a `type` key on this placeholder will safely treat the file as unparseable and skip it.
         Logger.e("Base64 decode failure for AppData content: ${e.message}")
         return withDecryptedContent(

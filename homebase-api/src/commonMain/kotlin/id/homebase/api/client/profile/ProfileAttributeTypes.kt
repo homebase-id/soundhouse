@@ -52,8 +52,5 @@ enum class ProfileVisibility(val wireValue: String) {
     val photoWireValue: String get() = wireValue.replaceFirstChar { it.uppercaseChar() }
 
     companion object {
-        /** Lenient parse from a stored security-group string; unknown/absent → [OWNER] (most private). */
-        fun fromWire(value: String?): ProfileVisibility =
-            entries.firstOrNull { it.wireValue.equals(value, ignoreCase = true) } ?: OWNER
     }
 }

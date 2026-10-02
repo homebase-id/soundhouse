@@ -42,28 +42,6 @@ class ProfileProvider(
         const val PROFILE_ATTRIBUTE_FILE_TYPE: Int = 77
     }
 
-    /**
-     * PUT /api/v2/profile/attributes/photo — creates or edits the owner's profile photo.
-     *
-     * Unlike [saveAttribute] there is no `type`; the server owns the Photo attribute's type and
-     * `data.profileImageKey`. Pass [SetPhotoAttributeRequest.id] = null to CREATE (multiple photo
-     * attributes — e.g. one per [ProfileVisibility] tier — can coexist); pass it with
-     * [SetPhotoAttributeRequest.expectedVersionTag] to EDIT. Same [ProfileWriteResult] contract as
-     * [saveAttribute] (409 = stale tag, re-read and retry — see [ProfileRepository.uploadPhoto]).
-     */
-    suspend fun setPhotoAttribute(request: SetPhotoAttributeRequest): ProfileWriteResult {
-        val creds = requireCreds()
-
-        val response = encryptedPutJson(
-            url = apiUrl(creds.domain, "$BASE/photo"),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(request),
-            secret = creds.secret,
-        )
-
-        return toWriteResult(response)
-    }
-
     private fun toWriteResult(response: ApiResponse): ProfileWriteResult =
         when {
             response.status in 200..299 ->

@@ -54,9 +54,6 @@ class ContactsProvider(
         /** Server payload key the contact image (and its thumbnails) are stored under. */
         const val CONTACT_IMAGE_PAYLOAD_KEY: String = "prfl_pic"
 
-        /** On-demand payload key the contact's large rich-text fields ([ContactExtData]) ride on. */
-        const val CONTACT_EXT_DATA_PAYLOAD_KEY: String = "ext_data"
-
         /** On-demand payload key the bulk-tier per-app data ([ContactAppExtData]) rides on. */
         const val CONTACT_APP_EXT_DATA_PAYLOAD_KEY: String = "appextdata"
     }

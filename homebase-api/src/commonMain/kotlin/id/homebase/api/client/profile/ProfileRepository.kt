@@ -18,25 +18,6 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-/** Thrown by [ProfileRepository.uploadPhoto] when the server rejects the photo for exceeding its
- *  size cap (400 `maxContentLengthExceeded`) — callers should prompt for a smaller photo rather
- *  than show a generic upload failure. Mirrors `ContactAppDataTooLargeException`. */
-class ProfilePhotoTooLargeException(message: String) : Exception(message)
-
-/**
- * The blur-up preview thumb for [ProfileRepository.uploadPhoto] — [bytes] is the *tiny* rendition
- * (~20px WebP, plaintext), but [naturalPixelWidth]/[naturalPixelHeight] must be the **source**
- * image's dimensions, not this tiny rendition's own resized size (a deliberate server/odin-js
- * convention — see [SetPhotoAttributeRequest.previewThumbnail]). Kept as its own type rather than
- * reusing [ThumbnailFile] so that distinction can't be missed at the call site.
- */
-data class PreviewThumbnail(
-    val bytes: ByteArray,
-    val naturalPixelWidth: Int,
-    val naturalPixelHeight: Int,
-    val contentType: String = "image/webp",
-)
-
 /**
  * Read + write source of truth for the owner's standard-profile attributes.
  *
@@ -52,5 +33,4 @@ class ProfileRepository(
     private val driveQueryProvider: DriveQueryProvider,
     private val profileProvider: ProfileProvider,
 ) {
-    private val profileDriveId: Uuid = SystemDriveConstants.profileDrive.alias
 }

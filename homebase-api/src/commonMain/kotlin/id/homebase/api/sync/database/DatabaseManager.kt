@@ -359,9 +359,6 @@ class DatabaseManager(
     val connectionCache: ConnectionCacheWrapper by lazy {
         ConnectionCacheWrapper(driver, connectionCacheAdapter, this)
     }
-    val circleMembershipCache: CircleMembershipCacheWrapper by lazy {
-        CircleMembershipCacheWrapper(driver, this)
-    }
 
     // Reads run on [readDispatcher], NOT the single write [dispatcher], so a read
     // issued while a long write transaction holds the writer slot starts

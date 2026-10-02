@@ -54,8 +54,6 @@ fun String.sanitizePreviewText(): String =
         .replace(whitespaceRun, " ")
         .trim()
 
-private const val NOTE_PREVIEW_MAX_LENGTH = 200
-
 // Truncate a string to maxVisibleCharacters (be sure UTF characters aren't chopped in the middle)
 fun String.truncateToCodePoints(maxVisibleCharacters: Int): String {
     if (maxVisibleCharacters <= 0) return ""

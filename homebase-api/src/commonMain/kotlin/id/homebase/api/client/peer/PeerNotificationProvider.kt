@@ -22,7 +22,6 @@ data class PeerTokenResponse(
     val sharedSecret: String,
 )
 
-@Serializable
 private data class PeerPushSubscriptionRequest(
     val identity: OdinId,
     val subscriptionId: Uuid,
