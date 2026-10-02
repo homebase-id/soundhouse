@@ -16,8 +16,6 @@ androidx-testCore = "1.7.0"
 composeMultiplatform = "1.10.3"
 konsist = "0.17.3"
 nucleus = "1.14.4"
-ffmpegKit = "1.0"
-mp4parser = "1.9.39"
 pdfbox = "3.0.5"
 jna = "5.18.1"
 jetbrains-compose-material3 = "1.10.0-alpha04"
@@ -52,8 +50,6 @@ kmpnotifier = "1.6.1"
 buildconfig = "6.0.9"
 
 [libraries]
-ffmpeg-kit = { module = "id.homebase.libs:ffmpeg-kit", version.ref = "ffmpegKit" }
-mp4parser-isoparser = { module = "org.mp4parser:isoparser", version.ref = "mp4parser" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 konsist = { module = "com.lemonappdev:konsist", version.ref = "konsist" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -132,7 +128,6 @@ koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", ver
 filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
 filekit-dialogs = { module = "io.github.vinceglb:filekit-dialogs", version.ref = "filekit" }
 filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
-smart-exception-java = { module = "com.arthenica:smart-exception-java", version = "0.2.1" }
 androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", version.ref = "uiToolingPreview" }
 multiplatform-settings = { group = "com.russhwolf", name = "multiplatform-settings", version.ref = "multiplatformSettings" }
 coil3 = { group = "io.coil-kt.coil3", name = "coil", version.ref = "coil3" }

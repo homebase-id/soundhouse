@@ -36,7 +36,6 @@ import id.homebase.api.file.StartupCacheAudit
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.api.sync.database.OutboxSync
 import id.homebase.api.sync.database.OutboxUploader
-import id.homebase.api.video.VideoPrefetchDriveAccess
 import id.homebase.api.youauth.SecurityContextProvider
 import id.homebase.api.youauth.UsernameStorage
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -92,7 +91,6 @@ val apiModule = module {
     factoryOf(::DriveUploadProvider)
 
     factoryOf(::DriveFileProvider)
-    factory<VideoPrefetchDriveAccess> { get<DriveFileProvider>() }
     factoryOf(::DriveFileOperationsProvider)
     factoryOf(::DriveFileGroupReactionProvider)
 

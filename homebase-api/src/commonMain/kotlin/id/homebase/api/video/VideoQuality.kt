@@ -2,11 +2,7 @@ package id.homebase.api.video
 
 import id.homebase.api.image.MediaQuality
 
-/**
- * Target quality for the compress step of the video send pipeline. Mapping
- * to a concrete encoder configuration is platform-specific (see each
- * [FFmpegUtils] actual).
- */
+/** Encoder tier a video payload was queued with; kept so stored outbox rows still decode. */
 enum class VideoQuality {
     /** ~480p short edge, ~1.25 Mbps video + 128 kbps audio. */
     LOW,
