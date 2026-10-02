@@ -1,5 +1,52 @@
 # Simplify log (branch simplify-overnight)
 
+## Summary (2026-10-02)
+
+Stopped at a natural point: the whole-file, Koin, resource, dependency and declaration passes have converged, and
+the last rounds were finding a few hundred lines each.
+
+| Module | Before | After | Change |
+|---|---|---|---|
+| homebase-notifshared | 314 | 301 | −13 |
+| homebase-api | 77,840 | 65,897 | −11,943 |
+| homebase-common | 50,541 | 13,657 | −36,884 (−73%) |
+| homebase-auth | 3,440 | 3,430 | −10 |
+| audio-app | 10,058 | 10,053 | −5 |
+| androidApp / desktopApp / baselineprofile | 587 | 587 | 0 |
+| **Kotlin total** | **142,780** | **93,925** | **−48,855 (−34%)** |
+
+Also removed: 3,825 string/plural resources (2,163 in homebase-common plus their Danish copies), 89 resource files,
+42 dependency declarations, 90 version-catalog entries, 5 unused root plugins. Branch diff: 743 files,
++250 / −53,683 (the additions are this log, two small app helpers, explicit dependency lines, one rewritten test
+provider). Release APK 112.9 MB → 111.5 MB. 13 commits, all local.
+
+Verification at the end: gate --apps exit 0 (JVM, Android, iOS-simulator compiles of main and tests; all jvmTests;
+debug APK; desktop distributable), assembleRelease exit 0 with R8 reporting no missing classes, release APK launched
+on the emulator to the login screen with no crash, liveTest 10/10 against the real server (also 10/10 at two earlier
+milestones), desktop distributable launched cleanly after the dependency removal.
+
+Behaviour changes (all intentional, all logged below):
+- Chat-only manifest entries are gone from the app: a boot receiver that could never fire (no
+  RECEIVE_BOOT_COMPLETED), a location-updates receiver, a Thunderbird package query. The biometric library's
+  USE_BIOMETRIC/USE_FINGERPRINT permissions disappear with it; Firebase Crashlytics (which never initialised) no
+  longer tries to start.
+- TrackImporter's queue save now reads its state under the write lock (the race fixed earlier in ListeningHistory).
+
+Suspected dead, kept on purpose:
+- The video pipeline and FFmpeg-kit (≈40% of the release APK's native libraries). It stays reachable only through
+  `PayloadFile.videoQuality`, a field of a @Serializable class persisted in the outbox; removing it changes a
+  serialized format, which this run was told not to do. Worth a deliberate decision.
+- Coil network/svg/gif/video add-ons (runtime ServiceLoader discovery; avatars may be SVG/GIF).
+- `StartupCacheAudit` (created at start on purpose), peer websockets, outbox, contacts and notification services
+  still wired into live code (AuthConnectionCoordinator, DriveFileProvider, LoginViewModel): removing them changes
+  runtime behaviour, not just code size.
+- About 180 candidate declarations the scripts couldn't cut cleanly, and English-word string names (`settings`,
+  `delete`, …) that the conservative word check keeps.
+- Class-level KDoc in audio-app: each explains a non-obvious why, as CLAUDE.md allows.
+
+Not done: `/simplify` itself — it is not invocable from this session; each batch got the equivalent review by
+hand. Run `/simplify` over `git diff main...simplify-overnight` before merging.
+
 Goal: smaller, simpler code with zero behaviour change. Commits are local only.
 
 ## Baseline (main @ 4da8caa)
@@ -41,10 +88,10 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - [x] 4. Koin definitions that nothing injects (registered but dead), then their classes
 - [x] 5. Unused members inside live files (name-based fixpoint), vendored layer
 - [x] 6. Unused Compose string resources (all modules, incl. values-da) and resource files
-- [ ] 7. Unused declarations in audio-app / androidApp / desktopApp
+- [x] 7. Unused declarations in audio-app / androidApp / desktopApp (covered by the name pass; none found)
 - [x] 8. Unused Gradle dependencies, plugins, version-catalog entries
-- [ ] 9. Comments violating CLAUDE.md in touched audio-app code; duplicated audio-app helpers
-- [ ] 10. Final /simplify over the whole branch diff, gate, liveTest, summary
+- [x] 9. Comments violating CLAUDE.md in touched audio-app code; duplicated audio-app helpers
+- [x] 10. Final review (by hand; /simplify not invocable here), gate, liveTest, summary
 
 ## Commits
 
