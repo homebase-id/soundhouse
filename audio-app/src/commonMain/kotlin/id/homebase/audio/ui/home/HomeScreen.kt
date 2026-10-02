@@ -66,7 +66,8 @@ import id.homebase.audio.ui.common.formatDuration
 import id.homebase.audio.ui.common.playedAgo
 import id.homebase.audio.ui.common.timeLeft
 import id.homebase.audio.ui.library.EmptyLibrary
-import id.homebase.audio.ui.library.ImportPanel
+import id.homebase.audio.ui.importing.ImportActions
+import id.homebase.audio.ui.importing.ImportSummaryCard
 import id.homebase.audio.ui.collections.CollectionTile
 import id.homebase.audio.resources.collections_title
 import kotlin.uuid.Uuid
@@ -138,7 +139,7 @@ fun HomeContent(
             contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = 24.dp),
         ) {
             if (uiState.imports.isNotEmpty()) {
-                item { ImportPanel(jobs = uiState.imports, onDismiss = onDismissImport, onRetry = onRetryImport, onClearFinished = onClearFinishedImports) }
+                item { ImportSummaryCard(uiState.imports, ImportActions(onRetryImport, onDismissImport, onClearFinishedImports)) }
             }
             if (uiState.totalTracks == 0) {
                 if (uiState.imports.isEmpty()) item { EmptyLibrary(onImport = onImport, onRecord = onOpenRecorder) }

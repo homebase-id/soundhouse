@@ -1,5 +1,10 @@
 package id.homebase.audio.ui
 
+import id.homebase.audio.importing.ImportFailure
+import id.homebase.audio.importing.ImportStatus
+import id.homebase.audio.importing.ImportJob
+import id.homebase.audio.ui.importing.ImportSummaryCard
+import id.homebase.audio.ui.importing.ImportActions
 import id.homebase.audio.data.AudioCollection
 import id.homebase.audio.ui.collections.CollectionSummary
 import id.homebase.audio.ui.collections.CollectionChips
@@ -163,6 +168,23 @@ class UiRenderTest {
         )
         for (dark in listOf(false, true)) render("home", dark, height = 1100) {
             HomeContent(state, {}, {}, {}, {}, {}, {}, {}, {}, {}, actions = {})
+        }
+    }
+
+    @Test
+    fun `import summary renders`() {
+        fun job(name: String, status: ImportStatus, progress: Float = 0f) =
+            ImportJob(Uuid.random(), name, status, progress, if (status == ImportStatus.Failed) ImportFailure.Connection else null)
+        val actions = ImportActions({}, {}, {})
+        val active = List(12) { job("Mix $it.mp3", ImportStatus.Done) } +
+            listOf(job("Cloud 9 Sessions.mp3", ImportStatus.Uploading, 0.6f), job("Voice memo 14.m4a", ImportStatus.Uploading, 0.2f)) +
+            List(26) { job("Queued $it.mp3", ImportStatus.Queued) } + listOf(job("Broken.mp3", ImportStatus.Failed))
+        render("import-summary", dark = false, height = 420) {
+            Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(top = 16.dp)) {
+                ImportSummaryCard(active, actions)
+                ImportSummaryCard(listOf(job("Bass practice.mp3", ImportStatus.Uploading, 0.4f)), actions)
+                ImportSummaryCard(List(40) { job("Done $it.mp3", ImportStatus.Done) }, actions)
+            }
         }
     }
 

@@ -24,6 +24,30 @@
     <string name="upload_channel">Uploads</string>
     <string name="upload_notification_title">Uploading to your Homebase</string>
     <string name="import_clear_finished">Clear finished</string>
+    <string name="import_summary_progress">%1$d of %2$d uploaded</string>
+    <string name="import_summary_review">Review</string>
+    <string name="import_summary_show">Show uploads</string>
+    <plurals name="import_summary_and_more">
+        <item quantity="one">%1$s and %2$d more</item>
+        <item quantity="other">%1$s and %2$d more</item>
+    </plurals>
+    <plurals name="import_summary_failed">
+        <item quantity="one">%1$d file couldn't upload</item>
+        <item quantity="other">%1$d files couldn't upload</item>
+    </plurals>
+    <plurals name="import_summary_added">
+        <item quantity="one">%1$d track added</item>
+        <item quantity="other">%1$d tracks added</item>
+    </plurals>
+    <string name="uploads_title">Uploads</string>
+    <string name="uploads_section_failed">Couldn't upload</string>
+    <string name="uploads_section_uploading">Uploading</string>
+    <string name="uploads_section_waiting">Waiting</string>
+    <plurals name="uploads_section_added">
+        <item quantity="one">%1$d added</item>
+        <item quantity="other">%1$d added</item>
+    </plurals>
+    <string name="uploads_retry_all">Retry all</string>
     <string name="navigate_back">Back</string>
     <string name="player_play">Play</string>
     <string name="player_pause">Pause</string>

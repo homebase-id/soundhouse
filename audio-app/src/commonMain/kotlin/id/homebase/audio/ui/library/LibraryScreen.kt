@@ -43,6 +43,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.importing.playableExtensions
 import id.homebase.audio.resources.AR
+import id.homebase.audio.ui.importing.ImportActions
+import id.homebase.audio.ui.importing.ImportSummaryCard
 import id.homebase.audio.resources.collection_create
 import id.homebase.audio.resources.collection_failed
 import id.homebase.audio.resources.collection_new
@@ -155,6 +157,9 @@ fun LibraryScreen(
             collections = { choosingCollections = it },
         )
     }
+    val importActions = remember(viewModel) {
+        ImportActions(retry = viewModel::retryImport, dismiss = viewModel::dismissImport, clearFinished = viewModel::clearFinishedImports)
+    }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val listState = rememberLazyListState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
@@ -197,6 +202,7 @@ fun LibraryScreen(
                 }
                 return@LazyColumn
             }
+            item { ImportSummaryCard(uiState.imports, importActions) }
             item {
                 Text(
                     pluralStringResource(AR.plurals.library_track_count, uiState.totalTracks, uiState.totalTracks),
@@ -228,16 +234,6 @@ fun LibraryScreen(
                     onNew = { creatingCollection = true },
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
-            }
-            if (uiState.imports.isNotEmpty()) {
-                item {
-                    ImportPanel(
-                        jobs = uiState.imports,
-                        onDismiss = viewModel::dismissImport,
-                        onRetry = viewModel::retryImport,
-                        onClearFinished = viewModel::clearFinishedImports,
-                    )
-                }
             }
             if (uiState.tracks.isEmpty() && uiState.totalTracks > 0) {
                 item { NoResults(downloadedOnly = uiState.downloadedOnly) }

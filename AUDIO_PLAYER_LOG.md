@@ -265,6 +265,21 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
 - Tests: live raise/lower of the limit, a waiting large upload goes before later small ones, plus the earlier
   overlap/alone/queued tests.
 
+### Fix: uploads started out of order (2026-10-02)
+
+- Found by the gate: with "Uploads at once" in place, five workers each pulled a job and then raced for a slot, so
+  even at a limit of 1 a later file could upload first (the ordering test had passed earlier by luck). Now one
+  dispatcher takes jobs in queue order and starts each, undispatched, only once it holds a slot; retries give the
+  slot back while they back off. New test: start order equals queue order at limits 1 and 3 (0 failures in 10 runs).
+
+### Upload summary card (2026-10-02)
+
+- The per-file import list that filled Library/Home is replaced by one card at the top: "12 of 40 uploaded" (or the
+  file name for a single upload), the names currently uploading ("X and 2 more"), overall progress, a red
+  "N couldn't upload · Review" line, and "N tracks added · Dismiss" when finished. Tapping opens an Uploads sheet
+  grouped into Couldn't upload (reason, Retry, Dismiss, Retry all), Uploading (per-file progress), Waiting, and
+  Added (count, Clear finished). `importSummary` is a pure function with unit tests; the card has a render test.
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first
