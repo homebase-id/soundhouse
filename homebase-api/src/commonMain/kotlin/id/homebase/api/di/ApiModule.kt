@@ -9,20 +9,14 @@ import id.homebase.api.client.drives.cache.DriveFileProviderCached
 import id.homebase.api.client.drives.files.DriveFileHttpProvider
 import id.homebase.api.client.drives.files.DriveFileOperationsProvider
 import id.homebase.api.client.drives.files.DriveFileProvider
-import id.homebase.api.client.drives.files.DriveOutboxUploader
-import id.homebase.api.client.notifications.ScheduledPushOutboxUploader
-import id.homebase.api.sync.database.CompositeOutboxUploader
 import id.homebase.api.client.drives.files.reactions.DriveFileGroupReactionProvider
 import id.homebase.api.client.drives.query.DriveQueryProvider
 import id.homebase.api.client.drives.upload.DriveUploadProvider
 import id.homebase.api.client.eventbus.EventBus
 import id.homebase.api.client.identity.PublicIdentityRepository
-import id.homebase.api.client.notifications.ScheduledPushNotificationProvider
 import id.homebase.api.client.profile.PublicProfileProviderCached
 import id.homebase.api.file.StartupCacheAudit
 import id.homebase.api.sync.database.DatabaseManager
-import id.homebase.api.sync.database.OutboxSync
-import id.homebase.api.sync.database.OutboxUploader
 import id.homebase.api.youauth.SecurityContextProvider
 import id.homebase.api.youauth.UsernameStorage
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -51,22 +45,6 @@ val apiModule = module {
     singleOf(::PublicIdentityRepository)
     singleOf(::DriveFileHttpProvider)
     singleOf(::DriveFileProviderCached)
-    // Composite outbox uploader: drive transit + the scheduled-push shim (offline-durable
-    // schedule/cancel of reminder pushes, reconciled against the server via tagId; see
-    // ScheduledPushOutboxUploader).
-    single { DriveOutboxUploader(get(), get(), get(), get(), get(), get()) }
-    single { ScheduledPushOutboxUploader(get()) }
-    single<OutboxUploader> { CompositeOutboxUploader(get(), get()) }
-    // Explicit `single` (not `singleOf`) because the ctor's background-assertion factory is
-    // an intentional Kotlin default the container can't resolve reflectively.
-    single {
-        OutboxSync(
-            databaseManager = get(),
-            uploader = get(),
-            eventBus = get(),
-            scope = get<CoroutineScope>(),
-        )
-    }
 
     // YouAuthFlowManager is bound in homebase-core's AppModule where the platform
     // singletons (ImageLoader, FileOperationsProvider) needed by its
@@ -85,7 +63,6 @@ val apiModule = module {
     single { ContactInfoGateway(publicProfiles = get()) }
 
     factoryOf(::SecurityContextProvider)
-    factoryOf(::ScheduledPushNotificationProvider)
 
     single { EventBus() }
 

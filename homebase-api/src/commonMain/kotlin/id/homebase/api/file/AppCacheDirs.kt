@@ -9,7 +9,6 @@ object AppCacheDirs {
 
     const val EXPORT: String = "export"
     const val HLS: String = "hls"
-    const val MEDIA_WORK: String = "media-work"
     const val PICKER_COPIES: String = "picker-copies"
 
     fun scratchRoot(cacheDir: String): String = cacheDir.trimEnd('/') + "/" + SCRATCH_DIR_NAME

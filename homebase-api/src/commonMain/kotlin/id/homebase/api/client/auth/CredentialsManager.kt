@@ -17,14 +17,6 @@ class CredentialsManager {
     private val _credentialsFlow = MutableStateFlow<ApiCredentials?>(null)
     val credentialsFlow: StateFlow<ApiCredentials?> = _credentialsFlow.asStateFlow()
 
-    suspend fun hasActiveCredentials(): Boolean = mutex.withLock {
-        activeCredentials != null
-    }
-
-    suspend fun storeCredentials(credentials: ApiCredentials) = mutex.withLock {
-        storedCredentials[credentials.domain.domainName] = credentials
-    }
-
     suspend fun getActiveCredentials(): ApiCredentials? = mutex.withLock {
         activeCredentials
     }

@@ -1,10 +1,7 @@
 package id.homebase.api
 
 object HomebaseProtocol {
-    const val MaxPayloadDescriptorBytes = 1024
-
     const val PayloadDescriptorKeyPrefix = "pld_desc"
-    const val MaxHeaderContentBytes = 7000
 
     // Server's hard rejection threshold on EmbeddedThumb.content after
     // base64 decode — exceed it and the upload comes back 400

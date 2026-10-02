@@ -4,7 +4,7 @@ cd "$(dirname "$0")/../.."
 WORK="${DEADCODE_WORK:-/tmp/deadcode}"; mkdir -p "$WORK"
 python3 scripts/deadcode/reach.py | head -1
 python3 -c "import json,sys;print('\n'.join(json.load(open(sys.argv[1]))))" "$WORK/reach-dead.json" > "$WORK/batch.txt"
-[ -s "$WORK/batch.txt" ] && xargs git rm -q < "$WORK/batch.txt"
+[ -s "$WORK/batch.txt" ] && xargs git rm -qf < "$WORK/batch.txt"
 scripts/deadcode/compile-all.sh "$@"
 sed -E 's#^e: ([^:]+):.*#\1#' "$WORK/compile-errors.txt" | sort -u > "$WORK/err-files.txt"
 echo "main-source error files: $(grep -viE '/src/[a-zA-Z]*test/' "$WORK/err-files.txt" | wc -l | tr -d ' ')"

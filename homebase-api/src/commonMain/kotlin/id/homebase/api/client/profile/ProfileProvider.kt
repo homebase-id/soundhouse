@@ -36,23 +36,5 @@ class ProfileProvider(
     credentialsManager: CredentialsManager,
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
     companion object {
-        private const val BASE = "/profile/attributes"
-
-        /** The ProfileDrive fileType that standard-profile attribute files use. */
-        const val PROFILE_ATTRIBUTE_FILE_TYPE: Int = 77
     }
-
-    private fun toWriteResult(response: ApiResponse): ProfileWriteResult =
-        when {
-            response.status in 200..299 ->
-                ProfileWriteResult.Ok(deserialize(response.body))
-
-            response.status == 409 ->
-                ProfileWriteResult.Conflict
-
-            else -> {
-                throwForFailure(response) // always throws for non-2xx
-                error("unreachable: throwForFailure did not throw for status ${response.status}")
-            }
-        }
 }

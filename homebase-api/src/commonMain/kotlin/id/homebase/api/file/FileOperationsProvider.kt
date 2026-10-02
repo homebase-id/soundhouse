@@ -81,40 +81,6 @@ interface FileOperationsProvider {
         getCacheDirectory().trimEnd('/') + "/" + CacheAudit.OUTBOX_TEMP_DIR_NAME
 
     /**
-     * Reserve a unique writable path inside [getOutboxStagingDirectory] (creating
-     * the dir) WITHOUT writing bytes — the seam for stream writers
-     * ([writeStream] of an encrypting Flow), which must produce their output
-     * directly in staging instead of writing cache scratch and copying.
-     */
-    suspend fun createOutboxStagingPath(prefix: String, suffix: String): String =
-        createStagingPathIn(getOutboxStagingDirectory(), prefix, suffix)
-
-    /**
-     * Move an encrypted, ready-to-transmit file OR directory (e.g. an
-     * `hls_<uuid>/` tree) into [getOutboxStagingDirectory] and return its new
-     * absolute path. Rename-first with a recursive copy+delete fallback for
-     * cross-filesystem moves — see [promoteIntoStaging].
-     */
-    suspend fun promoteToOutboxStaging(path: String): String =
-        promoteIntoStaging(path, getOutboxStagingDirectory())
-
-    /**
-     * Write an ENCRYPTED, ready-to-transmit payload into the durable outbox
-     * staging dir ([getOutboxStagingDirectory]) and return its absolute path.
-     * Each staged file is referenced by an outbox row and reaped only along the
-     * outbox lifecycle — never by the CacheSweeper or OS cache reclaim.
-     */
-    suspend fun writeBytesToOutboxTempFile(
-        bytes: ByteArray,
-        prefix: String,
-        suffix: String
-    ): String {
-        val path = createOutboxStagingPath(prefix, suffix)
-        writeStream(path, flowOf(bytes))
-        return path
-    }
-
-    /**
      * Write [bytes] to a sequestered subdirectory `<cacheDir>/hb-scratch/share_outbound/`
      * (see [SHARE_OUTBOUND_DIR_NAME]) using a `share_<random>$suffix` filename
      * and return the absolute path. Used **only** by the chat "Share to other
@@ -159,32 +125,4 @@ interface FileOperationsProvider {
 /** `<cacheDir>/hb-scratch/upload-temp`, for writers that can't suspend (a capture that must start synchronously). */
 fun FileOperationsProvider.uploadTempDirectory(): String =
     AppCacheDirs.scratchPath(getCacheDirectory(), CacheAudit.UPLOAD_TEMP_DIR_NAME)
-
-/**
- * Resolve [path] (which may be an Android `content://` URI) to a real
- * filesystem path, run [block] with it, and reap the resolved copy afterwards.
- *
- * [resolveToFilePath] COPIES a `content://` pick into cacheDir as
- * `resolved_*.<ext>` — a plaintext copy the full size of the source. Callers
- * that picked through the gallery (video send, vault upload) must delete that
- * copy once they've consumed it, or it lingers in cacheDir until the next
- * cold-start [CacheSweeper] run (observed: a 125 MB send leaving a 125 MB
- * `resolved_*.mp4`). This is the one shared place that pairs the resolve with
- * its delete, so no call site can forget — and on platforms where
- * `resolveToFilePath` is a no-op the path is unchanged and nothing is deleted.
- *
- * The reap runs in `finally`, so it also covers the failure path; the startup
- * sweep stays as the backstop if even that delete fails.
- */
-suspend fun <T> FileOperationsProvider.withResolvedFile(
-    path: String,
-    block: suspend (resolvedPath: String) -> T,
-): T {
-    val resolved = resolveToFilePath(path)
-    return try {
-        block(resolved)
-    } finally {
-        if (resolved != path) deleteTempFile(resolved)
-    }
-}
 

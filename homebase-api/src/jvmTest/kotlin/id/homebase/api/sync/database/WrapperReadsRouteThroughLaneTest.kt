@@ -33,26 +33,6 @@ class WrapperReadsRouteThroughLaneTest {
         DatabaseManager({ JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY) })
 
     @Test
-    fun outboxReads_routeThroughLane() {
-        runBlocking {
-            val dbm = newDbm()
-            assertNull(dbm.lastReadTiming, "fresh DBM should have no read timing")
-
-            dbm.outbox.count()
-            assertNotNull(
-                dbm.lastReadTiming,
-                "outbox.count() must route through readValue (populates lastReadTiming)",
-            )
-
-            dbm.outbox.nextScheduled()
-            assertNotNull(dbm.lastReadTiming, "outbox.nextScheduled() must route through readValue")
-
-            dbm.outbox.selectCheckedOut(0L)
-            assertNotNull(dbm.lastReadTiming, "outbox.selectCheckedOut() must route through readValue")
-        }
-    }
-
-    @Test
     fun keyValueSuspendRead_routesThroughLane() {
         runBlocking {
             val dbm = newDbm()
@@ -102,54 +82,6 @@ class WrapperReadsRouteThroughLaneTest {
                     "escape hatch for class-constructor reads. If this test fails, the bootstrap " +
                     "callers (VaultPreferences/MomentsPreferences/DiceRollPreferences/CursorStorage) " +
                     "may now deadlock on Main.",
-            )
-        }
-    }
-
-    @Test
-    fun chatReadCountReads_routeThroughLane() {
-        runBlocking {
-            val dbm = newDbm()
-            val identityId = Uuid.fromLongs(0L, 1L)
-            val groupId = Uuid.fromLongs(0L, 2L)
-            val selfDomain = OdinId("self.test")
-
-            dbm.chatReadCount.selectLastReadTimeMs(groupId)
-            assertNotNull(
-                dbm.lastReadTiming,
-                "chatReadCount.selectLastReadTimeMs must route through readValue",
-            )
-
-            dbm.chatReadCount.selectUnreadCountForConversation(identityId, groupId, selfDomain)
-            assertNotNull(
-                dbm.lastReadTiming,
-                "chatReadCount.selectUnreadCountForConversation must route through readValue",
-            )
-
-            dbm.chatReadCount.selectOrphanedAtRestConversations(identityId, selfDomain.domainName)
-            assertNotNull(
-                dbm.lastReadTiming,
-                "chatReadCount.selectOrphanedAtRestConversations must route through readValue",
-            )
-        }
-    }
-
-    @Test
-    fun connectionCacheReads_routeThroughLane() {
-        runBlocking {
-            val dbm = newDbm()
-            val identityId = Uuid.fromLongs(0L, 1L)
-
-            dbm.connectionCache.selectByIdentity(identityId)
-            assertNotNull(
-                dbm.lastReadTiming,
-                "connectionCache.selectByIdentity must route through readValue",
-            )
-
-            dbm.connectionCache.selectByIdentityAndStatus(identityId, "connected")
-            assertNotNull(
-                dbm.lastReadTiming,
-                "connectionCache.selectByIdentityAndStatus must route through readValue",
             )
         }
     }
@@ -207,48 +139,6 @@ class WrapperReadsRouteThroughLaneTest {
             assertNotNull(
                 dbm.lastReadTiming,
                 "keyValue.selectByKey(mapper) suspend variant must route through readValue",
-            )
-        }
-    }
-
-    @Test
-    fun appNotificationsSuspendMapperReads_routeThroughLane() {
-        runBlocking {
-            val dbm = newDbm()
-            val identityId = Uuid.fromLongs(0L, 1L)
-            val notificationId = Uuid.fromLongs(0L, 9L)
-            // Empty-table reads still go through readValue (the routing happens
-            // before the SQL runs), so we don't need to seed rows to prove the
-            // contract. The functional behaviour (mapper actually runs per
-            // matched row) is the same code path as keyValue's mapper variant
-            // above; this test scopes to "does the routing fire".
-
-            dbm.appNotifications.selectByNotificationId(
-                identityId,
-                notificationId,
-            ) { rowId, _, _, _, _, _, _, _, _ -> rowId }
-            assertNotNull(
-                dbm.lastReadTiming,
-                "appNotifications.selectByNotificationId(mapper) must route through readValue",
-            )
-
-            dbm.appNotifications.selectFirstPage(
-                identityId,
-                limit = 10L,
-            ) { rowId, _, _, _, _, _, _, _, _ -> rowId }
-            assertNotNull(
-                dbm.lastReadTiming,
-                "appNotifications.selectFirstPage(mapper) must route through readValue",
-            )
-
-            dbm.appNotifications.selectNextPage(
-                identityId,
-                rowId = 0L,
-                limit = 10L,
-            ) { rowId, _, _, _, _, _, _, _, _ -> rowId }
-            assertNotNull(
-                dbm.lastReadTiming,
-                "appNotifications.selectNextPage(mapper) must route through readValue",
             )
         }
     }

@@ -13,21 +13,8 @@ import kotlin.uuid.Uuid
 
 // ==================== REQUEST / RESPONSE MODELS ====================
 
-@Serializable
 data class ReactionTransitOptions(
     val recipients: List<OdinId>
-)
-
-@Serializable
-data class AddGroupReactionRequest(
-    val reaction: String,
-    val transitOptions: ReactionTransitOptions
-)
-
-@Serializable
-data class DeleteGroupReactionRequest(
-    val reaction: String,
-    val transitOptions: ReactionTransitOptions
 )
 
 // ==================== PROVIDER ====================
@@ -43,98 +30,7 @@ class DriveFileGroupReactionProvider(
 
     // -------------------- ADD --------------------
 
-    suspend fun addReaction(
-        driveId: Uuid,
-        fileId: Uuid,
-        reaction: String,
-        recipients: List<OdinId>
-    ) {
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuid(fileId, "fileId")
-        require(reaction.isNotBlank())
-
-        val creds = requireCreds()
-        val endpoint = "/drives/$driveId/files/$fileId/group-reactions"
-
-        // "{\"emoji\":\"\uD83D\uDE2E\"}"
-        val response = encryptedPostJson(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(
-                AddGroupReactionRequest(
-                    reaction = reaction,
-                    transitOptions = ReactionTransitOptions(
-                        recipients = recipients
-                    )
-                )
-            ),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-    }
-
     // -------------------- DELETE --------------------
-
-    suspend fun deleteReaction(
-        driveId: Uuid,
-        fileId: Uuid,
-        reaction: String,
-        recipients: List<OdinId>
-    ) {
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuid(fileId, "fileId")
-        require(reaction.isNotBlank())
-
-        val creds = requireCreds()
-        val endpoint = "/drives/$driveId/files/$fileId/group-reactions"
-
-        val response = encryptedDelete(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(
-                DeleteGroupReactionRequest(
-                    reaction = reaction,
-                    transitOptions = ReactionTransitOptions(
-                        recipients = recipients
-                    )
-                )
-            ),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-    }
-
-    suspend fun toggleReaction(
-        driveId: Uuid,
-        fileId: Uuid,
-        reaction: String,
-        recipients: List<OdinId>
-    ): ToggleReactionResult {
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuid(fileId, "fileId")
-
-        val creds = requireCreds()
-        val endpoint = "/drives/$driveId/files/$fileId/group-reactions/toggle"
-
-        val response = encryptedPostJson(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(
-                ToggleReactionRequest(
-                    reaction = reaction,
-                    transitOptions = ReactionTransitOptions(
-                        recipients = recipients
-                    )
-                )
-            ),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-        return deserialize(response.body)
-    }
 
     // -------------------- LIST --------------------
 

@@ -113,10 +113,6 @@ class UserPreferences(private val settings: Settings) {
             _preferenceState.value = _preferenceState.value.copy(mirrorFrontCamera = value)
         }
 
-    var notificationContentLevel: String
-        get() = settings.getString("notification_content_level", "name_content_actions")
-        set(value) = settings.putString("notification_content_level", value)
-
     /**
      * Id of the conversation at the top of the chat list the last time the user was looking at it.
      * Persisted rather than held in memory because process death is the case index-based scroll

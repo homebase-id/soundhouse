@@ -158,18 +158,4 @@ class DriveMainIndexWrapper(
     suspend fun deleteAll(): Boolean {
         return databaseManager.withWriteValue { delegate.deleteAll().value > 0 }
     }
-
-    suspend fun deleteBy(
-        identityId: Uuid,
-        driveId: Uuid,
-        fileId: Uuid,
-    ): Boolean {
-        return databaseManager.withWriteValue {
-            delegate.deleteBy(
-                identityId,
-                driveId,
-                fileId
-            ).value > 0
-        }
-    }
 }

@@ -50,14 +50,6 @@ data class BytesResponse(val bytes: ByteArray, val contentType: String) {
     }
 }
 
-@Serializable
-data class DeleteLocalFilesByFileIdRequest(
-    val driveId: Uuid,
-    val fileIds: List<Uuid>,
-    val recipients: List<OdinId>? = null,
-    val hardDelete: Boolean = false,
-)
-
 @OptIn(ExperimentalEncodingApi::class)
 public class DriveFileProvider(
     httpClient: HttpClient,
@@ -110,8 +102,6 @@ public class DriveFileProvider(
 
     /**
      * Gets a file header by its uniqueId.
-     * Used by [DriveOutboxUploader.retryAsUpdate] to fetch the server's versionTag
-     * when converting a failed UploadNewFile into an update.
      *
      * @param driveId The target drive id containing the file
      * @param uniqueId The unique ID of the file
@@ -144,17 +134,6 @@ public class DriveFileProvider(
 
         var file = deserialize<ServerFile>(response.body)
         return file.asHomebaseFile(creds.secret)
-    }
-
-    /** Downloads the payload to the encrypted disk cache without decrypting it.
-     *  Subsequent calls to [getPayloadBytesDecrypted] for the same key will be served from cache. */
-    suspend fun prefetchPayload(
-        driveId: Uuid,
-        fileId: Uuid,
-        key: String,
-        onDownloadProgress: ((Float) -> Unit)? = null,
-    ) {
-        driveCache.getPayloadBytesRaw(driveId, fileId, key, onDownloadProgress = onDownloadProgress)
     }
 
     /** Downloads a single byterange of a payload into the encrypted disk cache without decrypting.
@@ -192,28 +171,6 @@ public class DriveFileProvider(
         return driveCache.getPayloadBytesDecrypted(
             driveId, fileId, key, keyHeader, chunkStart, chunkLength, onDownloadProgress
         )
-    }
-
-    /**
-     * Fetch + decrypt a payload using the per-payload key header the server returns on the GET
-     * (`SharedSecretEncryptedHeader64`) — the authoritative, race-free (key, IV) for that exact
-     * served byte stream. Required for payloads whose IV the server rotates on rewrite (e.g. a
-     * contact's `ext_data`), where a separately-queried `descriptor.iv` is a stale snapshot and the
-     * file content IV is the wrong IV. Goes to the network because the disk cache doesn't persist
-     * that header. Returns null on 404.
-     */
-    suspend fun getPayloadBytesDecryptedViaResponseHeader(
-        driveId: Uuid,
-        fileId: Uuid,
-        key: String,
-    ): ByteArray? {
-        val raw = try {
-            driveCache.getPayloadBytesRawFromNetwork(driveId, fileId, key)
-        } catch (e: NotFoundException) {
-            return null
-        }
-        if (raw.status == 404) return null
-        return decryptBytes(raw.headers, raw.bytes)
     }
 
     /**
@@ -463,122 +420,7 @@ public class DriveFileProvider(
         return response.status == 200
     }
 
-    /** Deletes multiple files from the drive by file IDs. */
-    suspend fun deleteFiles(
-        driveId: Uuid,
-        fileIds: List<Uuid>,
-        recipients: List<OdinId>? = null
-    ): DeleteFileIdBatchResult {
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuidList(fileIds, "fileIds")
-        val creds = requireCreds()
-
-        val endpoint = "/drives/${driveId}/files/delete-batch/by-file-id"
-        val request =
-            DeleteFilesBatchRequest(
-                requests =
-                    fileIds.map { fileId ->
-                        DeleteFileRequest(
-                            fileId = fileId,
-                            recipients = recipients
-                        )
-                    }
-            )
-
-        val response = encryptedPostJson(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(request),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-
-        return deserialize<DeleteFileIdBatchResult>(response.body)
-    }
-
-    /** Deletes files from the drive by group IDs. */
-    suspend fun deleteFilesByGroupId(
-        driveId: Uuid,
-        groupIds: List<Uuid>,
-        recipients: List<OdinId>? = null
-    ): DeleteFilesByGroupIdBatchResult {
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuidList(groupIds, "groupIds")
-
-        val creds = requireCreds()
-
-        val endpoint = "/drives/${driveId}/files/delete-batch/by-group-id"
-        val request =
-            DeleteByGroupIdBatchRequest(
-                requests =
-                    groupIds.map { groupId ->
-                        DeleteByGroupIdRequest(
-                            groupId = groupId,
-                            recipients = recipients
-                        )
-                    }
-            )
-
-        val response = encryptedPostJson(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(request),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-
-        return deserialize<DeleteFilesByGroupIdBatchResult>(response.body)
-    }
-
     // ==================== PRIVATE HELPER METHODS ====================
-
-    /** Decrypts the key header using the shared secret. */
-    private suspend fun decryptKeyHeader(encryptedKeyHeader: EncryptedKeyHeader): KeyHeader? {
-        val sharedSecret = credentialsManager.getActiveCredentials()?.sharedSecret ?: return null
-        return encryptedKeyHeader.decryptAesToKeyHeader(sharedSecret)
-    }
-
-    /**
-     * Decrypts bytes using the shared secret (full payload/thumbnail decryption).
-     */
-    public suspend fun decryptBytes(
-        headers: Headers,
-        bytes: ByteArray
-    ): ByteArray {
-        val payloadEncrypted =
-            headers["payloadencrypted"]?.equals("true", ignoreCase = true) == true
-
-        val encryptedHeader64 =
-            headers["sharedsecretencryptedheader64"]
-
-        return when {
-            payloadEncrypted && encryptedHeader64 != null -> {
-                val encryptedKeyHeader =
-                    EncryptedKeyHeader.fromBase64(encryptedHeader64)
-
-                val keyHeader =
-                    decryptKeyHeader(encryptedKeyHeader)
-                        ?: error("Missing shared secret")
-
-                decryptUsingKeyHeader(bytes, keyHeader)
-            }
-
-            payloadEncrypted ->
-                error("Can't decrypt; missing keyheader")
-
-            else ->
-                bytes
-        }
-    }
-
-    private suspend fun decryptUsingKeyHeader(
-        encryptedBytes: ByteArray,
-        keyHeader: KeyHeader
-    ): ByteArray {
-        return keyHeader.decrypt(encryptedBytes)
-    }
 }
 
 // Request data classes for delete operations
@@ -594,30 +436,13 @@ data class DeleteFileResult(
     val recipientStatus: Map<String, TransferUploadStatus>? = null
 )
 
-@Serializable
-data class DeleteFileIdBatchResult (
-    val results: List<DeleteFileResult>
-)
-
-@Serializable
-data class DeleteFilesByGroupIdBatchResult(
-    val results: List<DeleteFileByGroupIdResult>
-)
-
-@Serializable
 data class DeleteFileByGroupIdResult(
     val groupId: Uuid,
     val deleteFileResults: List<DeleteFileResult>
 )
 
-@Serializable
-data class DeleteFilesBatchRequest(val requests: List<DeleteFileRequest>)
-
-@Serializable
 data class DeleteByGroupIdRequest(
     val groupId: Uuid,
     val recipients: List<OdinId>? = null
 )
 
-@Serializable
-data class DeleteByGroupIdBatchRequest(val requests: List<DeleteByGroupIdRequest>)

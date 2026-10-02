@@ -75,25 +75,6 @@ class EncryptedKeyHeader(
             )
         }
 
-        /**
-         * Creates an EncryptedKeyHeader from Base64 string
-         * @param data64 Base64 encoded string
-         * @return Decoded EncryptedKeyHeader
-         */
-        fun fromBase64(data64: String): EncryptedKeyHeader {
-            val bytes = Base64.decode(data64)
-            val parts = ByteArrayUtil.split(bytes, 16, 48, 4)
-            val iv = parts[0]
-            val encryptedAesKey = parts[1]
-            val version = parts[2]
-
-            return EncryptedKeyHeader(
-                iv = iv,
-                encryptedAesKey = encryptedAesKey,
-                encryptionVersion = ByteArrayUtil.bytesToInt32_little_endian(version)
-            )
-        }
-
         fun bytesToInt32(bytes: ByteArray): Int {
             require(bytes.size == 4)
             return (bytes[0].toInt() and 0xFF) or

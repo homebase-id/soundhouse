@@ -23,7 +23,7 @@ Release APK: 111,510,189 bytes.
 - [x] 0. Tooling in scripts/deadcode/ (portable paths, `--fast`, cut-loop, R8 usage script)
 - [x] A. Video pipeline + FFmpeg-kit (keep old outbox rows readable)
 - [x] B. Chat-only services: peer websockets, push plumbing, contacts sync (outbox paths: see C)
-- [ ] C. Dead-code passes again (reach, names, R8 methods)
+- [x] C. Dead-code passes again (reach, names, R8 methods) + outbox + chat DB wrappers
 - [ ] D. Resources / dependencies / catalog freed by A–C
 - [ ] E. Comments in touched files
 - [ ] Final: gate, release, liveTest, summary
@@ -62,3 +62,24 @@ Release APK: 111,510,189 bytes.
 - Verified: all targets incl. iOS; gate --apps exit 0; assembleRelease exit 0; liveTest 10/10; release APK on the
   emulator launches to login, no crash.
 - Release APK 37.1 MB → 36.1 MB. Kotlin lines → 75,396.
+
+### C. Outbox, chat database wrappers, and the dead-code passes — commit below
+- Outbox: nothing in Soundhouse ever enqueued; AuthConnectionCoordinator only toggled it online/offline and flushed an
+  empty queue (the "OutboxSync: clearCheckout()" log lines). Removed OutboxSync, the drive/scheduled-push/composite
+  uploaders, the outbox request models, failure classifier, upload validation, background-execution assertion and
+  OutboxSerializer. With nothing processing the outbox, nothing reads stored outbox rows, so no old row can fail to
+  decode; the Outbox table and schema are unchanged. (OutboxSync stayed "reachable" only through a local variable named
+  `enqueued` colliding with one of its top-level names — confirmed dead by deleting it and compiling.)
+- DatabaseManager: removed the wrappers for six chat-only tables nothing outside the database package used
+  (autoSavedMedia, appNotifications, chatReadCount, outbox, locationPoint, connectionCache). The tables, adapters and
+  schema stay (the generated OdinDatabase needs the adapters; logout still drops/recreates every table).
+- Name pass (4 rounds) and R8 method pass (2 rounds) with the cut loop. Fixes to the tooling along the way: refine.py
+  now treats a syntax error in an edited file as "bad cut, exclude the file"; cut-loop resets unstaged changes, so edits
+  to the scripts themselves must be staged first (one fix was silently reverted that way); `--fast` let an R8 cut remove
+  `DatabaseDriverFactory.databaseFiles`, which only iOS uses — caught by the full compile both times, restored, and
+  noted in the README. Audit: every removed hunk starts with a candidate; one flagged hunk was a diff alignment artefact
+  (removed `buildTransitFormData` has a body identical to the live `buildUploadFormData`; the result is correct).
+- Tests: removed only those for removed code; DriveSyncManagerTest's logout-wipe case now seeds through the generated
+  queries instead of the removed wrappers, and the route-through-lane tests keep their cases for live wrappers.
+- Verified: all targets incl. iOS; gate --apps exit 0; assembleRelease exit 0; liveTest 10/10; emulator launch, 0 crashes.
+- Release APK 36.1 MB → 35.9 MB. Kotlin lines → 65,382.

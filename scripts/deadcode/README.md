@@ -15,3 +15,6 @@ Finds code nothing reaches and removes it, proving each cut by compiling. Workin
 Typical pass: `python3 scripts/deadcode/reach.py && scripts/deadcode/prune.sh --fast`, then
 `python3 scripts/deadcode/deadmembers.py && scripts/deadcode/cut-loop.sh --fast`, then the full gate.
 Audit every cut: each removed hunk must start with a candidate declaration.
+
+`--fast` skips iOS, so an R8-driven cut can remove something only iOS uses (it happened with
+`DatabaseDriverFactory.databaseFiles`). Always finish with a full `compile-all.sh` before committing.

@@ -46,42 +46,6 @@ fun createStagingPathIn(
 }
 
 /**
- * Move [sourcePath] (a regular file OR a directory, e.g. an `hls_<uuid>/` tree)
- * into [stagingDir] and return its new absolute path. Rename-first; when source
- * and staging live on different filesystems (e.g. tmpfs XDG cache vs home on
- * Linux) the rename fails and we fall back to a recursive copy + delete — the
- * fallback is required, not an edge case.
- *
- * The source's base name is kept (callers already use collision-free names:
- * `hls_<uuid>`, `video-encrypted-<uuid>.bin`); an existing target of the same
- * name gets a random token prepended instead of being clobbered.
- */
-fun promoteIntoStaging(
-    sourcePath: String,
-    stagingDir: String,
-    fileSystem: FileSystem = systemFileSystem,
-): String {
-    val source = sourcePath.toPath()
-    val dir = stagingDir.toPath()
-    fileSystem.createDirectories(dir)
-    var target = dir / source.name
-    if (fileSystem.exists(target)) target = dir / "${randomToken()}-${source.name}"
-    try {
-        fileSystem.atomicMove(source, target)
-    } catch (e: Exception) {
-        // Cross-filesystem (or platform quirk) — copy the tree, then remove the
-        // source. Copy failures propagate: a payload that never reached staging
-        // must fail the send now, not ENOENT later.
-        Logger.i(tag = TAG) { "atomicMove failed (${e.message}), copying $source -> $target" }
-        copyRecursively(fileSystem, source, target)
-        runCatching { fileSystem.deleteRecursively(source) }.onFailure {
-            Logger.w(tag = TAG, throwable = it) { "failed to remove source after copy: $source" }
-        }
-    }
-    return target.toString()
-}
-
-/**
  * Delete everything inside [stagingDir] (logout). Each child goes through
  * [safeDeleteRecursively]'s guards; the dir itself stays. Best-effort — a
  * per-child failure is logged there and doesn't stop the wipe.

@@ -75,43 +75,6 @@ data class SaveProfileAttributeRequest(
     val data: JsonObject,
 )
 
-/**
- * PUT /api/v2/profile/attributes/photo body. Unlike [SaveProfileAttributeRequest] there is no
- * `type`/`data` — the server owns the Photo attribute's type and sets `data.profileImageKey`
- * itself. [content] and every [thumbnails] entry are PLAINTEXT; the server encrypts at rest for
- * [visibility] CONNECTED/OWNER and stores as-is for ANONYMOUS/AUTHENTICATED. The server does not
- * resize — generate every rendition you want stored before calling (see
- * [id.homebase.api.image.createImageThumbnail]). [visibility] must be
- * [ProfileVisibility.photoWireValue] (PascalCase), not [ProfileVisibility.wireValue].
- *
- * [previewThumbnail] is the small blur-up placeholder (~20px WebP, capped under 1KB) — optional,
- * but without it the photo has no instant-paint preview until the real thumbnail loads. Always
- * PLAINTEXT regardless of [visibility] — unlike [content]/[thumbnails], the server never encrypts
- * it at rest, even for CONNECTED/OWNER. Report its `pixelWidth`/`pixelHeight` as the *source*
- * image's natural dimensions, not the tiny thumbnail's actual ~20×20 resized size — matches the
- * existing odin-js `getEmbeddedThumbOfThumbnailFile` convention ("on the previewThumb we use the
- * full pixelWidth & -height so the max size can be used").
- */
-@Serializable
-data class SetPhotoAttributeRequest(
-    @Serializable(with = UuidSerializer::class) val id: Uuid? = null,
-    val priority: Int = 0,
-    val visibility: String,
-    @Serializable(with = UuidSerializer::class) val expectedVersionTag: Uuid? = null,
-    val contentType: String,
-    val content: String,
-    val thumbnails: List<PhotoThumbnailContent> = emptyList(),
-    val previewThumbnail: EmbeddedThumb? = null,
-)
-
-@Serializable
-data class PhotoThumbnailContent(
-    val pixelWidth: Int,
-    val pixelHeight: Int,
-    val contentType: String,
-    val content: String,
-)
-
 /** 200 OK body for a profile-attribute write. Keep [versionTag] for the next edit. */
 @Serializable
 data class ProfileWriteResponse(
@@ -127,5 +90,4 @@ data class ProfileWriteResponse(
  */
 sealed interface ProfileWriteResult {
     data class Ok(val body: ProfileWriteResponse) : ProfileWriteResult
-    data object Conflict : ProfileWriteResult
 }

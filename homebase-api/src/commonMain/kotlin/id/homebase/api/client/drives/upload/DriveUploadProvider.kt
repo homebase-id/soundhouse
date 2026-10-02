@@ -25,28 +25,12 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.Uuid
 
-@Serializable
-data class LocalMetadataUploadResult(val newLocalVersionTag: String)
-
 /** Local app data for metadata updates. */
 data class LocalAppData(
     val versionTag: String? = null,
     val tags: List<String>? = null,
     val content: String? = null,
     val iv: String? = null
-)
-
-@Serializable
-private data class UpdateLocalMetadataTagsRequest(
-    val localVersionTag: String?,
-    val tags: List<String>?
-)
-
-@Serializable
-private data class UpdateLocalMetadataContentRequest(
-    val iv: String? = null,
-    val localVersionTag: String?,
-    val content: String?
 )
 
 @Serializable
@@ -83,14 +67,12 @@ data class UpdateFileByUniqueIdRequest(
     val thumbnails: List<ThumbnailFile>? = null,
 )
 
-
 @OptIn(ExperimentalEncodingApi::class)
 class DriveUploadProvider(
     httpClient: HttpClient,
     credentialsManager: CredentialsManager,
     private val fileOperationsProvider: FileOperationsProvider,
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
-
     companion object {
         const val TAG = "DriveUploadProvider"
     }
@@ -142,7 +124,6 @@ class DriveUploadProvider(
         onProgress: UploadProgress? = null,
         onVersionConflict: (suspend () -> CreateFileResult?)? = null
     ): CreateFileResult? {
-
         preflightStagedPayloads(request.payloads, "uploadFile uniqueId=${request.metadata.appData.uniqueId}")
 
         val creds = requireCreds()
@@ -209,7 +190,6 @@ class DriveUploadProvider(
         onProgress: UploadProgress? = null,
         onVersionConflict: (suspend () -> UpdateFileResult?)? = null
     ): UpdateFileResult? {
-
         preflightStagedPayloads(request.payloads, "updateFileByFileId fileId=${request.fileId}")
 
         val creds = requireCreds()
@@ -261,7 +241,6 @@ class DriveUploadProvider(
         onProgress: UploadProgress? = null,
         onVersionConflict: (suspend () -> UpdateFileResult?)? = null
     ): UpdateFileResult? {
-
         val creds = requireCreds()
         val sharedSecret = creds.secret.unsafeBytes
 
@@ -298,98 +277,6 @@ class DriveUploadProvider(
 
     // ==================== LOCAL METADATA METHODS ====================
 
-    /** Updates local metadata tags for a file. */
-    suspend fun uploadLocalMetadataTags(
-        file: FileIdFileIdentifier,
-        localAppData: LocalAppData,
-        onVersionConflict: (suspend () -> LocalMetadataUploadResult?)? = null
-    ): LocalMetadataUploadResult? {
-
-        val driveId = file.targetDrive.alias
-        val fileId = file.fileId
-
-        val requestBody =
-            UpdateLocalMetadataTagsRequest(
-                localVersionTag = localAppData.versionTag,
-                tags = localAppData.tags
-            )
-                .let { OdinSystemSerializer.json.encodeToString(it) }
-
-        val creds = requireCreds()
-
-        val endpoint = "/drives/${driveId}/files/${fileId}/update-local-metadata-tags"
-        val response =
-            encryptedPatchJson(
-                url = apiUrl(creds.domain, endpoint),
-                token = creds.accessToken,
-                jsonBody = requestBody,
-                secret = creds.secret
-            )
-
-        if (response.status in 200..299) {
-            return deserialize(response.body)
-        }
-
-        return handleErrorResponse(response, onVersionConflict) { it() }
-    }
-
-    /** Updates local metadata content for a file. */
-    suspend fun uploadLocalMetadataContent(
-        driveId: Uuid,
-        file: HomebaseFile,
-        localAppData: LocalAppData,
-        onVersionConflict: (suspend () -> LocalMetadataUploadResult?)? = null
-    ): LocalMetadataUploadResult? {
-
-        val fileId = file.fileId
-        val creds = requireCreds()
-
-        // Decrypt key header if needed
-        val decryptedKeyHeader: KeyHeader = file.keyHeader
-
-        // If the caller pre-encrypted content and supplied an IV (e.g. stampConversationExitedAt
-        // which encrypts at enqueue time to avoid a race with participant removal), pass them
-        // through directly.  Otherwise encrypt here using the file's key header.
-        val (ivToSend, encryptedContent) =
-            if (localAppData.iv != null && localAppData.content != null) {
-                // Already encrypted by the caller
-                localAppData.iv to localAppData.content
-            } else if (file.serverFileIsEncrypted && localAppData.content != null) {
-                val keyHeader = KeyHeader(
-                    iv = ByteArrayUtil.getRndByteArray(16),
-                    aesKey = decryptedKeyHeader.aesKey
-                )
-                val encrypted = keyHeader.encryptDataAes(localAppData.content.encodeToByteArray())
-                Base64.encode(keyHeader.iv) to Base64.encode(encrypted)
-            } else {
-                null to localAppData.content
-            }
-
-        val requestBody =
-            UpdateLocalMetadataContentRequest(
-                iv = ivToSend,
-                localVersionTag = localAppData.versionTag,
-                content = encryptedContent
-            ).let { OdinSystemSerializer.serialize(it) }
-
-        val endpoint = "/drives/${driveId}/files/${fileId}/update-local-metadata-content"
-        val response =
-            encryptedPatchJson(
-                url = apiUrl(creds.domain, endpoint),
-                token = creds.accessToken,
-                jsonBody = requestBody,
-                secret = creds.secret
-            )
-
-        if (response.status in 200..299) {
-            return deserialize(response.body)
-        }
-
-        return handleErrorResponse(response, onVersionConflict) { it() }
-
-    }
-
-
     // ==================== LOW-LEVEL UPLOAD METHODS ====================
 
     /** Performs a raw upload to the drive. */
@@ -400,7 +287,6 @@ class DriveUploadProvider(
         onProgress: UploadProgress? = null,
         onVersionConflict: (suspend () -> CreateFileResult?)? = null
     ): CreateFileResult? {
-
         val credentials = requireCreds()
         val queryParams =
             buildMap {
@@ -443,7 +329,6 @@ class DriveUploadProvider(
         return handleErrorResponse(response, onVersionConflict) { it() }
     }
 
-
     /** Performs a raw update to an existing file on the drive. */
     suspend fun pureUpdate(
         data: MultiPartFormDataContent,
@@ -468,7 +353,6 @@ class DriveUploadProvider(
 
         return handleErrorResponse(response, onVersionConflict) { it() }
     }
-
 
     /**
      * Builds an encrypted descriptor (UploadFileDescriptor encrypted with sharedSecret). Matches
@@ -535,7 +419,6 @@ class DriveUploadProvider(
         onVersionConflict: (suspend () -> T?)? = null,
         invokeCallback: suspend ((suspend () -> T?)) -> T?
     ): T? {
-
         val errorResponse =
             runCatching {
                 OdinSystemSerializer.deserialize<OdinErrorResponse>(response.body)
@@ -560,8 +443,6 @@ class DriveUploadProvider(
     }
 
     private fun cleanupPayloadTempFiles(payloads: List<PayloadFile>?) {
-
-
         payloads?.forEach { payload ->
             val path = payload.filePath
             Logger.d(tag = TAG) { "Attempting to delete temp payload file $path" }
@@ -579,7 +460,6 @@ class DriveUploadProvider(
 
             if (deleted) {
                 Logger.d(tag = TAG) { "Deleted temp payload file $path" }
-
             } else {
                 Logger.w(tag = TAG) { "Temp file could not be deleted (best-effort): $path" }
             }

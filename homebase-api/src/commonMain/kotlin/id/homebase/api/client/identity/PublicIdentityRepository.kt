@@ -61,10 +61,6 @@ class PublicIdentityRepository(
             status = null,
         )
 
-    fun clear() {
-        cache.clear()
-    }
-
     /**
      * Fetches and parses the raw `sitedata.json` root array for an identity, returning `null`
      * on any fetch/parse failure. Shared entry point for callers that need sections beyond

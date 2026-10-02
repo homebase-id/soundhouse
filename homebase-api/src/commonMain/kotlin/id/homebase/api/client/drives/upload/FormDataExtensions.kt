@@ -10,7 +10,6 @@ import io.ktor.client.request.forms.formData
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 
-
 /** Pre-computed data for a payload ready to be added to form data. */
 private data class ProcessedPayload(
     val key: String,
@@ -82,31 +81,6 @@ fun buildUploadFormData(
     thumbnails: List<ThumbnailFile>? = null,
     fileOperationsProvider: FileOperationsProvider,
 ): MultiPartFormDataContent {
-
-    val runtimePayloads =
-        payloads?.map { it.toRuntime { path -> fileOperationsProvider.openFileInput(path) } }
-
-    return buildFormDataInternal(
-        instructionSet = instructionSet,
-        sharedSecretEncryptedDescriptor = sharedSecretEncryptedDescriptor,
-        payloads = runtimePayloads,
-        thumbnails = thumbnails
-    )
-}
-
-/**
- * Builds the multipart body for an over-peer transit send. Identical wire layout to
- * [buildUploadFormData] (instructions + encrypted metadata + streamed payloads/thumbnails); only the
- * `instructions` part differs — a [TransitInstructionSet] instead of an [UploadInstructionSet].
- */
-fun buildTransitFormData(
-    instructionSet: TransitInstructionSet,
-    sharedSecretEncryptedDescriptor: ByteArray? = null,
-    payloads: List<PayloadFile>? = null,
-    thumbnails: List<ThumbnailFile>? = null,
-    fileOperationsProvider: FileOperationsProvider,
-): MultiPartFormDataContent {
-
     val runtimePayloads =
         payloads?.map { it.toRuntime { path -> fileOperationsProvider.openFileInput(path) } }
 
@@ -124,7 +98,6 @@ suspend fun calculateUploadSize(
     descriptor: ByteArray?,
     fileOps: FileOperationsProvider
 ): Long {
-
     val payloadBytes =
         payloads?.sumOf { fileOps.getFileSize(it.filePath) } ?: 0L
 
@@ -175,13 +148,11 @@ private inline fun <reified T> buildFormDataInternal(
     payloads: List<RuntimePayloadFile>?,
     thumbnails: List<ThumbnailFile>?
 ): MultiPartFormDataContent {
-
     val instructionsJson =
         OdinSystemSerializer.json.encodeToString(instructionSet).encodeToByteArray()
 
     return MultiPartFormDataContent(
         formData {
-
             // Instructions
             append(
                 "instructions",
@@ -217,7 +188,6 @@ private inline fun <reified T> buildFormDataInternal(
                         )
                     }
                 )
-
             }
 
             // Thumbnails (streamed)

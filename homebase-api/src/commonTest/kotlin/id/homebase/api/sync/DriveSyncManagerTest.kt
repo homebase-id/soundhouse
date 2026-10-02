@@ -499,36 +499,19 @@ class DriveSyncManagerTest {
             // Seed each identity-scoped table so we can detect whether the wipe completed.
             val identityId = Uuid.random()
             db.keyValue.upsertValue(Uuid.random(), byteArrayOf(1, 2, 3))
-            db.outbox.insert(
-                driveId = Uuid.random(),
-                uniqueId = Uuid.random(),
-                dependencyUniqueId = null,
-                priority = 0,
-                uploadType = 0,
-                json = byteArrayOf(0),
-                filePaths = null,
-            )
-            db.appNotifications.insertNotification(
-                identityId = identityId,
-                notificationId = Uuid.random(),
-                unread = 1,
-                senderId = null,
-                timestamp = 0,
-                data = null,
-                created = 0,
-                modified = 0,
-            )
-            db.connectionCache.upsert(
-                identityId = identityId,
-                odinId = "frodo.shire.example",
-                status = "connected",
-                lastRefresh = 0,
-            )
+            db.withWriteValue {
+                it.outboxQueries.insert(Uuid.random(), Uuid.random(), null, 0, 0, 0, 0, null, 0, byteArrayOf(0), null)
+                it.appNotificationsQueries.insertNotification(identityId, Uuid.random(), 1, null, 0, null, 0, 0)
+                it.connectionCacheQueries.upsert(identityId, "frodo.shire.example", "connected", 0)
+            }
+            suspend fun outboxRows() = db.withWriteValue { it.outboxQueries.count().executeAsOne() }
+            suspend fun notificationRows() = db.withWriteValue { it.appNotificationsQueries.selectFirstPage(identityId, 10).executeAsList() }
+            suspend fun connectionRows() = db.withWriteValue { it.connectionCacheQueries.selectByIdentity(identityId).executeAsList() }
 
             // Sanity: every seed row is present before logout.
-            assertEquals(1L, db.outbox.count())
-            assertTrue(db.appNotifications.selectFirstPage(identityId, 10).isNotEmpty())
-            assertTrue(db.connectionCache.selectByIdentity(identityId).isNotEmpty())
+            assertEquals(1L, outboxRows())
+            assertTrue(notificationRows().isNotEmpty())
+            assertTrue(connectionRows().isNotEmpty())
 
             // Simulate a caller (viewModelScope) that is cancelled while logout is running.
             // Without withContext(NonCancellable), clearStorage() would throw and leave
@@ -556,15 +539,9 @@ class DriveSyncManagerTest {
             // Wait for the job to complete
             job.join()
 
-            assertEquals(0L, db.outbox.count(), "Outbox should be wiped even if caller cancelled")
-            assertTrue(
-                db.appNotifications.selectFirstPage(identityId, 10).isEmpty(),
-                "AppNotifications should be wiped even if caller cancelled"
-            )
-            assertTrue(
-                db.connectionCache.selectByIdentity(identityId).isEmpty(),
-                "ConnectionCache should be wiped even if caller cancelled"
-            )
+            assertEquals(0L, outboxRows(), "Outbox should be wiped even if caller cancelled")
+            assertTrue(notificationRows().isEmpty(), "AppNotifications should be wiped even if caller cancelled")
+            assertTrue(connectionRows().isEmpty(), "ConnectionCache should be wiped even if caller cancelled")
         }
         db.close()
     }

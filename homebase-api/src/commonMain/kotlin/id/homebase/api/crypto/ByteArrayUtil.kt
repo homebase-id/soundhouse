@@ -6,7 +6,6 @@ import kotlin.uuid.Uuid
  * Utility functions for byte array operations
  */
 object ByteArrayUtil {
-
     fun uInt32ToBytes(i: UInt): ByteArray {
         return byteArrayOf(
             ((i shr 24) and 0xFFu).toByte(),
@@ -83,15 +82,6 @@ object ByteArrayUtil {
                 ((bytes[2].toInt() and 0xFF) shl 8) or
                 (bytes[3].toInt() and 0xFF)
     }
-
-    fun bytesToInt32_little_endian(bytes: ByteArray): Int {
-        require(bytes.size == 4) { "Input byte array must have exactly 4 elements." }
-        return (bytes[0].toInt() and 0xFF) or
-                ((bytes[1].toInt() and 0xFF) shl 8) or
-                ((bytes[2].toInt() and 0xFF) shl 16) or
-                ((bytes[3].toInt() and 0xFF) shl 24)
-    }
-
 
     fun bytesToInt16(bytes: ByteArray): Short {
         require(bytes.size == 2) { "Input byte array must have exactly 2 elements." }

@@ -176,18 +176,6 @@ class DriveFileProviderCached(
     // -------------------- CACHED PAYLOAD METHODS --------------------
     // ================================================================
 
-    /**
-     * Fetch raw payload bytes straight from the network, bypassing the disk cache. Use when the
-     * caller needs the response headers the cache doesn't persist — notably
-     * `SharedSecretEncryptedHeader64`, the authoritative per-payload key header for a payload whose
-     * IV the server rotates on rewrite (e.g. a contact's `ext_data`).
-     */
-    suspend fun getPayloadBytesRawFromNetwork(
-        driveId: Uuid,
-        fileId: Uuid,
-        key: String,
-    ): ByteApiResponse = delegate.getPayloadBytesRawNetwork(driveId, fileId, key)
-
     suspend fun getPayloadBytesRaw(
             driveId: Uuid,
             fileId: Uuid,
@@ -428,11 +416,6 @@ class DriveFileProviderCached(
             cacheKey: String,
             fetch: suspend () -> ByteApiResponse
     ): ByteApiResponse = readThrough(payloadDiskCache, cacheKey, payloadSemaphore, "PayloadIO", fetch)
-
-    suspend fun readThumbThrough(
-            cacheKey: String,
-            fetch: suspend () -> ByteApiResponse
-    ): ByteApiResponse = readThrough(thumbDiskCache, cacheKey, thumbnailSemaphore, "ThumbIO", fetch)
 
     suspend fun getThumbBytesDecrypted(
             driveId: Uuid,

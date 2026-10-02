@@ -111,7 +111,6 @@ val audioAppModule = module {
             ownerSessionRepository = get(),
             youAuthFlowManager = get(),
             driveSyncManager = get(),
-            outboxSync = get(),
             eventBus = get(),
             databaseManager = get(),
             driveRegistry = get(),

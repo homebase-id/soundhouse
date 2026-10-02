@@ -23,6 +23,9 @@ for f, es in byfile.items():
             line = open(f).read().split('\n')[int(m.group(1))-1]
             names |= set(re.findall(r'[A-Za-z_]\w*', line[int(m.group(2))-1:]))
     hit = {n for n in names if n in cnames}
+    # A syntax error means the cut itself was bad: give up on every candidate in that file.
+    if f in edited and any('Syntax error' in e or 'must have a name' in e or 'Expecting' in e for e in es):
+        hit = set()
     if hit:
         for n in hit:
             for cf in cnames[n]:

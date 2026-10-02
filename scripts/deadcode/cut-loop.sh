@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
+# Stage your own edits first: this resets unstaged changes between rounds.
 # Cut every candidate in $WORK/deadmembers.json, compile, turn errors into exclusions, recut from clean,
 # until it compiles. Needs a clean working tree (it resets unstaged changes between rounds).
 cd "$(dirname "$0")/../.."
 WORK="${DEADCODE_WORK:-/tmp/deadcode}"
 cp "$WORK/deadmembers.json" "$WORK/r8cands.json"; rm -f "$WORK/excl.json"
-for round in 1 2 3 4 5 6 7 8; do
+for round in $(seq 1 14); do
   git checkout -q -- .
   python3 scripts/deadcode/cutmembers.py >/dev/null
   scripts/deadcode/compile-all.sh "$@"

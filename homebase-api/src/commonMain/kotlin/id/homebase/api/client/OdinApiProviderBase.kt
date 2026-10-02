@@ -298,71 +298,6 @@ abstract class OdinApiProviderBase(
         )
     }
 
-    protected suspend fun encryptedPutJson(
-        url: String,
-        token: String,
-        jsonBody: String,
-        secret: SecureByteArray
-    ): ApiResponse {
-        requireHostInUrl(url)
-
-        return request(
-            {
-                httpClient.put(url) {
-                    bearerAuth(token)
-                    contentType(ContentType.Application.Json)
-                    accept(ContentType.Application.Json)
-                    setBody(
-                        TextContent(
-                            OdinSystemSerializer.serialize(
-                                CryptoHelper.encryptData(
-                                    jsonBody,
-                                    secret.unsafeBytes
-                                )
-                            ),
-                            ContentType.Application.Json
-                        )
-                    )
-                }
-            },
-            secret = secret
-        )
-    }
-
-    protected suspend fun encryptedDelete(
-        url: String,
-        token: String,
-        secret: SecureByteArray,
-        jsonBody: String? = null
-    ): ApiResponse {
-        requireHostInUrl(url)
-
-        return request(
-            {
-                httpClient.delete(url) {
-                    bearerAuth(token)
-                    accept(ContentType.Application.Json)
-
-                    if (jsonBody != null) {
-                        contentType(ContentType.Application.Json)
-                        setBody(
-                            TextContent(
-                                OdinSystemSerializer.serialize(
-                                    CryptoHelper.encryptData(
-                                        jsonBody,
-                                        secret.unsafeBytes
-                                    )
-                                ),
-                                ContentType.Application.Json
-                            )
-                        )
-                    }
-                }
-            },
-            secret = secret
-        )
-    }
-
     protected suspend fun encryptedPostJson(
         url: String,
         token: String,
@@ -388,34 +323,6 @@ abstract class OdinApiProviderBase(
                                     jsonBody,
                                     secret.unsafeBytes
                                 )
-                            ),
-                            ContentType.Application.Json
-                        )
-                    )
-                }
-            },
-            secret = secret
-        )
-    }
-
-    protected suspend fun encryptedPatchJson(
-        url: String,
-        token: String,
-        jsonBody: String,
-        secret: SecureByteArray
-    ): ApiResponse {
-        requireHostInUrl(url)
-
-        return request(
-            {
-                httpClient.patch(url) {
-                    bearerAuth(token)
-                    contentType(ContentType.Application.Json)
-                    accept(ContentType.Application.Json)
-                    setBody(
-                        TextContent(
-                            OdinSystemSerializer.json.encodeToString(
-                                CryptoHelper.encryptData(jsonBody, secret.unsafeBytes)
                             ),
                             ContentType.Application.Json
                         )

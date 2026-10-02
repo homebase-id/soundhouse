@@ -310,19 +310,6 @@ class DatabaseManager(
         }
     }
 
-    val autoSavedMedia: AutoSavedMediaWrapper by lazy {
-        AutoSavedMediaWrapper(driver, this)
-    }
-    val appNotifications: AppNotificationsWrapper by lazy {
-        AppNotificationsWrapper(
-            driver,
-            appNotificationsAdapter,
-            this
-        )
-    }
-    val chatReadCount: ChatReadCountWrapper by lazy {
-        ChatReadCountWrapper(driver, chatReadCountAdapter, driveMainIndexAdapter, this)
-    }
     val driveMainIndex: DriveMainIndexWrapper by lazy {
         DriveMainIndexWrapper(
             driver,
@@ -349,15 +336,6 @@ class DatabaseManager(
     // Lazy wrappers
     val keyValue: KeyValueWrapper by lazy {
         KeyValueWrapper(driver, keyValueAdapter, this)
-    }
-    val outbox: OutboxWrapper by lazy {
-        OutboxWrapper(driver, outboxAdapter, this)
-    }
-    val locationPoint: LocationPointWrapper by lazy {
-        LocationPointWrapper(driver, locationPointAdapter, this)
-    }
-    val connectionCache: ConnectionCacheWrapper by lazy {
-        ConnectionCacheWrapper(driver, connectionCacheAdapter, this)
     }
 
     // Reads run on [readDispatcher], NOT the single write [dispatcher], so a read

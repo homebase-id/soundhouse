@@ -14,7 +14,6 @@ import id.homebase.api.common.time.UnixTimeUtc
 import id.homebase.api.diagnostics.BgTrace
 import id.homebase.api.sync.DriveSyncManager
 import id.homebase.api.sync.database.DatabaseManager
-import id.homebase.api.sync.database.OutboxSync
 import id.homebase.api.youauth.DrivePermission
 import id.homebase.api.youauth.SecurityContextProvider
 import id.homebase.api.youauth.YouAuthFlowManager
@@ -47,7 +46,6 @@ class AuthConnectionCoordinator(
     private val ownerSessionRepository: OwnerSessionRepository,
     private val youAuthFlowManager: YouAuthFlowManager,
     private val driveSyncManager: DriveSyncManager,
-    private val outboxSync: OutboxSync,
     private val eventBus: EventBus,
     private val databaseManager: DatabaseManager,
     private val driveRegistry: DriveRegistry,
@@ -494,16 +492,8 @@ class AuthConnectionCoordinator(
                 // The WebSocket subscribes to own drives only.
                 drives = (mandatorySyncDrives + optionalDrives.filter { it.ownerOdinId == null })
                     .map { it.drive },
-                // Fires asynchronously once the server handshake has completed.
-                // We mark the connection state and then run post-connect setup in a
-                // background coroutine:
-                //   1. driveSyncManager.start/syncAll() — catch up on inbound drive changes.
-                //   2. outboxSync.clearCheckout()       — clear any stale checked-out items
-                //                                         from before the disconnect.
-                //   3. outboxSync.setOnline(true)       — only enable outbox sending AFTER
-                //                                         sync and cleanup are done, ensuring
-                //                                         a clean send window.
-                //   4. outboxSync.send()                — flush the outbox queue.
+                // Fires once the server handshake has completed: mark connected, then catch up on
+                // inbound drive changes in the background.
                 onConnected = {
                     Logger.i(tag = "AuthLifecycle") {
                         "AuthCC: onConnected fired for ${wsClient?.let { "WS[${it.instanceId}]" } ?: "null-wsClient"}"
@@ -543,15 +533,6 @@ class AuthConnectionCoordinator(
                             if (_connectionState.value.isConnected) {
                                 _connectionState.update { it.copy(isConnecting = false) }
                             }
-                            // Instrumentation: confirm the post-connect cleanup
-                            // actually runs (this is the only place zombie
-                            // checked-out outbox rows get revived). A missing
-                            // "onConnected → clearCheckout" line in the log means
-                            // onConnected never fired (no clean WS handshake).
-                            Logger.i(tag = "AuthLifecycle") { "AuthCC: onConnected → clearCheckout() + setOnline(true) + send()" }
-                            outboxSync.clearCheckout()
-                            outboxSync.setOnline(true)
-                            outboxSync.send()
                         }
                     }
                 },
@@ -559,7 +540,6 @@ class AuthConnectionCoordinator(
                     Logger.i(tag = "AuthLifecycle") {
                         "AuthCC: onDisconnected fired for ${wsClient?.let { "WS[${it.instanceId}]" } ?: "null-wsClient"}"
                     }
-                    outboxSync.setOnline(false)
                     _connectionState.update { it.copy(isConnected = false, isConnecting = false) }
                     driveSyncManager.pause()
                     logLifecycleSnapshot("onDisconnected")
@@ -568,7 +548,6 @@ class AuthConnectionCoordinator(
                     Logger.w(throwable = e, tag = "AuthLifecycle") {
                         "AuthCC: onConnectError for ${wsClient?.let { "WS[${it.instanceId}]" } ?: "null-wsClient"}: ${e.message}"
                     }
-                    outboxSync.setOnline(false)
                     _connectionState.update { it.copy(isConnected = false, isConnecting = false) }
                     logLifecycleSnapshot("onConnectError")
                     consecutiveUpgradeAuthFailures =
@@ -626,7 +605,6 @@ class AuthConnectionCoordinator(
                     // fires. Mark offline here ourselves — otherwise isOnline stays stale-true and
                     // BackgroundSyncOrchestrator.syncIfAuthenticated() would skip the FCM→HTTP
                     // background sync ("WS online — skipping"), silently breaking background sync.
-                    outboxSync.setOnline(false)
                     _connectionState.update { connectionStateAfterWsPark(it) }
                     BgTrace.log(BgTrace.wsPark("backgrounded-push-covered"))
                     Logger.i(tag = "AuthLifecycle") {
@@ -749,7 +727,6 @@ class AuthConnectionCoordinator(
         grantedDriveIds = null
         refreshWsSubscription.cancel()
         driveRegistry.stop()
-        outboxSync.setOnline(false)
         // Keep isConnecting = true so the next login cycle correctly starts in
         // StartupState.Loading.  While logged out the auth state is Unauthenticated,
         // so isConnecting has no visible effect on the UI.
@@ -840,20 +817,6 @@ class AuthConnectionCoordinator(
                 mountDrive(drive, persist = false)
             }
         }
-    }
-
-    /**
-     * Wait for the in-flight [scheduleRegistryReconcile] to finish, so a caller that genuinely
-     * needs the server-authoritative drive set gets it.
-     *
-     * This is the seam that replaced blocking the whole connect sequence on the registry fetch.
-     * The distinction "is a user waiting on this?" cannot be made inside [onAuthStateChanged] —
-     * on Android [headless] is true for an ordinary launcher launch as well as an FCM wake, and
-     * is only corrected once [promoteToForeground] runs. The one component that knows
-     * unambiguously is the background sync itself, so it asks rather than being told.
-     */
-    suspend fun awaitRegistryReconcile() {
-        registryReconcileJob?.join()
     }
 
     /**
