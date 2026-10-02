@@ -4,8 +4,6 @@ import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.mimeType
 import io.github.vinceglb.filekit.name
 
-const val CONTENT_TYPE_MARKDOWN = "text/markdown"
-
 fun detectContentTypeFromExtensionOrHint(nameOrPath: String?): String {
     val ext = nameOrPath?.substringAfterLast('.')?.lowercase()?.takeIf { it.isNotBlank() }
         ?: return "application/octet-stream"

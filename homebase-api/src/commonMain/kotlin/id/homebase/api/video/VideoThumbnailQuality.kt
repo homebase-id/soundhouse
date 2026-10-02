@@ -38,9 +38,6 @@ internal object VideoThumbnailQuality {
     /** 0.0–1.0 scale for `UIImageJPEGRepresentation` (iOS) and `canvas.toDataURL` (web). */
     const val POSTER_JPEG_QUALITY_0_TO_1: Double = 0.75
 
-    /** ffmpeg `-q:v` qscale (1 best, 31 worst). 4 ≈ JPEG quality 75. */
-    const val POSTER_FFMPEG_QSCALE: Int = 4
-
     const val STRIP_JPEG_QUALITY_0_TO_100: Int = 60
     const val STRIP_JPEG_QUALITY_0_TO_1: Double = 0.6
 

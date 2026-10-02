@@ -39,7 +39,7 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - [x] 1–2. Whole files unreachable from the app on every platform (reachability pass), all vendored modules
 - [x] 3. Stricter reachability (package/import-aware) and repeat
 - [x] 4. Koin definitions that nothing injects (registered but dead), then their classes
-- [ ] 5. Unused members inside live files (R8 member report), vendored layer
+- [x] 5. Unused members inside live files (name-based fixpoint), vendored layer
 - [x] 6. Unused Compose string resources (all modules, incl. values-da) and resource files
 - [ ] 7. Unused declarations in audio-app / androidApp / desktopApp
 - [ ] 8. Unused Gradle dependencies, plugins, version-catalog entries
@@ -109,3 +109,16 @@ references in docs/config, reuse, quality) and that is recorded per commit.
   unused — the word check is conservative.
 - Verified: all-target compile, gate --apps exit 0 (incl. UI render tests).
 - XML lines −4,239 (Kotlin unchanged).
+
+### 7. Declarations whose names are never used (vendored layer)
+- Candidates: functions, properties, classes and objects whose name appears in no file of the repo (Kotlin on every
+  platform incl. tests, XML, ProGuard, SQL, JSON) other than their own declaration(s). Excluded: override, operator,
+  external, expect/actual, infix, constructor parameters, properties of @Serializable classes, anything annotated
+  @JvmStatic/@JvmName/@Keep/@ObjCName/@Throws or a test hook, `main`, `componentN`, the baseline-profile generator.
+- Cut by script (declaration + its KDoc/annotations, ending at a balanced boundary), iterated to a fixpoint; a file
+  whose cut didn't compile was reverted (the first version over-ran the closing brace of the enclosing scope; fixed).
+- Audit: every removed hunk starts with a candidate whose name now appears nowhere in the repo; other declarations
+  inside removed text are only locals and constructor params of removed classes; the other 80 hunks are blank lines.
+  6 candidates left in place (their files didn't compile after cutting).
+- Verified: all-target compile, gate --apps exit 0, assembleRelease exit 0.
+- Kotlin lines → 95,945.

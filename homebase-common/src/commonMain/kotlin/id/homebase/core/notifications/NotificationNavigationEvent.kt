@@ -34,20 +34,4 @@ sealed class NotificationNavigationEvent {
         val momentId: String,
         val openComments: Boolean = false,
     ) : NotificationNavigationEvent()
-
-    /**
-     * Open the moments composer (`Route.MomentCompose`). Emitted when the user
-     * shares media into "New Moment" from the OS share sheet: the share flow
-     * has already seeded [MomentCreateFlowState] with the chosen attachments, so
-     * this event only steers the back stack into the composer.
-     */
-    data object OpenMomentCompose : NotificationNavigationEvent()
-
-    /**
-     * Navigate to the WebDrop screen after the user shares files into "New
-     * WebDrop" from the OS share sheet: the share flow has already seeded
-     * `WebDropShareFlowState`, so this event only steers the back stack there —
-     * the WebDrop view model opens the composer with the seeded files on init.
-     */
-    data object OpenWebDropCompose : NotificationNavigationEvent()
 }

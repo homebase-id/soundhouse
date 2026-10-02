@@ -18,20 +18,6 @@ data class PushSubscriptionRequest(
     @SerialName("FriendlyName") val friendlyName: String
 )
 
-/**
- * Raw-VAPID (browser) push subscription. The server routes on an empty `FirebaseDeviceToken`, so
- * a browser subscription posted through the firebase endpoint is accepted and then never
- * delivered to — the shape and the endpoint both have to differ from [PushSubscriptionRequest].
- */
-@Serializable
-data class WebPushSubscriptionRequest(
-    val friendlyName: String,
-    val endpoint: String,
-    val expirationTime: Long? = null,
-    val auth: String,
-    val p256DH: String,
-)
-
 @Serializable
 data class PushSubscriptionResponse(
     val accessRegistrationId: String,
@@ -43,7 +29,6 @@ data class PushSubscriptionResponse(
 
 class PushNotificationApi(httpClient: HttpClient, credentialsManager: CredentialsManager) :
     OdinApiProviderBase(httpClient, credentialsManager) {
-
     suspend fun subscribe(deviceToken: String, devicePlatform: String, friendlyName: String) {
         val creds = requireCreds()
         val requestBody =
@@ -64,45 +49,6 @@ class PushNotificationApi(httpClient: HttpClient, credentialsManager: Credential
             )
 
         throwForFailure(response)
-    }
-
-    suspend fun subscribeWebPush(request: WebPushSubscriptionRequest) {
-        val creds = requireCreds()
-
-        val response =
-            encryptedPostJson(
-                url = apiUrl(creds.domain, "/notify/push/subscribe"),
-                token = creds.accessToken,
-                jsonBody = OdinSystemSerializer.serialize(request),
-                secret = creds.secret
-            )
-
-        throwForFailure(response)
-    }
-
-    /**
-     * The tenant's VAPID application server key. A guest endpoint outside /api/v2 — unauthenticated,
-     * unencrypted, and it answers with a bare base64url string rather than JSON — so neither
-     * [encryptedGet] nor [deserialize] applies. Generated once at identity init and never rotated.
-     */
-    suspend fun getVapidPublicKey(): String {
-        val creds = requireCreds()
-        val body = httpClient
-            .get("https://${creds.domain}/api/guest/v1/public/keys/notifications_pk")
-            .bodyAsText()
-        return body.trim().trim('"')
-    }
-
-    suspend fun getSubscription(): PushSubscriptionResponse? {
-        val creds = requireCreds()
-        val response = encryptedGet(
-            url = apiUrl(creds.domain, "/notify/push/subscription"),
-            token = creds.accessToken,
-            secret = creds.secret
-        )
-        if (response.status == 404) return null
-        throwForFailure(response)
-        return deserialize(response.body)
     }
 
     suspend fun unsubscribe() {

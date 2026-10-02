@@ -21,25 +21,8 @@ class CredentialsManager {
         activeCredentials != null
     }
 
-    suspend fun getActiveDomain(): OdinId? = mutex.withLock {
-        activeCredentials?.domain
-    }
-
     suspend fun storeCredentials(credentials: ApiCredentials) = mutex.withLock {
         storedCredentials[credentials.domain.domainName] = credentials
-    }
-
-    suspend fun removeCredentials(domain: OdinId) = mutex.withLock {
-        if (activeCredentials?.domain == domain) {
-            activeCredentials = null
-        }
-        storedCredentials.remove(domain.domainName)
-    }
-
-    suspend fun removeAllCredentials() = mutex.withLock {
-        _credentialsFlow.update { null }
-        activeCredentials = null
-        storedCredentials.clear()
     }
 
     suspend fun getActiveCredentials(): ApiCredentials? = mutex.withLock {
@@ -64,11 +47,6 @@ class CredentialsManager {
 
     suspend fun requireActiveCredentials(): ApiCredentials = mutex.withLock {
         activeCredentials
-            ?: throw IllegalStateException("No active credentials set")
-    }
-
-    suspend fun requireActiveDomain(): OdinId = mutex.withLock {
-        activeCredentials?.domain
             ?: throw IllegalStateException("No active credentials set")
     }
 }

@@ -32,9 +32,6 @@ data class FileMetadata(
     /** See the upload-side ttl: 0/null never expires, > 0 absolute ms, < 0 pending-first-read. */
     val ttl: Long? = null
 ) {
-    fun getPayloadDescriptor(key: String): PayloadDescriptor? {
-        return payloads?.firstOrNull { it.keyEquals(key) }
-    }
 }
 
 @Serializable

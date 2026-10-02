@@ -15,19 +15,6 @@ data class RichTextNode(
 /** Rich text type alias (list of RichTextNode). */
 typealias RichText = List<RichTextNode>
 
-/** Base reaction interface. */
-@Serializable
-data class ReactionBase(val authorOdinId: String? = null, val body: String)
-
-/** Comment reaction with rich text support. */
-@Serializable
-data class CommentReaction(
-    val authorOdinId: String? = null,
-    val body: String,
-    val bodyAsRichText: RichText? = null,
-    val mediaPayloadKey: String? = null
-)
-
 fun getTextRootsRecursive(children: RichText?, keepNewLines: Boolean = false): List<String> {
     if (children.isNullOrEmpty()) return emptyList()
 

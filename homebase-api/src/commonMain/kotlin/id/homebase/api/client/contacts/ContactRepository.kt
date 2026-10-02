@@ -213,18 +213,6 @@ class ContactRepository(
         }
     }
 
-    /**
-     * Fetches and decrypts an arbitrary named payload from a contact file (e.g. the image referenced
-     * by an Experience attribute's `experience_image` key). Returns the raw decrypted bytes, or null
-     * when the [payloadKey] isn't present, the row is optimistic (no [Contact.fileId]), or the
-     * fetch fails. Like [loadExtData], call only on demand.
-     */
-    suspend fun loadPayloadBytes(contact: Contact, payloadKey: String): ByteArray? {
-        if (payloadKey.isBlank() || payloadKey !in contact.payloadKeys) return null
-        val fileId = contact.fileId ?: return null
-        return contactPayloadReader.fetchPayload(driveId, fileId, payloadKey)
-    }
-
     // ------------------------------------------------------------
     // Write (V2 controller) — each applies an optimistic update
     // ------------------------------------------------------------
@@ -296,31 +284,6 @@ class ContactRepository(
         } catch (e: Exception) {
             Logger.w(e, TAG) { "syncContact failed for $odinId" }
         }
-    }
-
-    /**
-     * Uploads (client-encrypts) an avatar for an existing contact via the provider's version-gated
-     * image endpoint. Returns true on success. The updated row (with the image payload) lands via
-     * drive sync.
-     */
-    suspend fun setImage(
-        uniqueId: Uuid,
-        bytes: ByteArray,
-        contentType: String,
-        versionTag: Uuid,
-    ): Boolean = try {
-        contactsProvider.setContactImage(
-            uniqueId = uniqueId,
-            contactDriveId = driveId,
-            imageBytes = bytes,
-            contentType = contentType,
-            versionTag = versionTag,
-        ) is ContactWriteResult.Ok
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Logger.w(e, TAG) { "setContactImage failed for $uniqueId" }
-        false
     }
 
     // ------------------------------------------------------------

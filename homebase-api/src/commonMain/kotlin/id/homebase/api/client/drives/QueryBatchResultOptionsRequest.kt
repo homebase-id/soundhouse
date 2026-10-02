@@ -32,23 +32,6 @@ data class QueryBatchResultOptionsRequest(
     val ordering: QueryBatchSortOrder = QueryBatchSortOrder.OldestFirst,
     val sorting: QueryBatchSortField = QueryBatchSortField.AnyChangeDate
 ) {
-    fun toQueryBatchResultOptions(): QueryBatchResultOptions {
-        return QueryBatchResultOptions(
-            cursor = if (cursorState.isNullOrEmpty()) {
-                QueryBatchCursor()
-            } else {
-                QueryBatchCursor.Companion.fromJson(
-                    cursorState
-                )
-            },
-            maxRecords = maxRecords,
-            includeHeaderContent = includeMetadataHeader,
-            includeTransferHistory = includeTransferHistory,
-            ordering = ordering,
-            sorting = sorting
-        )
-    }
-
     companion object {
         val Default = QueryBatchResultOptionsRequest(
                 maxRecords = 10,

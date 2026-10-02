@@ -31,7 +31,6 @@ class YouAuthProvider(
     private val httpClient: HttpClient,
     private val identity: OdinId
 ) {
-
     private val baseApiUrl: String = identity.domainName.toHttpsBaseUrl()
     private val ownerApiUrl: String = identity.domainName.toHttpsBaseUrl()
 
@@ -39,66 +38,9 @@ class YouAuthProvider(
         private const val TAG = "YouAuthProvider"
     }
 
-    suspend fun hasValidToken(): Boolean? =
-        try {
-            val response = httpClient.get("$baseApiUrl/api/apps/v1/auth/verifytoken")
-            when (response.status.value) {
-                200 -> true
-                401, 403 -> false
-                else -> null
-            }
-        } catch (e: Exception) {
-            Logger.e(throwable = e, tag = TAG) { "Token verification failed" }
-            null
-        }
-
-    suspend fun getRegistrationParams(
-        returnUrl: String,
-        appName: String,
-        appId: String,
-        appSlug: String? = null,
-        drives: List<TargetDriveAccessRequest> = emptyList(),
-        publicKey: EccKeyPair,
-        password: SecureByteArray,
-        host: String? = null,
-        clientFriendlyName: String? = null,
-        state: String? = null,
-        permissions: List<Int>? = null,
-        circlePermissions: List<Int>? = null,
-        circleDrives: List<TargetDriveAccessRequest>? = null,
-        circles: List<String>? = null
-    ): YouAuthorizationParams {
-
-        val permissionRequest =
-            AppAuthorizationParams.create(
-                appName = appName,
-                appId = appId,
-                appSlug = appSlug,
-                friendlyName = clientFriendlyName ?: deviceDisplayName(),
-                drives = drives,
-                circleDrives = circleDrives,
-                circles = circles,
-                permissions = permissions,
-                circlePermissions = circlePermissions,
-                returnUrl = returnUrl,
-                origin = host
-            )
-
-        return YouAuthorizationParams(
-            clientId = appId,
-            clientType = ClientType.app,
-            clientInfo = clientFriendlyName ?: deviceDisplayName(),
-            publicKey = publicKeyToJwkBase64Url(publicKey.publicKey),
-            permissionRequest = permissionRequest.toJson(),
-            state = state ?: "",
-            redirectUri = returnUrl
-        )
-    }
-
     suspend fun exchangeDigestForToken(
         base64ExchangedSecretDigest: String
     ): YouAuthTokenResponse {
-
         val response =
             httpClient.post("$ownerApiUrl/api/owner/v1/youauth/token") {
                 contentType(ContentType.Application.Json)
@@ -119,7 +61,6 @@ class YouAuthProvider(
         publicKey: String,
         salt: String
     ): AuthResult {
-
         val remotePublicKey = publicKeyFromJwkBase64Url(publicKey)
         val saltBytes = Base64.decode(salt)
 
@@ -155,25 +96,12 @@ class YouAuthProvider(
 
     suspend fun logout(): Boolean =
         try {
-
             httpClient.post("$baseApiUrl/api/apps/v1/auth/logout")
             true
         } catch (e: Exception) {
             Logger.e(throwable = e, tag = TAG) { "Logout failed" }
             false
         }
-
-    suspend fun preAuth(): Boolean =
-        try {
-            httpClient.post("$baseApiUrl/api/apps/v1/notify/preauth")
-            true
-        } catch (e: Exception) {
-            Logger.e(throwable = e, tag = TAG) { "PreAuth failed" }
-            false
-        }
-
-    suspend fun generateKeyPair(password: SecureByteArray): EccKeyPair =
-        generateEccKeyPair(password, EccKeySize.P384, 1)
 }
 
 private fun String.toHttpsBaseUrl(): String {

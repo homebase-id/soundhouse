@@ -41,9 +41,5 @@ enum class TransferStatus(val value: String) {
                         UnknownServerError,
                         SendingServerTooManyAttempts
                 )
-
-        fun isFailedStatus(status: TransferStatus): Boolean {
-            return status in failedStatuses
-        }
     }
 }

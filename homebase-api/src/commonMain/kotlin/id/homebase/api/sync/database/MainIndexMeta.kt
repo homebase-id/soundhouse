@@ -294,28 +294,6 @@ object MainIndexMetaHelpers {
             return merged
         }
 
-        // Read-transform-write in ONE write transaction so a concurrent server push can't be clobbered by a stale copy.
-        suspend fun mutateByUniqueId(
-            identityId: Uuid,
-            driveId: Uuid,
-            uniqueId: Uuid,
-            transform: (HomebaseFile) -> HomebaseFile,
-        ): HomebaseFile? {
-            var result: HomebaseFile? = null
-            databaseManager.withWriteTransaction { db ->
-                val stored = db.driveMainIndexQueries
-                    .selectByIdentityAndDriveAndUnique(identityId, driveId, uniqueId)
-                    .executeAsOneOrNull() ?: return@withWriteTransaction
-                val updated = transform(OdinSystemSerializer.deserialize<HomebaseFile>(stored.jsonHeader))
-                val record = convertFileHeaderToDriveMainIndexRecord(identityId, driveId, updated)
-                if (upsertDriveMainIndex(db, record) > 0L) {
-                    rewriteTags(db, identityId, driveId, updated)
-                    result = updated
-                }
-            }
-            return result
-        }
-
         /**
          * Upserts a single file entry into the database using the provided SharedSecretEncryptedFileHeader
          * This is a backwards-compatible helper that calls the batch version with a single-item list.

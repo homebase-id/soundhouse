@@ -758,21 +758,6 @@ class AuthConnectionCoordinator(
         }
     }
 
-    /**
-     * Mount a community drive hosted on another identity ([ownerOdinId]) directly. Part 1 transport
-     * affordance for exercising the validation gate against a real existing community before the
-     * Part 2 feature (and its registry entries) exists. Defaults to `persist = false` so it doesn't
-     * write the cross-device registry.
-     */
-    suspend fun mountPeerDrive(
-        ownerOdinId: OdinId,
-        communityDrive: TargetDrive,
-        label: String,
-        persist: Boolean = false,
-    ) {
-        mountDrive(LabeledDrive(communityDrive, label, ownerOdinId), persist = persist)
-    }
-
     /** Open a peer websocket for every owner-hosted drive in [drives]. No-op for own drives. */
     private suspend fun startPeerConnections(drives: List<LabeledDrive>) {
         for (drive in drives) {
@@ -975,7 +960,6 @@ class AuthConnectionCoordinator(
         }
     }
 
-
     /**
      * #1349: the client token is dead — the registration was revoked server-side. Tear the session
      * down through the normal logout path, so `authState` flips to Unauthenticated and AppNavHost
@@ -1084,9 +1068,3 @@ data class AuthConnectionState(
     val isConnected: Boolean = false,
 )
 
-/** Maps this state to the 3-state UI enum used by avatar indicators and UI state. */
-fun AuthConnectionState.toConnectionStatus(): AppConnectionStatus = when {
-    isConnected  -> AppConnectionStatus.Connected
-    isConnecting -> AppConnectionStatus.Connecting
-    else         -> AppConnectionStatus.Disconnected
-}

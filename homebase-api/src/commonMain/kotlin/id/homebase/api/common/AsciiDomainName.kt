@@ -18,9 +18,6 @@ value class AsciiDomainName private constructor(
     /** public string DomainName { get; init; } from C# */
     val domainName: String
 ) {
-
-    fun toIDN(): String = Idn.toUnicode(domainName)
-
     override fun toString(): String = domainName
 
     companion object {
@@ -34,14 +31,6 @@ value class AsciiDomainName private constructor(
             AsciiDomainNameValidator.assertValidDomain(normalized)
             return AsciiDomainName(normalized)
         }
-
-        /**
-         * Exactly like the static FromIDN in C#.
-         */
-        fun fromIDN(idnDomainName: String): AsciiDomainName {
-            val puny = Idn.toAscii(idnDomainName)
-            return AsciiDomainName(puny)          // calls the operator invoke above
-        }
     }
 }
 
@@ -49,7 +38,6 @@ value class AsciiDomainName private constructor(
 // Validator – pure Kotlin, works everywhere
 // ------------------------------------------------------------------
 object AsciiDomainNameValidator {
-
     const val MAX_DNS_LABEL_COUNT = 127
     const val MAX_DNS_LABEL_LENGTH = 63
     const val MAX_DNS_DOMAIN_LENGTH = 253

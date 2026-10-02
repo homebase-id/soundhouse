@@ -44,16 +44,9 @@ val IdentitySessionQualifier: Qualifier = named("IdentitySession")
  * `BackendEvent.SessionEnded`, and, for anything nobody remembered, nothing at all.
  */
 class IdentitySessionScope(private val koin: Koin) {
-
     private val lock = SynchronizedObject()
 
     private val _currentScope = MutableStateFlow<Scope?>(null)
-
-    /**
-     * The live scope, or null while logged out — observable so Compose can re-provide it to
-     * the composition when a session starts or ends. [IdentityScopeProvider] is the consumer.
-     */
-    val currentScope: StateFlow<Scope?> = _currentScope.asStateFlow()
 
     private var current: Scope?
         get() = _currentScope.value

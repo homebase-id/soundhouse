@@ -11,15 +11,8 @@ package id.homebase.api.client.contacts
 object ContactAttributeId {
     // -- Core fields (also modeled as typed ContactContent properties) -------------------------------
     const val NAME = "b068931c-c450-442b-63f5-b3d276ea4297"          // toGuidId("name")
-    const val NICKNAME = "e8067417-0aae-0390-9a55-625e9cc9cf97"      // toGuidId("nickname")
     const val PHOTO = "5ae0c1c8-a526-0bc7-b664-8f6fbd115c35"         // toGuidId("photo")
-    const val ADDRESS = "d5189de0-2792-2f81-0059-51e6efe0efd5"       // toGuidId("location")
-    const val BIRTHDAY = "cf673f7e-e888-28c9-fb8f-6acf2cb08403"      // toGuidId("birthday")
-    const val PHONE_NUMBER = "c5754f96-3780-6a28-30ca-2a957c2ac198"  // toGuidId("phonenumber")
-    const val EMAIL = "0c83f57c-786a-0b4a-39ef-ab23731c7ebc"         // toGuidId("email")
     const val STATUS = "9acb4454-9b41-5636-97bb-490144ec6258"        // toGuidId("status")
-    const val LINK = "2a304a13-4845-6ccd-2234-cd71a81bd338"          // toGuidId("link")
-    const val SHORT_BIO = "2cd30a58-568d-c333-2379-44481aeb9ff1"     // toGuidId("short_bio")
 
     // -- Social --------------------------------------------------------------------------------------
     const val HOMEBASE_IDENTITY = "0eb220c0-9268-57bd-3e31-4a0b9374e1ff" // toGuidId("dot_you_identity")

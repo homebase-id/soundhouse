@@ -44,7 +44,6 @@ class PeerFileByGlobalTransitProvider(
     private val driveFileHttpProvider: DriveFileHttpProvider,
     private val driveCache: DriveFileProviderCached,
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
-
     // Hosts whose CDN read failed. A host that doesn't share the worker's CDN token hard-401s with no
     // anonymous fallback, and a drive without AllowCdn 404s — both permanent, so retrying per image would
     // double every request. Session-scoped; a restart re-probes.
@@ -106,98 +105,6 @@ class PeerFileByGlobalTransitProvider(
             return null
         }
         return decrypted(response, keyHeader)
-    }
-
-    /**
-     * Ranged read backing video playback. Null on 404.
-     *
-     * Ranges land in the isolated HLS chunk cache (#845), the same one local playback uses, so a replay
-     * or a scrub back does not re-pull the segment.
-     *
-     * [chunkStart]/[chunkLength] name the range the CALLER wants. An encrypted payload is AES-CBC, so the
-     * request is widened to block boundaries and the surplus trimmed off here.
-     */
-    suspend fun getPayloadChunkOverPeerByGlobalTransitId(
-        peer: OdinId,
-        driveId: Uuid,
-        globalTransitId: Uuid,
-        payloadKey: String,
-        keyHeader: KeyHeader,
-        chunkStart: Long,
-        chunkLength: Long?,
-    ): BytesResponse? {
-        require(payloadKey.isNotBlank()) { "payloadKey must be defined" }
-        require(chunkStart >= 0) { "chunkStart must be >= 0" }
-        val creds = requireCreds()
-
-        val range = DriveFileHelpers.getRangeHeader(chunkStart, chunkLength)
-        val start = range.updatedChunkStart ?: 0L
-        // int.MaxValue is the server's own end-of-file sentinel (OdinControllerBase.GetChunk), which is what
-        // an absent length has to become on a route taking it as a required path segment.
-        val length = range.updatedChunkEnd?.let { it - start + 1 } ?: Int.MAX_VALUE.toLong()
-
-        // Both routes take the range as `/{start}/{length}` path segments rather than a Range header, so each
-        // segment is a distinct URL the edge can cache on its own.
-        val remotePath =
-            "/drives/$driveId/files/by-gtid/$globalTransitId/payload/$payloadKey/$start/$length"
-        val peerUrl = apiUrl(creds.domain, "/peer/$peer$remotePath")
-
-        val cacheKey = peerCacheKey("chunk", peer, driveId, globalTransitId, payloadKey, start, length)
-        val response = try {
-            driveCache.readHlsChunkThrough(cacheKey) {
-                fetchViaCdnOrPeer(peer, remotePath, peerUrl, creds.accessToken, maxBytes = null)
-            }
-        } catch (_: NotFoundException) {
-            Logger.i(tag = TAG) { "404 (not shared / missing) url=$peerUrl" }
-            return null
-        }
-        if (response.status == 404) return null
-
-        val decrypted = driveFileHttpProvider.decryptChunkedBytes(
-            response.headers,
-            response.bytes,
-            keyHeader,
-            startOffset = range.startOffset,
-            chunkStart = chunkStart.toInt(),
-        )
-        val wanted = chunkLength?.toInt() ?: decrypted.size
-        return BytesResponse(
-            bytes = decrypted.sliceArray(0 until minOf(wanted, decrypted.size)),
-            contentType = response.contentType,
-        )
-    }
-
-    /**
-     * Ranged read that returns the bytes exactly as stored, still encrypted. Null on 404.
-     *
-     * iOS hands AVPlayer stock HLS-AES-128 and lets it decrypt, so its local video server must proxy
-     * ciphertext untouched — no block-alignment widening, because the caller wants the literal range.
-     */
-    suspend fun getPayloadChunkEncryptedOverPeerByGlobalTransitId(
-        peer: OdinId,
-        driveId: Uuid,
-        globalTransitId: Uuid,
-        payloadKey: String,
-        chunkStart: Long,
-        chunkLength: Long,
-    ): ByteArray? {
-        require(payloadKey.isNotBlank()) { "payloadKey must be defined" }
-        require(chunkStart >= 0 && chunkLength > 0) { "chunk must be a positive range" }
-        val creds = requireCreds()
-        val remotePath =
-            "/drives/$driveId/files/by-gtid/$globalTransitId/payload/$payloadKey/$chunkStart/$chunkLength"
-        val peerUrl = apiUrl(creds.domain, "/peer/$peer$remotePath")
-        val cacheKey =
-            peerCacheKey("chunk", peer, driveId, globalTransitId, payloadKey, chunkStart, chunkLength)
-        val response = try {
-            driveCache.readHlsChunkThrough(cacheKey) {
-                fetchViaCdnOrPeer(peer, remotePath, peerUrl, creds.accessToken, maxBytes = null)
-            }
-        } catch (_: NotFoundException) {
-            Logger.i(tag = TAG) { "404 (not shared / missing) url=$peerUrl" }
-            return null
-        }
-        return if (response.status == 404) null else response.bytes
     }
 
     // Runs inside the disk cache's fill lambda, so the CDN attempt and the peer fallback share one cache

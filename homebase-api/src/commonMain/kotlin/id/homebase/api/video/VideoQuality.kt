@@ -18,8 +18,3 @@ enum class VideoQuality {
     HIGH,
 }
 
-// LOW is not reachable from the user-facing toggle; it stays for callers that ask for it directly.
-fun MediaQuality.toVideoQuality(): VideoQuality = when (this) {
-    MediaQuality.STANDARD -> VideoQuality.STANDARD
-    MediaQuality.HIGH -> VideoQuality.HIGH
-}

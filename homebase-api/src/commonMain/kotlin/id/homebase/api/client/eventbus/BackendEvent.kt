@@ -38,7 +38,6 @@ sealed interface BackendEvent {
     }
 
     sealed interface CircleNetworkEvent : BackendEvent {
-
         data class ConnectionRequestReceived(val sender: OdinId) : CircleNetworkEvent
 
         data class ConnectionRequestAccepted(val acceptedBy: OdinId) : CircleNetworkEvent
@@ -49,7 +48,6 @@ sealed interface BackendEvent {
             val introducerOdinId: OdinId,
             val recipient: OdinId
         ) : CircleNetworkEvent
-
 
         data class IntroductionsReceived(
             val introducerOdinId: OdinId,
@@ -73,7 +71,6 @@ sealed interface BackendEvent {
             val circleId: String,
             val change: CircleDefinitionChangeType,
         ) : CircleNetworkEvent
-
     }
 
     /**
@@ -126,7 +123,6 @@ sealed interface BackendEvent {
         ) : DataEvent
     }
 
-
     sealed interface OutboxEvent : BackendEvent {
         data object Started : OutboxEvent
 
@@ -173,13 +169,6 @@ sealed interface BackendEvent {
             val uniqueId: Uuid
         ) : OutboxEvent  // Only raised by Drive.sync()
 
-        /** Fired when an optimistic write is rolled back because the message never reached
-         *  the outbox (e.g. tryEnqueue failed). Distinct from a deleted file. */
-        data class OptimisticRollback(
-            val driveId: Uuid,
-            val uniqueId: Uuid,
-        ) : OutboxEvent
-
         /** Fired when an item is permanently dropped — either a permanent
          *  (never-retryable) failure or the max retry limit was exceeded.
          *  [reason] is human-readable diagnostics (classifier reason or
@@ -190,13 +179,11 @@ sealed interface BackendEvent {
             val attempts: Int,
             val reason: String? = null,
         ) : OutboxEvent
-
     }
     // Add sealed interface UploadUpdate for Outbox / upload status
     // Add sealed interface VideoUpdate (or WorkUpdate) compression & segmentation & encryption
 
     sealed interface PayloadBundlingEvent : BackendEvent {
-
         /**
          * Emitted right after the sender has written a placeholder row to the
          * local DB but before thumbnail generation / encryption start. Lets
@@ -211,14 +198,8 @@ sealed interface BackendEvent {
         /* ---------- VIDEO ---------- */
 
         sealed interface Video : PayloadBundlingEvent {
-
             data class Started(
                 val payloadKey: String
-            ) : Video
-
-            data class PhaseStarted(
-                val payloadKey: String,
-                val phase: VideoProcessingPhase
             ) : Video
 
             data class PhaseProgress(
@@ -226,11 +207,6 @@ sealed interface BackendEvent {
                 val payloadKey: String,
                 val phase: VideoProcessingPhase,
                 val progress: Float // 0.0 → 1.0
-            ) : Video
-
-            data class PhaseCompleted(
-                val payloadKey: String,
-                val phase: VideoProcessingPhase
             ) : Video
 
             data class Completed(
@@ -282,14 +258,6 @@ sealed interface BackendEvent {
      * without re-prompting with the same dialog they just dismissed.
      */
     data object PermissionsExtensionCanceled : BackendEvent
-
-    /**
-     * Emitted when the user returns from the owner-console data-upgrade page
-     * (via deep link on mobile or /data-upgrade-callback on desktop).
-     * PendingUpgradeManager listens for this and immediately re-checks upgrade
-     * status so the UI clears or updates without waiting for the next poll.
-     */
-    data object DataUpgradeReturned : BackendEvent
 
     // We need an event for when someone is typing something for you...
     // data object UserTyping : backendEvent

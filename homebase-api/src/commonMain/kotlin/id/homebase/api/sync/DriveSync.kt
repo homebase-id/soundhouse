@@ -74,7 +74,6 @@ class DriveSync(
         cursor = cursorStorage.loadCursor(expectFresh = expectFreshCursor)
     }
 
-
     // Reset in-memory sync state on logout. Every SQL table this drive touches is
     // wiped centrally by DatabaseManager.wipeAndRecreate(), so this method only has
     // to zero the cursor we hold in memory — without this the next session would
@@ -89,9 +88,6 @@ class DriveSync(
 
     /** True while this drive is actively syncing (a round is in flight). */
     fun isSyncing(): Boolean = syncing.value
-
-    /** Epoch-ms when the last sync round finished, or 0 if none has this session. */
-    fun lastStoppedAtMs(): Long = lastStoppedAt.value
 
     fun cancel() {
         killroy.value = false

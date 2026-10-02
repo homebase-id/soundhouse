@@ -20,15 +20,6 @@ data class SendReadReceiptByEndTimeRequestV2(
 )
 
 @Serializable
-data class SendReadReceiptByTimeOutboxRequest(
-    val driveId: Uuid,
-    val fileType: Int?,
-    val dataType: Int?,
-    val groupId: Uuid?,
-    val endTime: UnixTimeUtc,
-)
-
-@Serializable
 data class SendReadReceiptByFileIdsOutboxRequest(
     val driveId: Uuid,
     val fileIds: List<Uuid>,
@@ -58,7 +49,6 @@ data class SendReadReceiptResultRecipientStatusItem(
 
 @Serializable
 enum class SendReadReceiptResultStatus {
-
     @SerialName("notConnectedToOriginalSender")
     NotConnectedToOriginalSender,
 
@@ -83,7 +73,6 @@ public class DriveFileOperationsProvider(
     httpClient: HttpClient,
     credentialsManager: CredentialsManager
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
-
     companion object {
         private const val TAG = "DriveFileOperationsProvider"
     }
@@ -92,7 +81,6 @@ public class DriveFileOperationsProvider(
         driveId: Uuid,
         fileIds: List<Uuid>
     ): SendReadReceiptResult {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuidList(fileIds, "fileIds")
 
@@ -124,7 +112,6 @@ public class DriveFileOperationsProvider(
         groupId: Uuid?,
         endTime: UnixTimeUtc
     ): SendReadReceiptResult {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
 
         val creds = requireCreds()
@@ -150,6 +137,5 @@ public class DriveFileOperationsProvider(
 
         return deserialize(response.body)
     }
-
 }
 

@@ -11,12 +11,4 @@ object ActiveConversation {
 
     private val _isDisplayingChatList = MutableStateFlow(false)
     val isDisplayingChatList: StateFlow<Boolean> = _isDisplayingChatList.asStateFlow()
-
-    fun selectConversation(conversationId: Uuid?) {
-        _conversation.value = conversationId
-    }
-
-    fun setDisplayingChatList(isDisplaying: Boolean) {
-        _isDisplayingChatList.value = isDisplaying
-    }
 }

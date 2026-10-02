@@ -25,14 +25,6 @@ data class HomebaseFile(
     val priority: Int = 0,
     val fileByteCount: Long = 0
 ) {
-
-
-    fun assertFileIsActive() {
-        if (fileState == FileState.Deleted) {
-            throw Exception("File is deleted.")
-        }
-    }
-
     // Belt-and-suspenders: `fileState == Deleted` is the real/new marker; the
     // older `archivalStatus == Removed` hack still appears on some rows. Both
     // paths are treated as soft-deleted by every consumer in the codebase.
@@ -55,34 +47,4 @@ data class HomebaseFile(
      */
     fun sqlUserDateMs(): Long =
         fileMetadata.appData.userDate ?: fileMetadata.created.milliseconds
-
-    fun assertOriginalAuthor(odinId: OdinId) {
-        val originalAuthor = fileMetadata.originalAuthor
-        if (originalAuthor == null) {
-            // backwards compatibility
-            assertOriginalSender(odinId)
-            return
-        }
-
-        if (originalAuthor != odinId) {
-            throw Exception("Sender does not match original author")
-        }
-    }
-
-    fun isOriginalSender(odinId: OdinId): Boolean {
-        return fileMetadata.senderOdinId == odinId
-    }
-
-    fun assertOriginalSender(odinId: OdinId) {
-        val senderOdinId = fileMetadata.senderOdinId
-        if (senderOdinId == null) {
-            throw Exception(
-                "Original file does not have a sender (FileId: $fileId on Drive: $driveId"
-            )
-        }
-
-        if (!isOriginalSender(odinId)) {
-            throw Exception("Sender does not match original sender")
-        }
-    }
 }

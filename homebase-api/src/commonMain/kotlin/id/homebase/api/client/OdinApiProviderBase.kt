@@ -50,13 +50,6 @@ data class ByteApiResponse(
             bytes = ByteArray(0),
             contentType = "application/octet-stream"
         )
-
-        val EMPTY_200 = ByteApiResponse(
-            status = 200,
-            headers = Headers.Empty,
-            bytes = ByteArray(0),
-            contentType = "application/octet-stream"
-        )
     }
 }
 
@@ -64,7 +57,6 @@ abstract class OdinApiProviderBase(
     protected val httpClient: HttpClient,
     protected val credentialsManager: CredentialsManager
 ) {
-
     private val HOST_URL_REGEX = Regex("""^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+""")
 
     protected data class ActiveCredentials(
@@ -171,7 +163,6 @@ abstract class OdinApiProviderBase(
         maxBytes: Long? = null,
         block: suspend () -> HttpResponse
     ): ByteApiResponse {
-
         val (response, bytes) = networkCall {
             val r = block()
             if (maxBytes != null) {
@@ -231,86 +222,6 @@ abstract class OdinApiProviderBase(
         return out
     }
 
-    // ------------------------------------------------------------
-    // Plain requests (JSON already serialized)
-    // ------------------------------------------------------------
-    protected suspend fun plainGet(
-        url: String,
-        token: String
-    ): ApiResponse {
-        requireHostInUrl(url)
-
-        return request(
-            {
-                httpClient.get(url) {
-                    bearerAuth(token)
-                    accept(ContentType.Application.Json)
-                }
-            },
-            secret = null
-        )
-    }
-
-    protected suspend fun plainPutJson(
-        url: String,
-        token: String,
-        jsonBody: String
-    ): ApiResponse {
-        requireHostInUrl(url)
-
-        return request(
-            {
-                httpClient.put(url) {
-                    bearerAuth(token)
-                    contentType(ContentType.Application.Json)
-                    accept(ContentType.Application.Json)
-                    setBody(TextContent(jsonBody, ContentType.Application.Json))
-                }
-            },
-            secret = null
-        )
-    }
-
-    protected suspend fun plainPatchJson(
-        url: String,
-        token: String,
-        jsonBody: String
-    ): ApiResponse {
-        requireHostInUrl(url)
-
-        return request(
-            {
-                httpClient.patch(url) {
-                    bearerAuth(token)
-                    contentType(ContentType.Application.Json)
-                    accept(ContentType.Application.Json)
-                    setBody(TextContent(jsonBody, ContentType.Application.Json))
-                }
-            },
-            secret = null
-        )
-    }
-
-    protected suspend fun plainPostJson(
-        url: String,
-        token: String,
-        jsonBody: String
-    ): ApiResponse {
-        requireHostInUrl(url)
-        return request(
-            {
-                httpClient.post(url) {
-                    bearerAuth(token)
-                    contentType(ContentType.Application.Json)
-                    accept(ContentType.Application.Json)
-                    setBody(TextContent(jsonBody, ContentType.Application.Json))
-                }
-            },
-            secret = null
-        )
-    }
-
-
     protected suspend fun plainPostMultipart(
         url: String,
         token: String,
@@ -363,7 +274,6 @@ abstract class OdinApiProviderBase(
         secret: SecureByteArray,
         queryString: String? = null
     ): ApiResponse {
-
         requireHostInUrl(url)
 
         return request(
@@ -419,7 +329,6 @@ abstract class OdinApiProviderBase(
         )
     }
 
-
     protected suspend fun encryptedDelete(
         url: String,
         token: String,
@@ -453,7 +362,6 @@ abstract class OdinApiProviderBase(
             secret = secret
         )
     }
-
 
     protected suspend fun encryptedPostJson(
         url: String,
@@ -616,5 +524,4 @@ abstract class OdinApiProviderBase(
             throw IllegalArgumentException("URL must include a scheme and host: $url")
         }
     }
-
 }

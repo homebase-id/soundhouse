@@ -54,7 +54,6 @@ class LoginViewModel(
     private val driveSyncManager: DriveSyncManager,
     private val contactInfo: ContactInfoGateway,
 ) : ViewModel() {
-
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState
 
@@ -271,12 +270,6 @@ class LoginViewModel(
                 }
                 .getOrNull() ?: return@launch
             _uiState.update { it.copy(lastIdentity = card.toPreview(lastOdinId)) }
-        }
-    }
-
-    private fun handleAppResumed() {
-        viewModelScope.launch {
-            if (isIos()) youAuthFlowManager.onAppResumed()
         }
     }
 

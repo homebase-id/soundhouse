@@ -5,17 +5,12 @@ import kotlin.io.encoding.Base64
 
 @Serializable
 class SecureByteArray(private val bytes: ByteArray) {
-
     constructor(base64: String) : this(Base64.decode(base64))
 
     // Direct access—returns the internal array reference (mutable!)
     val unsafeBytes: ByteArray get() = bytes
 
     fun toByteArray(): ByteArray = bytes.copyOf()
-
-    fun base64Encode(): String {
-        return Base64.encode(bytes)
-    }
 
     fun clear() {
         bytes.fill(0)
@@ -43,9 +38,5 @@ class SecureByteArray(private val bytes: ByteArray) {
 
     // Optional: A custom toString() to avoid leaking contents (e.g., for security)
     override fun toString(): String = "SecureByteArray(size=${bytes.size})"
-}
-
-fun ByteArray.toSecureByteArray(): SecureByteArray {
-    return SecureByteArray(this)
 }
 

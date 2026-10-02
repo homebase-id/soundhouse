@@ -41,16 +41,6 @@ object ActivityProvider {
     fun getActivity(): ComponentActivity? = activityRef?.get()
 
     /**
-     * Get the current activity, throwing if not initialized.
-     * @throws IllegalStateException if activity is not available
-     */
-    fun requireActivity(): ComponentActivity =
-            activityRef?.get()
-                    ?: throw kotlin.IllegalStateException(
-                        "Activity not initialized. Call ActivityProvider.initialize(activity) in onCreate()"
-                    )
-
-    /**
      * Get the application Context, throwing if neither an Activity nor an
      * application Context has been registered.
      * @throws IllegalStateException if no Context is available

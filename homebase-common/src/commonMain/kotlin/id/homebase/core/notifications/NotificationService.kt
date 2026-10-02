@@ -39,16 +39,6 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
 
-enum class SubscriptionVerificationStatus {
-    OK, NOT_REGISTERED, NO_LOCAL_TOKEN, TOKEN_MISMATCH
-}
-
-data class SubscriptionVerificationDetail(
-    val status: SubscriptionVerificationStatus,
-    val serverToken: String? = null,
-    val friendlyName: String? = null,
-)
-
 /**
  * Builds the browser-redirect navigation event for a tapped notification from a
  * web-app companion (community, owner, mail, feed). These open the *logged-in*
@@ -188,7 +178,6 @@ class NotificationService(
      */
     private val messageResolver: NotificationMessageResolver? = null,
 ) {
-
     private var isListening = false
     private val richDisplayer = RichNotificationDisplayer()
 
@@ -203,12 +192,9 @@ class NotificationService(
     // UI collector attaches, rather than dropped (MutableSharedFlow with replay=0 discards
     // emissions that happen before the first subscriber subscribes).
     private val _navigationEvents = Channel<NotificationNavigationEvent>(Channel.BUFFERED)
-    val navigationEvents: Flow<NotificationNavigationEvent> = _navigationEvents.receiveAsFlow()
 
     private val _inAppNotificationEvents =
         MutableSharedFlow<RichNotificationData>(extraBufferCapacity = 1)
-    val inAppNotificationEvents: SharedFlow<RichNotificationData> =
-        _inAppNotificationEvents.asSharedFlow()
 
     /** Set by the UI layer to indicate whether the app is in the foreground. */
     var isAppInForeground: Boolean = false
@@ -244,11 +230,6 @@ class NotificationService(
         // Koin has wired both. By the time the click handler fires (in response
         // to a user gesture) Koin has long since completed its graph.
         NotificationClickRouter.handler = { data -> NotificationEntry.fromKoin().onNotificationTappedAsync(data) }
-    }
-
-    /** Clears the accumulated message count for a conversation (e.g. on mark-as-read). */
-    fun clearNotificationCount(conversationId: String) {
-        counts.clear(conversationId)
     }
 
     /**
@@ -315,15 +296,6 @@ class NotificationService(
         })
 
         notificationBackend.setLogger { message -> Logger.d(tag = "KMPNotifier") { message } }
-    }
-
-    /**
-     * Called from platform FCM service when a new token is received.
-     * Forwards to the same listener path as KMPNotifier's built-in service.
-     */
-    fun onNewFcmToken(token: String) {
-        Logger.i(tag = "NotificationService") { "New push token (from FCM service): $token" }
-        registerToken(token)
     }
 
     /**
@@ -711,27 +683,6 @@ class NotificationService(
         }
     }
 
-    /** Navigate to a specific conversation (used for deep links and share shortcuts). */
-    fun navigateToConversation(
-        conversationId: String,
-        source: NotificationNavigationEvent.OpenConversation.Source =
-            NotificationNavigationEvent.OpenConversation.Source.NotificationTap,
-    ) {
-        _navigationEvents.trySend(
-            NotificationNavigationEvent.OpenConversation(conversationId, source)
-        )
-    }
-
-    /** Navigate to the moments composer (used for the "New Moment" share deep link). */
-    fun navigateToMomentCompose() {
-        _navigationEvents.trySend(NotificationNavigationEvent.OpenMomentCompose)
-    }
-
-    /** Navigate to the WebDrop composer (used for the "New WebDrop" share deep link). */
-    fun navigateToWebDropCompose() {
-        _navigationEvents.trySend(NotificationNavigationEvent.OpenWebDropCompose)
-    }
-
     /** Displays a rich notification using platform-specific APIs. */
     private fun showRichNotification(data: RichNotificationData) {
         try {
@@ -758,60 +709,6 @@ class NotificationService(
             body = body,
             payloadData = payloadData,
         )
-    }
-
-    /** Verifies the server-side push subscription against the local FCM token.
-     *  Self-healing: if a token mismatch is detected (e.g. FCM rotated the token
-     *  after the last registration), the current local token is re-registered
-     *  and verification is retried once. */
-    suspend fun verifySubscription(): SubscriptionVerificationDetail {
-        val localToken = getToken()
-        val subscription = api.getSubscription()
-
-        val status = checkSubscription(subscription, localToken)
-
-        // Only self-heal when the server has a stale token (value mismatch).
-        // If the server returned null, that's a server-side bug — don't retry.
-        if (status == SubscriptionVerificationStatus.TOKEN_MISMATCH
-            && localToken != null
-            && subscription?.firebaseDeviceToken != null
-        ) {
-            Logger.i(tag = "NotificationService") {
-                "Subscription verification: TOKEN_MISMATCH — re-registering local token"
-            }
-            try {
-                registerTokenSuspend(localToken)
-                val updatedLocal = getToken()
-                val updated = api.getSubscription()
-                val healedStatus = checkSubscription(updated, updatedLocal)
-                Logger.i(tag = "NotificationService") { "Subscription verification after re-register: $healedStatus" }
-                return SubscriptionVerificationDetail(
-                    status = healedStatus,
-                    serverToken = updated?.firebaseDeviceToken,
-                    friendlyName = updated?.friendlyName,
-                )
-            } catch (e: Exception) {
-                Logger.e(tag = "NotificationService") { "Re-register failed: ${e.message}" }
-            }
-        }
-
-        Logger.i(tag = "NotificationService") { "Subscription verification: $status" }
-        return SubscriptionVerificationDetail(
-            status = status,
-            serverToken = subscription?.firebaseDeviceToken,
-            friendlyName = subscription?.friendlyName,
-        )
-    }
-
-    private fun checkSubscription(
-        subscription: PushSubscriptionResponse?,
-        localToken: String?
-    ): SubscriptionVerificationStatus = when {
-        subscription == null -> SubscriptionVerificationStatus.NOT_REGISTERED
-        localToken == null -> SubscriptionVerificationStatus.NO_LOCAL_TOKEN
-        subscription.firebaseDeviceToken == null -> SubscriptionVerificationStatus.TOKEN_MISMATCH
-        subscription.firebaseDeviceToken != localToken -> SubscriptionVerificationStatus.TOKEN_MISMATCH
-        else -> SubscriptionVerificationStatus.OK
     }
 
     /** Gets the current push notification token, or null if not available. */

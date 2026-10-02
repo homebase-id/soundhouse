@@ -10,9 +10,7 @@ import id.homebase.api.common.OdinId
  * from SecureStorage.
  */
 object CredentialStorage {
-
     fun getCredentials(): StoredIdentity? {
-
         val s = SecureStorage.get(YouAuthStorageKeys.IDENTITY) ?: return null
 
         val identity = try { OdinId(s) } catch (e: Exception) { return null }
@@ -37,7 +35,6 @@ object CredentialStorage {
         )
     }
 
-
     /** Save authentication credentials to secure storage. */
     fun saveCredentials(identity: OdinId, clientAuthToken: String, sharedSecret: ByteArray) {
         SecureStorage.put(YouAuthStorageKeys.IDENTITY, identity.domainName)
@@ -58,12 +55,7 @@ object CredentialStorage {
                 SecureStorage.contains(YouAuthStorageKeys.SHARED_SECRET) &&
                 SecureStorage.contains(YouAuthStorageKeys.CLIENT_AUTH_TOKEN)
     }
-
-    private fun buildAuthHeaders(clientAuthToken: String): Map<String, String> {
-        return mapOf("Authorization" to "Bearer $clientAuthToken")
-    }
 }
-
 
 data class StoredIdentity(
     val identity: OdinId,

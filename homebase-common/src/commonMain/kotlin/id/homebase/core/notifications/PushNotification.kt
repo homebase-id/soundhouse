@@ -31,12 +31,3 @@ data class PushNotificationPayloadOptions(
     val encryptedBody: String? = null,
 )
 
-/** Wrapper for push notification messages as delivered by the backend. */
-@Serializable
-data class PushNotificationMessage(
-    val correlationId: String,
-    val id: String,
-    val data: PushNotification,
-    val timestamp: String,
-    val version: Int
-)

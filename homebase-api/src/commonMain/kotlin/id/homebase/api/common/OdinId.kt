@@ -17,7 +17,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
-
 /**
  * Serializes `OdinId` **as its domain name string** (the same value you see in `toString()` / `domainName`).
  * Deserialization goes through the public `OdinId(String)` constructor → validation + hash recomputation.
@@ -101,7 +100,6 @@ class OdinId public constructor(
     fun toByteArray(): ByteArray = _domainName.domainName.encodeToByteArray()
 
     companion object {
-
         // Thread-safe cache: a chat app sees a small set of unique domains
         // (conversation participants), so this stays tiny. The SHA-256 hash
         // is deterministic and domain names don't change, so entries never
@@ -135,21 +133,6 @@ class OdinId public constructor(
 }
 
 /* ----------------------------- Convenience conversions (mimic C# implicit/explicit operators) ----------------------------- */
-
-/** `odinId` → domain string (same as `toString()`) */
-fun OdinId.asString(): String = domainName
-
-/** String → `OdinId` (explicit cast equivalent) */
-fun String.toOdinId(): OdinId = OdinId(this)
-
-/** `OdinId` → `AsciiDomainName` (implicit) */
-fun OdinId.asAsciiDomainName(): AsciiDomainName = asciiDomain
-
-/** `AsciiDomainName` → `OdinId` (explicit) */
-fun AsciiDomainName.toOdinId(): OdinId = OdinId(this.domainName)
-
-/** `OdinId` → deterministic `Uuid` (implicit) */
-fun OdinId.asUuid(): Uuid = toHashId()
 
 /* ----------------------------- Public profile-image URL ----------------------------- */
 

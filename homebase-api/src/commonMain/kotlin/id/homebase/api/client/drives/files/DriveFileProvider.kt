@@ -65,7 +65,6 @@ public class DriveFileProvider(
     credentialsManager: CredentialsManager,
     private val driveCache: DriveFileProviderCached
 ) : OdinApiProviderBase(httpClient, credentialsManager), VideoPrefetchDriveAccess, ResendPayloadByteSource {
-
     companion object {
         private const val TAG = "DriveFileProvider"
     }
@@ -85,7 +84,6 @@ public class DriveFileProvider(
         driveId: Uuid,
         fileId: Uuid
     ): HomebaseFile? {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuid(fileId, "fileId")
 
@@ -124,7 +122,6 @@ public class DriveFileProvider(
         driveId: Uuid,
         uniqueId: Uuid
     ): HomebaseFile? {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuid(uniqueId, "uniqueId")
 
@@ -374,10 +371,8 @@ public class DriveFileProvider(
         driveId: Uuid,
         fileId: Uuid
     ): TransferHistory? {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuid(fileId, "fileId")
-
 
         val creds = requireCreds()
         val endpoint = "/drives/${driveId}/files/${fileId}/transfer-history"
@@ -413,7 +408,6 @@ public class DriveFileProvider(
         fileId: Uuid,
         recipients: List<OdinId>? = null
     ): DeleteFileResult {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuid(fileId, "fileId")
 
@@ -445,7 +439,6 @@ public class DriveFileProvider(
         fileId: Uuid,
         recipients: List<OdinId>? = null,
     ): Boolean {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuid(fileId, "fileId")
 
@@ -504,7 +497,6 @@ public class DriveFileProvider(
         throwForFailure(response)
 
         return deserialize<DeleteFileIdBatchResult>(response.body)
-
     }
 
     /** Deletes files from the drive by group IDs. */
@@ -540,7 +532,6 @@ public class DriveFileProvider(
         throwForFailure(response)
 
         return deserialize<DeleteFilesByGroupIdBatchResult>(response.body)
-
     }
 
     // ==================== PRIVATE HELPER METHODS ====================
@@ -573,7 +564,6 @@ public class DriveFileProvider(
         headers: Headers,
         bytes: ByteArray
     ): ByteArray {
-
         val payloadEncrypted =
             headers["payloadencrypted"]?.equals("true", ignoreCase = true) == true
 
@@ -600,7 +590,6 @@ public class DriveFileProvider(
         }
     }
 
-
     /** Decrypts chunked bytes with offset handling. */
     suspend fun decryptChunkedBytes(
         headers: Headers,
@@ -608,7 +597,6 @@ public class DriveFileProvider(
         startOffset: Int,
         chunkStart: Int
     ): ByteArray {
-
         val payloadEncrypted =
             headers["payloadencrypted"]?.equals("True", ignoreCase = false) == true
 
@@ -616,7 +604,6 @@ public class DriveFileProvider(
             headers["sharedsecretencryptedheader64"]
 
         if (payloadEncrypted && encryptedHeader64 != null) {
-
             val encryptedKeyHeader = EncryptedKeyHeader.fromBase64(encryptedHeader64)
             val keyHeader = decryptKeyHeader(encryptedKeyHeader)
                 ?: throw IllegalStateException("Can't decrypt; missing key header")
@@ -666,13 +653,11 @@ public class DriveFileProvider(
                 if (startOffset > 0) maxOf(startOffset - 16, 0) else 0
 
             return decryptedBytes.copyOfRange(sliceStart, decryptedBytes.size)
-
         } else {
             // Not encrypted → return raw bytes with offset
             return responseBytes.copyOfRange(startOffset, responseBytes.size)
         }
     }
-
 
     fun mergeByteArrays(chunks: List<ByteArray>): ByteArray {
         var size = 0
@@ -700,22 +685,12 @@ public class DriveFileProvider(
     ): ByteArray {
         return keyHeader.decrypt(encryptedBytes)
     }
-
 }
 
 // Request data classes for delete operations
 
 @Serializable
 data class DeleteFileRequest(val fileId: Uuid, val recipients: List<OdinId>? = null)
-
-@Serializable
-enum class DeleteLinkedFileStatus(val value: String) {
-    @SerialName("enqueued")
-    Enqueued("enqueued"),
-
-    @SerialName("enqueuedFailed")
-    EnqueuedFailed("enqueuedFailed"),
-}
 
 @Serializable
 data class DeleteFileResult(

@@ -23,54 +23,5 @@ data class TransitOptions(
         val appNotificationOptions: PushNotificationOptions? = null
 ) {
     companion object {
-        /** Create transit options without notifications. */
-        fun withoutNotifications(
-            recipients: List<OdinId>,
-            isTransient: Boolean = false,
-            schedule: ScheduleOptions,
-            priority: PriorityOptions,
-            sendContents: SendContents,
-            remoteTargetDrive: TargetDrive? = null
-        ): TransitOptions {
-            return TransitOptions(
-                    recipients = recipients,
-                    isTransient = isTransient,
-                    schedule = schedule,
-                    priority = priority,
-                    sendContents = sendContents,
-                    remoteTargetDrive = remoteTargetDrive,
-                    useAppNotification = false
-            )
-        }
-
-        /** Create transit options with notifications. */
-        fun withNotifications(
-            recipients: List<OdinId>,
-            isTransient: Boolean = false,
-            schedule: ScheduleOptions,
-            priority: PriorityOptions,
-            sendContents: SendContents,
-            remoteTargetDrive: TargetDrive? = null,
-            appNotificationOptions: PushNotificationOptions
-        ): TransitOptions {
-            return TransitOptions(
-                    recipients = recipients,
-                    isTransient = isTransient,
-                    schedule = schedule,
-                    priority = priority,
-                    sendContents = sendContents,
-                    remoteTargetDrive = remoteTargetDrive,
-                    useAppNotification = true,
-                    appNotificationOptions = appNotificationOptions
-            )
-        }
-
-        /** Create transit options with only notifications (no file transfer). */
-        fun onlyNotifications(appNotificationOptions: PushNotificationOptions): TransitOptions {
-            return TransitOptions(
-                    useAppNotification = true,
-                    appNotificationOptions = appNotificationOptions
-            )
-        }
     }
 }

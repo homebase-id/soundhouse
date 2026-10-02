@@ -469,11 +469,6 @@ class YouAuthFlowManager(
         Logger.i(tag = TAG) { "User logged out" }
     }
 
-
-    /** Check if authentication is in progress. */
-    val isAuthenticating: Boolean
-        get() = _authState.value == YouAuthState.Authenticating
-
     /**
      * Cancel the current authentication flow. Call this when the user cancels the browser or
      * navigates away.

@@ -6,17 +6,12 @@ import java.awt.EventQueue
 import java.awt.Window
 
 object DesktopAppFocusManager {
-
     private const val TAG = "DesktopAppFocusManager"
 
     private val isMacOs: Boolean =
         System.getProperty("os.name").orEmpty().contains("mac", ignoreCase = true)
 
     private var windowProvider: (() -> Window?)? = null
-
-    fun registerWindowProvider(provider: () -> Window?) {
-        windowProvider = provider
-    }
 
     // Only legitimate in response to an explicit user action; [reason] names that action
     // so an unexpected restore is attributable from homebase.log alone.

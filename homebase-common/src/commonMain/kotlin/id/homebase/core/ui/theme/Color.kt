@@ -51,17 +51,6 @@ object LightColors {
     val NeutralVariant = Color(0xB8FFFFFF)
     val NeutralSurface = Color(0x99FFFFFF)
 
-    // Inverse Transparent Colors
-    val TransparentInverse1 = Color(0x0A000000)
-    val TransparentInverse2 = Color(0x14000000)
-    val TransparentInverse3 = Color(0x66000000)
-    val TransparentInverse4 = Color(0xB8000000)
-    val TransparentInverse5 = Color(0xE0000000)
-
-    // Inverse Neutral Colors
-    val NeutralInverse = Color(0xFF121212)
-    val NeutralVariantInverse = Color(0xFF5C5C5C)
-
     // Custom Colors (for overlays, etc.)
     val OnCustom = Color(0xFFFFFFFF)
     val OnCustomVariant = Color(0xB3FFFFFF)
@@ -116,25 +105,9 @@ object DarkColors {
     val NeutralVariant = Color(0xFF5C5C5C)
     val NeutralSurface = Color(0x14FFFFFF)
 
-    // Inverse Transparent Colors
-    val TransparentInverse1 = Color(0x0A000000)
-    val TransparentInverse2 = Color(0x14000000)
-    val TransparentInverse3 = Color(0x29000000)
-    val TransparentInverse4 = Color(0xB8000000)
-    val TransparentInverse5 = Color(0xF5000000)
-
-    // Inverse Neutral Colors
-    val NeutralInverse = Color(0xE0FFFFFF)
-    val NeutralVariantInverse = Color(0xA3FFFFFF)
-
     // Custom Colors (for overlays, etc.)
     val OnCustom = Color(0xFFFFFFFF)
     val OnCustomVariant = Color(0xB3FFFFFF)
-
-    // Alpha Variants
-    val Background92 = Color(0xEB1B1C1F)
-    val Surface87 = Color(0xDE1B1C1F)
-    val SurfaceVariant92 = Color(0xEB303133)
 }
 
 /**
@@ -177,8 +150,4 @@ object ExtendedColors {
 
     // Live-location sharing indicator (#816) — Homebase purple, same value both themes.
     val LiveSharing = Color(0xFF9C27B0)
-
-    // Requests banner
-    val RequestBanner = Color(0xFFFFD9A3)
-    val OnRequestBanner = Color(0xFF3D2C1A)
 }

@@ -254,11 +254,6 @@ class DriveSyncManager(
     suspend fun isSyncing(driveId: Uuid): Boolean =
         driveSyncsMutex.withLock { driveSyncs[driveId] }?.isSyncing() ?: false
 
-    /** Epoch-ms when [driveId]'s last sync round finished, or 0 if none has this
-     *  session (or the drive isn't mounted). */
-    suspend fun lastSyncStoppedAtMs(driveId: Uuid): Long =
-        driveSyncsMutex.withLock { driveSyncs[driveId] }?.lastStoppedAtMs() ?: 0L
-
     suspend fun syncAll() {
         if (!_isRunning) {
             Logger.w(tag = "DriveSync") {
@@ -392,16 +387,6 @@ class DriveSyncManager(
         searchResults = searchResults,
         hasMoreRows = hasMoreRows,
     )
-
-    suspend fun syncAllFailed() {
-        val failedIds = _driveStatuses.value
-            .filter { (_, status) -> status.state is DriveState.Failed }
-            .keys
-
-        val jobs = driveSyncsMutex.withLock { failedIds.mapNotNull { driveSyncs[it] } }
-            .mapNotNull { it.sync() }
-        jobs.joinAll()
-    }
 
     fun syncDrive(driveId: Uuid) {
         if (!_isRunning) {

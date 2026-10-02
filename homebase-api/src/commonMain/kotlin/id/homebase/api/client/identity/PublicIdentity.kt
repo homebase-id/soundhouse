@@ -40,5 +40,3 @@ fun PublicIdentity.initials(): String {
     }
 }
 
-fun PublicIdentity.displayNameOrDomain(): String =
-    displayName?.takeIf { it.isNotBlank() } ?: odinId.domainName

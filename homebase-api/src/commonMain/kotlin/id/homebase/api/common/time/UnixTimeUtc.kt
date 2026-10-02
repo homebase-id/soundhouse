@@ -32,7 +32,6 @@ object UnixTimeUtcSerializer : KSerializer<UnixTimeUtc> {
 
 @Serializable(with = UnixTimeUtcSerializer::class)
 data class UnixTimeUtc(val milliseconds: Long) : Comparable<UnixTimeUtc> {
-
     constructor() : this(Clock.System.now().toEpochMilliseconds())
 
     constructor(instant: Instant) : this(instant.toEpochMilliseconds())
@@ -42,10 +41,6 @@ data class UnixTimeUtc(val milliseconds: Long) : Comparable<UnixTimeUtc> {
 
         fun now(): UnixTimeUtc {
             return UnixTimeUtc()
-        }
-
-        fun fromInstant(instant: Instant): UnixTimeUtc {
-            return UnixTimeUtc(instant)
         }
 
         /** The larger of two nullable timestamps; null only when both are null. */
@@ -67,13 +62,6 @@ data class UnixTimeUtc(val milliseconds: Long) : Comparable<UnixTimeUtc> {
     }
 
     /**
-     * Returns a new UnixTimeUtc object with the minutes added
-     */
-    fun addMinutes(m: Long): UnixTimeUtc {
-        return UnixTimeUtc(milliseconds + (m * 60 * 1000))
-    }
-
-    /**
      * Returns a new UnixTimeUtc object with the hours added
      */
     fun addHours(h: Long): UnixTimeUtc {
@@ -92,31 +80,6 @@ data class UnixTimeUtc(val milliseconds: Long) : Comparable<UnixTimeUtc> {
      */
     fun addMilliseconds(ms: Long): UnixTimeUtc {
         return UnixTimeUtc(milliseconds + ms)
-    }
-
-    /**
-     * Convert to Instant
-     */
-    fun toInstant(): Instant {
-        return Instant.fromEpochMilliseconds(milliseconds)
-    }
-
-    /**
-     * Check if this time is between start and end
-     */
-    fun isBetween(start: UnixTimeUtc, end: UnixTimeUtc, inclusive: Boolean = true): Boolean {
-        return if (inclusive) {
-            this >= start && this <= end
-        } else {
-            this > start && this < end
-        }
-    }
-
-    /**
-     * Outputs time as ISO 8601 format "yyyy-MM-ddTHH:mm:ssZ"
-     */
-    fun iso8601(): String {
-        return toInstant().toString()
     }
 
     override fun toString(): String {

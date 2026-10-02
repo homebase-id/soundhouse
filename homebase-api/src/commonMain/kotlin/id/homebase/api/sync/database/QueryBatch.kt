@@ -14,7 +14,6 @@ import id.homebase.api.client.drives.query.TimeRowCursor
 import id.homebase.api.serialization.OdinSystemSerializer
 import kotlin.uuid.Uuid
 
-
 /**
  * QueryBatch for batch querying of drive records with sorting and filtering
  *
@@ -27,7 +26,6 @@ import kotlin.uuid.Uuid
 class QueryBatch(
     private val odinIdentity: Uuid
 ) {
-
     companion object {
         // Initialize selectOutputFields statically
         private const val SELECT_OUTPUT_FIELDS = "rowId, jsonHeader";
@@ -159,7 +157,6 @@ class QueryBatch(
         localTagsAnyOf: List<Uuid>? = null,
         localTagsAllOf: List<Uuid>? = null
     ): QueryBatchResult {
-
         if (fileSystemType == null) {
             throw IllegalArgumentException("fileSystemType required in Query Batch")
         }
@@ -370,10 +367,6 @@ class QueryBatch(
     private fun unsafeStringList(list: List<String>): String {
         // WARNING! This does not escape strings. Caller must ensure safety.
         return list.joinToString(",") { "'$it'" }
-    }
-
-    private fun isSet(list: List<*>?): Boolean {
-        return !list.isNullOrEmpty()
     }
 
     private fun andIntersectHexList(list: List<Uuid>, tableName: String): String {

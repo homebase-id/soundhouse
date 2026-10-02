@@ -91,20 +91,6 @@ class DriveMainIndexWrapper(
         }
     }
 
-    suspend fun selectHomebaseFilesByUniqueIds(
-        identityId: Uuid,
-        driveId: Uuid,
-        uniqueIds: Collection<Uuid>,
-    ): List<HomebaseFile> {
-        if (uniqueIds.isEmpty()) return emptyList()
-        val rows = selectByIdentityAndDriveAndUniqueIds(identityId, driveId, uniqueIds)
-        val result = ArrayList<HomebaseFile>(rows.size)
-        for (row in rows) {
-            result.add(OdinSystemSerializer.deserialize<HomebaseFile>(row.jsonHeader))
-        }
-        return result
-    }
-
     suspend fun selectByIdentityAndDriveAndGlobal(
         identityId: Uuid,
         driveId: Uuid,
@@ -113,7 +99,6 @@ class DriveMainIndexWrapper(
         delegate.selectByIdentityAndDriveAndGlobal(identityId, driveId, globalTransitId)
             .executeAsOneOrNull()
     }
-
 
     suspend fun <T : Any> selectAll(
         mapper: (

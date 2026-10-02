@@ -58,9 +58,6 @@ data class HomebaseImageData(
     val remoteOdinId: OdinId? = null,
     val globalTransitId: Uuid? = null,
 ) {
-    val isOverPeer: Boolean
-        get() = remoteOdinId != null && globalTransitId != null
-
     companion object {
         /** Create data for a pending (not yet uploaded) image */
         fun pending(
@@ -108,44 +105,15 @@ data class HomebaseImageData(
         )
     }
 
-    /** Whether this is a pending/local file not yet uploaded */
-    val isPending: Boolean
-        get() = pendingFileUri != null
-
     /** Content type hint from preview thumbnail */
     val contentTypeHint: String?
         get() = previewThumbnail?.contentType
-
-    /**
-     * Best-known content type of the underlying payload, used to decide how to
-     * load the image (thumbnail vs. full animated original). Prefers the real
-     * [payloadContentType] from the descriptor and falls back to the preview
-     * thumbnail's type. Callers that only have a preview thumbnail keep their
-     * existing behaviour; callers that know the payload type (e.g. an inline
-     * GIF in a chat bubble) get the correct thumbless treatment.
-     */
-    val effectiveContentType: String?
-        get() = payloadContentType ?: contentTypeHint
 }
 
 /** Represents image dimensions */
 data class ImageSize(val pixelWidth: Int, val pixelHeight: Int) {
-    /** Total pixel count for comparison */
-    val pixelCount: Int
-        get() = pixelWidth * pixelHeight
-
-    /** Check if this size is larger or equal to another */
-    fun isLargerOrEqualTo(other: ImageSize?): Boolean {
-        if (other == null) return true
-        return pixelWidth >= other.pixelWidth && pixelHeight >= other.pixelHeight
-    }
-
     companion object {
-        /** Preset thumbnail sizes matching server defaults */
-        val THUMB_SMALL = ImageSize(320, 320)
-        val THUMB_MEDIUM = ImageSize(640, 640)
         val THUMB_LARGE = ImageSize(1080, 1080)
-        val THUMB_XLARGE = ImageSize(1600, 1600)
     }
 }
 

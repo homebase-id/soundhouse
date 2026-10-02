@@ -35,19 +35,6 @@ class DriveQueryProvider(
     httpClient: HttpClient,
     credentialsManager: CredentialsManager
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
-
-    /** GET /drives/metadata/channel-drives — returns the feed channel drives the caller can read. */
-    suspend fun getChannelDrives(): PagedResult<ClientDriveData> {
-        val creds = requireCreds()
-        val response = encryptedGet(
-            url = apiUrl(creds.domain, "/drives/metadata/channel-drives"),
-            token = creds.accessToken,
-            secret = creds.secret,
-        )
-        throwForFailure(response)
-        return deserialize(response.body)
-    }
-
     /**
      * Query a batch of files from a drive.
      *
@@ -68,7 +55,6 @@ class DriveQueryProvider(
         // request body — the FileQueryParams.fileSystemType field alone is ignored for routing.
         fileSystemType: FileSystemType? = null,
     ): QueryBatchResponse {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
 
         val creds = requireCreds()
@@ -318,9 +304,3 @@ data class QueryBatchCollectionResponseInternalRaw(
     val results: List<QueryBatchCollectionSectionInternalRaw> = emptyList()
 )
 
-@Serializable
-data class ClientDriveData(
-    val targetDrive: TargetDrive,
-    val name: String? = null,
-    val attributes: Map<String, String>? = null,
-)

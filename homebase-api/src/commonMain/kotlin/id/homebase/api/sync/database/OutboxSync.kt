@@ -515,64 +515,6 @@ class OutboxSync(
         sendNow,
     )
 
-    /** Upload type of the pending row for (driveId, uniqueId), or null if none
-     *  is queued. Lets a caller branch on create-vs-update before enqueuing. */
-    public suspend fun pendingUploadType(driveId: Uuid, uniqueId: Uuid): Long? =
-        databaseManager.outbox.selectByDriveAndUnique(driveId, uniqueId)?.uploadType
-
-    /**
-     * Durably enqueue a **scheduled push** (see [ScheduledPushOutboxUploader]). `replaceEnqueue`
-     * gives last-writer-wins for a given (driveId, uniqueId): re-scheduling with a new `sendAt`
-     * supersedes a still-queued schedule for the same key rather than colliding with it.
-     */
-    public suspend fun enqueueScheduledPush(
-        driveId: Uuid,
-        uniqueId: Uuid,
-        request: SchedulePushNotificationRequest,
-        priority: Long = 100,
-        sendNow: Boolean = true,
-    ): EnqueueResult = kickIfEnqueued(
-        replaceEnqueue(
-            driveId = driveId,
-            uniqueId = uniqueId,
-            dependencyUniqueId = null,
-            priority = priority,
-            uploadType = ScheduledPushOutboxUploader.SchedulePush,
-            json = OutboxSerializer.serialize(request),
-        ),
-        sendNow,
-    )
-
-    /** Durably enqueue a **cancel** of a previously scheduled push. Replaces any pending push row
-     *  for the same (driveId, uniqueId) — e.g. a still-queued schedule you're now retracting. */
-    public suspend fun enqueueCancelScheduledPush(
-        driveId: Uuid,
-        uniqueId: Uuid,
-        request: CancelScheduledPushRequest,
-        priority: Long = 100,
-        sendNow: Boolean = true,
-    ): EnqueueResult = kickIfEnqueued(
-        replaceEnqueue(
-            driveId = driveId,
-            uniqueId = uniqueId,
-            dependencyUniqueId = null,
-            priority = priority,
-            uploadType = ScheduledPushOutboxUploader.CancelPush,
-            json = OutboxSerializer.serialize(request),
-        ),
-        sendNow,
-    )
-
-    /** The pending row deserialized as an [UploadFileRequest], or null when there
-     *  is no pending row or it isn't an `UploadNewFile`. Lets an edit amend a
-     *  still-queued create in place — preserving its media payloads — rather than
-     *  replacing it with an update the server can't apply. */
-    public suspend fun pendingUploadFileRequest(driveId: Uuid, uniqueId: Uuid): UploadFileRequest? {
-        val row = databaseManager.outbox.selectByDriveAndUnique(driveId, uniqueId) ?: return null
-        if (row.uploadType != DriveOutboxUploader.UploadNewFile) return null
-        return OutboxSerializer.decode<UploadFileRequest>(row)
-    }
-
     // In-memory last upload-failure reason per (driveId, uniqueId), surfaced as
     // the Message Info "why is it stuck" line. Deliberately NOT persisted: a
     // schema column would force a DATABASE_VERSION bump, and the upgrade path
@@ -935,7 +877,6 @@ class OutboxSync(
             eventBus.emit(BackendEvent.OutboxEvent.ItemEnqueued(driveId, uniqueId))
 
             return EnqueueResult.Enqueued
-
         } catch (e: CancellationException) {
             // The caller's coroutine was cancelled — propagate; classifying it
             // as Failed would misreport routine cancellation as a lost request.
@@ -997,14 +938,6 @@ class OutboxSync(
 
         // Plus the parent hls_<uuid>/ dir if any.
         cleanupHlsScratch(payloads)
-    }
-
-    /**
-     * Fire-and-forget self-heal for the durable encrypted-payload temp dir (`outbox-temp/`, #844).
-     * Runs [reapIdleOutboxTemps] on the outbox scope. Wire it from a post-auth hook.
-     */
-    fun scheduleIdleOutboxTempReap(outboxTempDir: String) {
-        scope.launch { runCatching { reapIdleOutboxTemps(outboxTempDir) } }
     }
 
     /**

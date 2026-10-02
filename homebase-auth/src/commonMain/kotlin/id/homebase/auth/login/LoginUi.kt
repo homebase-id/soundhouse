@@ -69,7 +69,6 @@ private fun loginTypography(): Typography {
     )
 }
 
-@Preview(device = Devices.PIXEL_8)
 @Composable
 fun LoginUiFormPreview() {
     MaterialTheme {
@@ -85,7 +84,6 @@ fun LoginUiFormPreview() {
     }
 }
 
-@Preview(device = Devices.PIXEL_8)
 @Composable
 fun LoginUiLastIdentityPreview() {
     MaterialTheme {
@@ -104,7 +102,6 @@ fun LoginUiLastIdentityPreview() {
     }
 }
 
-@Preview(device = Devices.PIXEL_8)
 @Composable
 fun LoginUiLoadingPreview() {
     MaterialTheme {

@@ -7,7 +7,6 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
-
 /**
  * Bitwise permission flags for drive access. Multiple permissions can be combined by summing their
  * values.
@@ -19,11 +18,6 @@ enum class DrivePermission(val value: Int) {
     Comment(8);
 
     companion object {
-        /** Parse a combined permission value into a list of permission types. */
-        fun fromValue(combinedValue: Int): List<DrivePermission> {
-            return entries.filter { (combinedValue and it.value) == it.value }
-        }
-
         /** Combine multiple permissions into a single integer value. */
         fun combine(permissions: List<DrivePermission>): Int {
             return permissions.sumOf { it.value }
@@ -37,7 +31,6 @@ data class DrivePermissionSet(
 )
 
 object DrivePermissionsSerializer : KSerializer<DrivePermissionSet> {
-
     override val descriptor =
         PrimitiveSerialDescriptor("DrivePermissions", PrimitiveKind.STRING)
 

@@ -49,14 +49,6 @@ class UserPreferences(private val settings: Settings) {
             _preferenceState.value = _preferenceState.value.copy(showDeveloperMenu = value)
         }
 
-    /**
-     * Feed tab mode: the native KMP feed (default) vs the legacy WebView feed. Lets users opt back
-     * to the WebView while the native feed is being polished. Read by AppNavHost's Feed route.
-     */
-    var useNativeFeed: Boolean
-        get() = settings.getBoolean("use_native_feed", true)
-        set(value) = settings.putBoolean("use_native_feed", value)
-
     /** Master switch for in-app haptic feedback (default on). Read by GatedHaptics. */
     var hapticsEnabled: Boolean
         get() = settings.getBoolean("haptics_enabled", true)
@@ -92,10 +84,6 @@ class UserPreferences(private val settings: Settings) {
             _preferenceState.value = _preferenceState.value.copy(autoSaveIncomingMedia = value)
         }
 
-    /** Epoch ms at which [autoSaveIncomingMedia] was last switched on; 0 when it never was. */
-    val autoSaveIncomingMediaSince: Long
-        get() = settings.getLong("auto_save_incoming_media_since", 0L)
-
     /** Guard on [autoSaveIncomingMedia]: skip the download while the network is metered. */
     var autoSaveOnUnmeteredOnly: Boolean
         get() = settings.getBoolean("auto_save_unmetered_only", true)
@@ -125,27 +113,9 @@ class UserPreferences(private val settings: Settings) {
             _preferenceState.value = _preferenceState.value.copy(mirrorFrontCamera = value)
         }
 
-    var preferredUserReactions: List<String>
-        get() = settings.getStringOrNull("preferred_user_reactions")?.split(",") ?: listOf()
-        set(value) = settings.putString("preferred_user_reactions", value.joinToString(","))
-
-    // Notification preferences
-    var playWhileAppOpen: Boolean
-        get() = settings.getBoolean("notification_play_while_app_open", true)
-        set(value) = settings.putBoolean("notification_play_while_app_open", value)
-
-    var errorCollectionEnabled: Boolean
-        get() = settings.getBoolean("error_collection_enabled", true)
-        set(value) = settings.putBoolean("error_collection_enabled", value)
-
-
     var notificationContentLevel: String
         get() = settings.getString("notification_content_level", "name_content_actions")
         set(value) = settings.putString("notification_content_level", value)
-
-    var includeMutedChatsInBadge: Boolean
-        get() = settings.getBoolean("notification_include_muted_badge", false)
-        set(value) = settings.putBoolean("notification_include_muted_badge", value)
 
     /**
      * Id of the conversation at the top of the chat list the last time the user was looking at it.

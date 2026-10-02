@@ -27,10 +27,6 @@ data class PayloadDescriptor(
     fun isInternalDescriptor(): Boolean =
         key.startsWith(HomebaseProtocol.PayloadDescriptorKeyPrefix)
 
-    fun keyEquals(otherKey: String): Boolean {
-        return key.equals(otherKey, ignoreCase = true)
-    }
-
     fun descriptorInfo(): DescriptorContent {
         return when {
             descriptorContent == null -> {
@@ -51,7 +47,6 @@ data class PayloadDescriptor(
                     Logger.w("PayloadFile.descriptorInfo", e)
                     DescriptorContent.Empty
                 }
-
             }
 
             contentType == "text/markdown" -> {

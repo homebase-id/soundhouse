@@ -28,10 +28,7 @@ import platform.Foundation.NSError
  * `FailedToPlayToEndTime(CoreMediaErrorDomain -66637)` while stuck at t=0.
  */
 object AudioSession {
-
     private var proximityRouting = false
-    private var savedCategory: String? = null
-    private var savedMode: String? = null
 
     fun configureForPlayback(): Boolean = activate(
         // Proximity routing owns the category while it is on — Playback has no receiver route.
@@ -39,79 +36,6 @@ object AudioSession {
     )
 
     fun configureForRecording(): Boolean = activate(AVAudioSessionCategoryRecord)
-
-    // PlayAndRecord is recording-capable, so this is called only once the phone is at the ear —
-    // entering it up front would prompt for the microphone just to play a voice note.
-    fun beginProximityRouting(): Boolean = memScoped {
-        if (proximityRouting) return@memScoped true
-
-        val session = AVAudioSession.sharedInstance()
-        val err = alloc<ObjCObjectVar<NSError?>>()
-        savedCategory = session.category
-        savedMode = session.mode
-
-        session.setCategory(AVAudioSessionCategoryPlayAndRecord, err.ptr)
-        err.value?.let {
-            Logger.e(tag = TAG) { "setCategory(PlayAndRecord) failed: ${it.localizedDescription}" }
-            savedCategory = null
-            savedMode = null
-            return@memScoped false
-        }
-
-        proximityRouting = true
-        true
-    }
-
-    fun routeOutput(toEarpiece: Boolean) = memScoped {
-        if (!proximityRouting) return@memScoped
-        val err = alloc<ObjCObjectVar<NSError?>>()
-        val port =
-            if (toEarpiece) AVAudioSessionPortOverrideNone else AVAudioSessionPortOverrideSpeaker
-        AVAudioSession.sharedInstance().overrideOutputAudioPort(port, err.ptr)
-        err.value?.let {
-            Logger.w(tag = TAG) { "overrideOutputAudioPort failed: ${it.localizedDescription}" }
-        }
-    }
-
-    fun endProximityRouting() = memScoped {
-        if (!proximityRouting) return@memScoped
-        proximityRouting = false
-
-        val session = AVAudioSession.sharedInstance()
-        val err = alloc<ObjCObjectVar<NSError?>>()
-        session.overrideOutputAudioPort(AVAudioSessionPortOverrideNone, err.ptr)
-        err.value = null
-
-        session.setCategory(savedCategory ?: AVAudioSessionCategoryPlayback, err.ptr)
-        err.value?.let {
-            Logger.e(tag = TAG) { "category restore failed: ${it.localizedDescription}" }
-        }
-        err.value = null
-
-        savedMode?.let { mode ->
-            session.setMode(mode, err.ptr)
-            err.value?.let {
-                Logger.w(tag = TAG) { "mode restore failed: ${it.localizedDescription}" }
-            }
-        }
-        savedCategory = null
-        savedMode = null
-    }
-
-    /**
-     * For callers that only need the route to be output-capable. Deliberately does
-     * nothing when it already is, so a muted inline video never interrupts whatever
-     * the user is listening to.
-     */
-    fun ensurePlaybackCapable() {
-        val category = AVAudioSession.sharedInstance().category
-        if (category != AVAudioSessionCategoryRecord) {
-            Logger.d(tag = TAG) { "category=$category — output-capable, left alone" }
-            return
-        }
-        Logger.w(tag = TAG) { "category=Record — moving to Playback so the player can output" }
-        activate(AVAudioSessionCategoryPlayback)
-    }
 
     /** Drop the route (and the Record category) once a recording is done with it. */
     fun releaseAfterRecording() = memScoped {

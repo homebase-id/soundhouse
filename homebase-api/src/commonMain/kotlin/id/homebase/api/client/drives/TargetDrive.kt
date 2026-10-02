@@ -30,14 +30,6 @@ data class TargetDrive(
     @Serializable(with = UuidSerializer::class)
     val type: Uuid
 ) {
-
-    fun toKey(): ByteArray {
-        // Combine type and alias as bytes
-        val typeBytes = type.toString().toByteArray(Charsets.UTF_8)
-        val aliasBytes = alias.toString().toByteArray(Charsets.UTF_8)
-        return typeBytes + aliasBytes
-    }
-
     fun isValid(): Boolean {
         return alias != Uuid.NIL && type != Uuid.NIL
     }
@@ -47,18 +39,5 @@ data class TargetDrive(
     }
 
     companion object {
-        fun newTargetDrive(): TargetDrive {
-            return TargetDrive(
-                alias = Uuid.random(),
-                type = Uuid.random()
-            )
-        }
-
-        fun newTargetDrive(type: Uuid): TargetDrive {
-            return TargetDrive(
-                alias = Uuid.random(),
-                type = type
-            )
-        }
     }
 }

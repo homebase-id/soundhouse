@@ -215,8 +215,6 @@ class DatabaseManager(
         // markUpgradeConsumed() is called explicitly.
         private val _databaseUpgradeState =
             MutableStateFlow<DatabaseUpgradeState>(DatabaseUpgradeState.Idle)
-        val databaseUpgradeState: StateFlow<DatabaseUpgradeState> =
-            _databaseUpgradeState.asStateFlow()
 
         /**
          * Called by the UI once it has shown the upgrade snackbar so the sticky
@@ -704,13 +702,6 @@ class DatabaseManager(
             parameters = 0,
         ).value
     }.getOrNull()
-
-    // Reclaim space released by DELETE/DROP without nuking schema. Runs on the
-    // single-writer [dispatcher] so it cannot race with other queries. Used by
-    // the Defragmenter screen as its finale.
-    suspend fun vacuum() = withContext(dispatcher) {
-        driver.execute(identifier = null, sql = "VACUUM", parameters = 0)
-    }
 
     override fun close() {
         driver.close()

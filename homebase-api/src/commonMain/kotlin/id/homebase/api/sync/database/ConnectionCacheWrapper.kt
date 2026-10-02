@@ -34,20 +34,6 @@ class ConnectionCacheWrapper(
         }
     }
 
-    suspend fun replaceStatus(
-        identityId: Uuid,
-        status: String,
-        odinIds: Collection<String>,
-        lastRefresh: Long,
-    ) {
-        databaseManager.withWriteTransaction {
-            delegate.deleteByIdentityAndStatus(identityId, status)
-            odinIds.forEach { odinId ->
-                delegate.upsert(identityId, odinId, status, lastRefresh)
-            }
-        }
-    }
-
     suspend fun deleteByIdentityAndOdinId(identityId: Uuid, odinId: String) {
         databaseManager.withWrite {
             delegate.deleteByIdentityAndOdinId(identityId, odinId)

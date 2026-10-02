@@ -131,22 +131,6 @@ interface FileOperationsProvider {
     ): String
 
     /**
-     * Reserve a unique writable path inside `<cacheDir>/hb-scratch/share_outbound/` (creating
-     * the dir) WITHOUT writing bytes — the streaming seam for the "share to other
-     * app" flows (#845), which decrypt a payload directly to this path via
-     * `streamPayloadDecryptedToPath` instead of buffering it in RAM
-     * ([writeBytesToShareOutboundFile]). Same `share_<random><suffix>` shape and
-     * sequestration/sweep lifecycle: `share_outbound/` is reaped as a unit on cold
-     * start and app foreground.
-     */
-    suspend fun createShareOutboundPath(suffix: String): String =
-        createStagingPathIn(
-            AppCacheDirs.scratchPath(getCacheDirectory(), SHARE_OUTBOUND_DIR_NAME),
-            "share_",
-            suffix,
-        )
-
-    /**
      * Reserve a unique writable path inside `<cacheDir>/hb-scratch/upload-temp/` (creating the
      * dir) WITHOUT writing bytes — the streaming seam for export flows that need a
      * DISPOSABLE decrypted temp (#845; e.g. vault open/share). Same dir
@@ -204,23 +188,3 @@ suspend fun <T> FileOperationsProvider.withResolvedFile(
     }
 }
 
-/**
- * List form of [withResolvedFile]: resolve every path in [paths], run [block]
- * with the resolved paths (positionally aligned with [paths]), and reap each
- * resolved copy afterwards. Used by callers that pick several files at once
- * (vault multi-upload). Same reap rule per entry — a path that resolved to
- * itself (no copy made) is left alone.
- */
-suspend fun <T> FileOperationsProvider.withResolvedFiles(
-    paths: List<String>,
-    block: suspend (resolvedPaths: List<String>) -> T,
-): T {
-    val resolved = paths.map { resolveToFilePath(it) }
-    return try {
-        block(resolved)
-    } finally {
-        for (i in paths.indices) {
-            if (resolved[i] != paths[i]) deleteTempFile(resolved[i])
-        }
-    }
-}

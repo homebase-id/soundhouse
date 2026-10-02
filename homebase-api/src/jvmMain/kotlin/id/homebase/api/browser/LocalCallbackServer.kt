@@ -18,7 +18,6 @@ import java.net.ServerSocket
  * JVM ONLY.
  */
 object LocalCallbackServer {
-
     private const val TAG = "LocalCallbackServer"
 
     private const val START_PORT = 49152
@@ -41,15 +40,7 @@ object LocalCallbackServer {
      */
     private var onPermissionCallback: ((canceled: Boolean) -> Unit)? = null
 
-    fun setPermissionCallback(handler: (canceled: Boolean) -> Unit) {
-        this.onPermissionCallback = handler
-    }
-
     private var onDataUpgradeCallback: (() -> Unit)? = null
-
-    fun setDataUpgradeCallback(handler: () -> Unit) {
-        this.onDataUpgradeCallback = handler
-    }
 
     fun start(onCallbackUrl: (String) -> Unit, preferredPort: Int = 0): Int {
         this.onCallbackUrl = onCallbackUrl
@@ -64,7 +55,6 @@ object LocalCallbackServer {
                 server =
                     embeddedServer(CIO, port = port) {
                         routing {
-
                             /** OAuth callback */
                             get("/authorization-code-callback") {
                                 val fullUrl =

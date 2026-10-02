@@ -39,16 +39,6 @@ val baseThumbSizes = listOf(
 
 val tinyThumbSize = ThumbnailInstruction(quality = 76, maxPixelDimension = 20, maxBytes = 768)
 
-// MediaQuality.STANDARD ships the 1600px encode as the payload itself, so the ladder above it
-// would be duplicate bytes. 640 stays because the receiver's selectThumbSize clamps to the
-// largest thumb and never escalates to the payload — a 320-only ladder upscales every bubble.
-val standardThumbSizes = baseThumbSizes.take(2)
-
-// q85 rather than the ladder's q76: in STANDARD this is the largest artifact a photo has.
-// The 640 KB cap is the valve for a pathologically detailed frame; at q85/1600 it rarely bites.
-val standardPrimaryImage =
-    ThumbnailInstruction(quality = 85, maxPixelDimension = 1600, maxBytes = 640 * 1024)
-
 @OptIn(ExperimentalEncodingApi::class)
 private fun toBase64(bytes: ByteArray): String = Base64.encode(bytes)
 
@@ -102,7 +92,6 @@ suspend fun createThumbnails(
     payloadKey: String,
     thumbSizes: List<ThumbnailInstruction>? = null
 ): Triple<ImageSize, EmbeddedThumb?, List<ThumbnailFile>> = withContext(Dispatchers.Default) {
-
     // GIF and SVG handling: for SVG files we expect bytes to be svg xml; for GIFs we treat them specially
     // Check these FIRST before trying to decode, as Skia can't decode SVG
     val header = imageBytes.take(16).toByteArray().decodeToString().lowercase()

@@ -140,16 +140,3 @@ fun tryFormatEventNotificationBody(
     return if (parsed.groupSuffix != null) "$body in ${parsed.groupSuffix}" else body
 }
 
-/**
- * Zero-arg convenience — uses the system clock and the device's current
- * timezone. Primarily for callers that can't easily reach
- * `Clock.System.now()` / `TimeZone.currentSystemDefault()` themselves
- * (notably the iOS NotificationServiceExtension calling through
- * Kotlin/Native interop from Swift).
- */
-fun tryFormatEventNotificationBodyNow(raw: String): String? =
-    tryFormatEventNotificationBody(
-        raw = raw,
-        nowMs = Clock.System.now().toEpochMilliseconds(),
-        viewerTz = TimeZone.currentSystemDefault(),
-    )

@@ -38,19 +38,6 @@ class DriveLocalTagIndexWrapper(
         delegate.selectByFile(identityId, driveId, fileId).executeAsList()
     }
 
-    /**
-     * jsonHeaders of active message files in [groupId] carrying [tagId], newest-first.
-     * Powers the pinned-messages bar (tagId = ChatProtocol.MessagePinnedTag).
-     */
-    suspend fun selectJsonHeadersByLocalTagInGroup(
-        identityId: Uuid,
-        driveId: Uuid,
-        tagId: Uuid,
-        groupId: Uuid,
-    ): List<String> = databaseManager.readValue("driveLocalTagIndex.selectFilesByLocalTagInGroup") {
-        delegate.selectFilesByLocalTagInGroup(identityId, driveId, tagId, groupId).executeAsList()
-    }
-
     suspend fun countAll(): Long = databaseManager.readValue("driveLocalTagIndex.countAll") {
         delegate.countAll().executeAsOne()
     }

@@ -7,7 +7,6 @@ import id.homebase.api.storage.SharedPreferences
  * for convenient user experience between app sessions.
  */
 class UsernameStorage {
-
     companion object {
         private const val TAG = "UsernameStorage"
     }
@@ -32,12 +31,5 @@ class UsernameStorage {
         if (username.isNotBlank()) {
             SharedPreferences.putString(YouAuthStorageKeys.USERNAME, username)
         }
-    }
-
-    /**
-     * Delete the saved username from secure storage.
-     */
-    fun deleteUsername() {
-        SharedPreferences.remove(YouAuthStorageKeys.USERNAME)
     }
 }
