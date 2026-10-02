@@ -4,8 +4,6 @@ import co.touchlab.kermit.Logger
 import id.homebase.api.client.HttpClientProvider
 import id.homebase.api.client.auth.CredentialsManager
 import id.homebase.api.client.auth.OwnerSessionRepository
-import id.homebase.api.client.diagnostics.ServerIpCapture
-import id.homebase.api.client.diagnostics.ServerIpStore
 import id.homebase.api.client.contacts.ContactHeaderReader
 import id.homebase.api.client.contacts.ContactInfoGateway
 import id.homebase.api.client.contacts.ContactPayloadReader
@@ -15,7 +13,6 @@ import id.homebase.api.client.drives.cache.DriveFileProviderCached
 import id.homebase.api.client.drives.files.DriveFileHttpProvider
 import id.homebase.api.client.drives.files.DriveFileOperationsProvider
 import id.homebase.api.client.drives.files.DriveFileProvider
-import id.homebase.api.client.drives.files.PayloadDownloadService
 import id.homebase.api.client.drives.files.DriveOutboxUploader
 import id.homebase.api.client.notifications.ScheduledPushOutboxUploader
 import id.homebase.api.sync.database.CompositeOutboxUploader
@@ -24,7 +21,6 @@ import id.homebase.api.client.drives.query.DriveQueryProvider
 import id.homebase.api.client.drives.upload.DriveUploadProvider
 import id.homebase.api.client.eventbus.EventBus
 import id.homebase.api.client.identity.PublicIdentityRepository
-import id.homebase.api.client.location.LocationPreviewProvider
 import id.homebase.api.client.notifications.PushNotificationApi
 import id.homebase.api.client.notifications.ScheduledPushNotificationProvider
 import id.homebase.api.client.peer.PeerDriveQueryProvider
@@ -40,9 +36,7 @@ import id.homebase.api.file.StartupCacheAudit
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.api.sync.database.OutboxSync
 import id.homebase.api.sync.database.OutboxUploader
-import id.homebase.api.video.VideoPayloadProcessor
 import id.homebase.api.video.VideoPrefetchDriveAccess
-import id.homebase.api.video.VideoPreloader
 import id.homebase.api.youauth.SecurityContextProvider
 import id.homebase.api.youauth.UsernameStorage
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -66,18 +60,8 @@ val apiModule = module {
     // this creates the HttpClient
     single { HttpClientProvider.create() }
 
-    // Constructed via the lambda DSL (not singleOf) so Kotlin's default values for
-    // the compressor/probe params are honored — Koin's constructor DSL would instead
-    // try to resolve VideoCompressor/VideoProber from the graph (they aren't bound)
-    // and fail at first video send.
-    single { VideoPayloadProcessor(get()) }
-    singleOf(::VideoPreloader)
     singleOf(::CredentialsManager)
     singleOf(::OwnerSessionRepository)
-    // Last-known-good owner-server IP: the store + the production-capture bridge (its init arms
-    // the global registry the Android OkHttp EventListener forwards to).
-    singleOf(::ServerIpStore)
-    single { ServerIpCapture(get(), get(), get()) }
     singleOf(::PublicIdentityRepository)
     singleOf(::DriveFileHttpProvider)
     singleOf(::DriveFileProviderCached)
@@ -108,7 +92,6 @@ val apiModule = module {
     factoryOf(::DriveUploadProvider)
 
     factoryOf(::DriveFileProvider)
-    factoryOf(::PayloadDownloadService)
     factory<VideoPrefetchDriveAccess> { get<DriveFileProvider>() }
     factoryOf(::DriveFileOperationsProvider)
     factoryOf(::DriveFileGroupReactionProvider)
@@ -169,7 +152,6 @@ val apiModule = module {
     factoryOf(::SecurityContextProvider)
     factoryOf(::PushNotificationApi)
     factoryOf(::ScheduledPushNotificationProvider)
-    singleOf(::LocationPreviewProvider)
 
     single { EventBus() }
 

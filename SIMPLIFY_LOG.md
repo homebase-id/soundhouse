@@ -91,3 +91,11 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - Milestone: liveTest 10/10 passed (before this commit, after commit 3).
 - Verified: all-target compile, gate --apps exit 0.
 - Kotlin lines → 98619.
+
+### 5. More Koin registrations nothing injects
+- Removed `VideoPayloadProcessor`, `VideoPreloader`, `LocationPreviewProvider`, `PayloadDownloadService`,
+  `ServerIpStore`, `ServerIpCapture` definitions: every other mention of those types is KDoc, and
+  ServerIpStore/ServerIpCapture only refer to each other (ServerIpCapture's init — which arms the IP capture — never
+  ran because nothing injected it). Freed 4 files (location preview, web-mercator, payload download service) + 4 tests.
+- Verified: all-target compile, gate --apps exit 0.
+- Kotlin lines → 97745.
