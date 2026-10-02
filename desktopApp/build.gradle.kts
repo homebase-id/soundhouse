@@ -49,7 +49,7 @@ compose.desktop {
 
             packageName = "SimplyAudio"
             packageVersion = versionName
-            description = "Simply Audio"
+            description = "Soundhouse"
             vendor = "Homebase"
 
             modules(
@@ -69,7 +69,7 @@ compose.desktop {
 
             macOS {
                 iconFile.set(project.rootProject.file("icons/icon.icns"))
-                packageName = "Simply Audio"
+                packageName = "Soundhouse"
                 bundleID = "id.homebase.audio"
                 infoPlist {
                     extraKeysRawXml = """

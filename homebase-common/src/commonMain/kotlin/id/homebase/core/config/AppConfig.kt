@@ -32,7 +32,7 @@ data class LabeledDrive(
 object AppConfig {
     const val APP_ID = "e6a8c403d4da42c49c749b28081f0233"
 
-    const val APP_NAME = "Simply Audio"
+    const val APP_NAME = "Soundhouse"
 
     // Sent as `as` in the YouAuth permission request.
     const val APP_SLUG = "audio"

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Simply Audio</string>
+    <string name="app_name">Soundhouse</string>
 
     <!-- Menu options -->
     <string name="settings">Settings</string>
@@ -78,10 +78,10 @@
     <string name="login_popup_blocked">Your browser blocked the sign-in window.</string>
     <string name="login_continue_button">Continue to sign in</string>
     <string name="login_brand_tagline">Your data, your server.</string>
-    <string name="login_brand_wordmark">homebase audio</string>
+    <string name="login_brand_wordmark">homebase soundhouse</string>
     <string name="login_sync_title">loading</string>
     <string name="login_title_lead">welcome</string>
-    <string name="login_title_rest">to&#160;audio</string>
+    <string name="login_title_rest">to&#160;soundhouse</string>
     <string name="login_welcome_back_rest">back</string>
     <string name="login_continue_as">Continue as %1$s</string>
     <string name="login_use_different_id">Use a different Homebase ID</string>

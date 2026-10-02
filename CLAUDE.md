@@ -5,7 +5,7 @@ repository.
 
 ## Project Overview
 
-Simply Audio — a Kotlin Multiplatform personal audio library stored on the user's Homebase
+Soundhouse — a Kotlin Multiplatform personal audio library stored on the user's Homebase
 drive. Android and Desktop (JVM) are the shipping targets; the iOS framework must compile. No web
 target. Compose Multiplatform UI, MVVM, Koin DI.
 

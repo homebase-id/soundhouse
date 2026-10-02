@@ -199,7 +199,7 @@ object LocalCallbackServer {
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Simply Audio — Authentication Complete</title>
+  <title>Soundhouse — Authentication Complete</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -261,7 +261,7 @@ object LocalCallbackServer {
       You can now continue using the application.
     </p>
 
-    <button id="returnBtn" autofocus onclick="openApp()">Return to Simply Audio</button>
+    <button id="returnBtn" autofocus onclick="openApp()">Return to Soundhouse</button>
 
     <p class="hint">
       You may also close this browser tab if it doesn’t close automatically.
@@ -293,7 +293,7 @@ object LocalCallbackServer {
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Simply Audio — Permissions Updated</title>
+  <title>Soundhouse — Permissions Updated</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -355,7 +355,7 @@ object LocalCallbackServer {
       You can now return to the application.
     </p>
 
-    <button id="returnBtn" autofocus onclick="openApp()">Return to Simply Audio</button>
+    <button id="returnBtn" autofocus onclick="openApp()">Return to Soundhouse</button>
 
     <p class="hint">
       You may also close this browser tab if it doesn’t close automatically.
@@ -385,7 +385,7 @@ object LocalCallbackServer {
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Simply Audio — Permissions Not Updated</title>
+  <title>Soundhouse — Permissions Not Updated</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -449,7 +449,7 @@ object LocalCallbackServer {
       can retry or close it for now.
     </p>
 
-    <button id="returnBtn" autofocus onclick="openApp()">Return to Simply Audio</button>
+    <button id="returnBtn" autofocus onclick="openApp()">Return to Soundhouse</button>
 
     <p class="hint">
       You may also close this browser tab if it doesn’t close automatically.
@@ -479,7 +479,7 @@ object LocalCallbackServer {
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Simply Audio — Data Upgrade Complete</title>
+  <title>Soundhouse — Data Upgrade Complete</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -525,7 +525,7 @@ object LocalCallbackServer {
     </p>
 
     <p class="hint">
-      Returning to Simply Audio&hellip; you may close this tab.
+      Returning to Soundhouse&hellip; you may close this tab.
     </p>
   </div>
 

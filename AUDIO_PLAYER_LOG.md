@@ -238,6 +238,14 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
   opaque background, glyph radius 111.7 px of the 132 px safe circle (no launcher clipping), previews in circle,
   squircle and rounded-square masks and at 48 px.
 
+### Renamed to Soundhouse (2026-10-02)
+
+- Visible names only: Android label (and "Soundhouse Debug"), desktop window/macOS name and description,
+  `AppConfig.APP_NAME` (what the identity's approval page shows), desktop sign-in return pages, and the wordmarks
+  ("welcome to soundhouse", "soundhouse" on Home, "homebase soundhouse"). Unchanged on purpose: package ID,
+  repo, desktop data dirs `SimplyAudio`/`SimplyAudioDev`, installer package name (the notification check reads it),
+  wake-lock tags.
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first

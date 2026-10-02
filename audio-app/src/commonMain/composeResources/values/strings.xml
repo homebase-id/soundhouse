@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Simply Audio</string>
+    <string name="app_name">Soundhouse</string>
     <string name="sign_out">Sign out</string>
     <string name="library_no_matches">No tracks match your search</string>
     <string name="library_search_hint">Search by title</string>
@@ -143,7 +143,7 @@
     <string name="record_listening">Recording</string>
     <string name="track_added_on">Added %1$s</string>
     <string name="track_recorded_on">Recorded %1$s</string>
-    <string name="home_wordmark">audio</string>
+    <string name="home_wordmark">soundhouse</string>
     <string name="home_resume">Resume</string>
     <string name="home_play">Play</string>
     <string name="home_newest">Newest in your library</string>
