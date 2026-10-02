@@ -90,21 +90,15 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.datetime)
-            implementation(libs.kotlinx.immutableCollections)
-            implementation(libs.kotlinx.io.core)
             implementation(libs.multiplatform.settings)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.ktor.logging)
             implementation(libs.filekit.core)
-            implementation(libs.filekit.dialogs.compose)
-            implementation(libs.richeditor.compose)
             api(libs.coil3)
             api(libs.coil3.compose)
             api(libs.coil3.network)
             api(libs.coil3.svg)
-            api(libs.zoomimage.compose.coil3)
             implementation(libs.kermit)
             api(libs.filekit.core)
             api(libs.koin.core)
@@ -123,35 +117,21 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.appcompat)
-            implementation(libs.androidx.biometric)
-            implementation(libs.androidx.camera.core)
-            implementation(libs.androidx.camera.camera2)
-            implementation(libs.androidx.camera.lifecycle)
-            implementation(libs.androidx.camera.video)
-            implementation(libs.androidx.camera.compose)
             implementation(libs.androidx.browser)
-            implementation(libs.androidx.pdf.viewer)
             implementation(libs.ktor.client.okhttp)
-            implementation(libs.accompanist.permissions)
-            implementation(libs.firebase.crashlytics)
             api(libs.coil3.video)
             // coil-gif is an Android-only aar in Coil 3.4.0 and Coil has no Skia animated decoder,
             // so the other targets animate through our AnimatedSkiaDecoder in skiaMain.
             api(libs.coil3.gif)
-            implementation(libs.kermit.io)
             // kmpnotifier has no wasmJs artifact — must stay off commonMain.
             // `api` so the dep cascades transitively to androidApp (which
             // imports NotifierManager in MainApplication/MainActivity).
             api(libs.kmpnotifier)
             // Location add-on tracker: fused provider (batched background
             // PendingIntent updates) + app-foreground observation.
-            implementation(libs.play.services.location)
-            implementation(libs.androidx.lifecycle.process)
         }
         appleMain.dependencies {
             implementation(libs.ktor.client.darwin)
-            implementation(libs.kermit.io)
             // `api` so the iOS framework `export(libs.kmpnotifier)` block above
             // resolves the symbols for Swift consumption (iOSApp.swift calls
             // `NotifierManager.shared.initialize(...)`).
@@ -164,7 +144,6 @@ kotlin {
             implementation(libs.nucleus.notification.windows)
             implementation(libs.nucleus.notification.macos)
             implementation(libs.nucleus.notification.linux)
-            implementation(libs.kermit.io)
             implementation(libs.pdfbox)
             implementation(libs.jna)
             implementation(libs.jna.platform)

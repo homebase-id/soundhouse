@@ -42,7 +42,7 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - [x] 5. Unused members inside live files (name-based fixpoint), vendored layer
 - [x] 6. Unused Compose string resources (all modules, incl. values-da) and resource files
 - [ ] 7. Unused declarations in audio-app / androidApp / desktopApp
-- [ ] 8. Unused Gradle dependencies, plugins, version-catalog entries
+- [x] 8. Unused Gradle dependencies (catalog entries/plugins still to check)
 - [ ] 9. Comments violating CLAUDE.md in touched audio-app code; duplicated audio-app helpers
 - [ ] 10. Final /simplify over the whole branch diff, gate, liveTest, summary
 
@@ -142,3 +142,23 @@ references in docs/config, reuse, quality) and that is recorded per commit.
   helpers, outbox wrapper, drive cache…). Over-exclusion only keeps code.
 - Audit: all 38 hunks start with a candidate. Verified: all-target compile, gate --apps exit 0, assembleRelease exit 0.
 - Kotlin lines → 94,565.
+
+### 10. Unused library dependencies
+- A dependency is unused when nothing in its module imports or fully-qualifies its package. Removed 42 declarations:
+  homebase-api 15 (ExoPlayer/HLS/media3-ui, androidx.browser/appcompat, navigation, Koin-Compose, FileKit dialogs,
+  kotlinx-datetime/html/immutable, Ktor logging, ktor-server-html, metadata-extractor), homebase-common 19 (CameraX x5,
+  PDF viewer, biometric, accompanist, Play Services location, Firebase Crashlytics, rich editor, zoom-image, appcompat,
+  lifecycle-process, FileKit dialogs, kermit-io, kotlinx-io, immutable collections, Ktor logging), homebase-auth 5,
+  audio-app 1 (activity-compose), desktopApp 1 (FileKit dialogs).
+- Kept although import-free: Coil add-ons (network/svg/gif/video — Coil discovers them through ServiceLoader, and an
+  identity avatar may be SVG/GIF), smart-exception (ffmpeg-kit runtime), multiplatform-settings in audio-app (a
+  Settings type crosses homebase-common's API), compose tooling preview in homebase-auth (imported as androidx.*).
+- Made explicit what had only arrived transitively: compose foundation in homebase-api (it uses @Immutable, snapshot
+  state and ImageBitmap), Material Components in androidApp (its manifest theme), coroutines-swing for homebase-auth's
+  JVM UI tests (Dispatchers.Main).
+- Firebase Crashlytics could never initialise (no google-services.json — the log said so on every start); the
+  biometric library's USE_BIOMETRIC/USE_FINGERPRINT permissions are gone from the merged manifest. c2dm RECEIVE stays
+  (kmpnotifier/Firebase Messaging, still used).
+- Verified: all-target compile, gate --apps exit 0, assembleRelease exit 0 (R8 reports no missing classes), release
+  APK launched on the emulator to login with no crash, desktop distributable launched for 20 s with no errors.
+- Release APK 112.9 MB → 111.6 MB.

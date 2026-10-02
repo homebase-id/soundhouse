@@ -72,6 +72,8 @@ dependencies {
     implementation(project(":audio-app"))
 
     implementation(libs.androidx.appcompat)
+    // Theme.Material3.DayNight.NoActionBar in the manifest.
+    implementation(libs.android.material)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.profileinstaller)

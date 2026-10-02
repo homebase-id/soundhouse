@@ -103,7 +103,6 @@ kotlin {
             implementation(libs.okio.fakefilesystem)
         }
         androidMain.dependencies {
-            implementation(libs.androidx.activity.compose)
             implementation(libs.koin.android)
         }
         jvmMain.dependencies {

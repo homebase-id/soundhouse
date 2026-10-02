@@ -129,27 +129,22 @@ kotlin {
 
         commonMain.dependencies {
             implementation(libs.atomicfu)
-            implementation(libs.kotlinx.datetime)
             implementation(libs.kermit)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.client.encoding)
             implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.ktor.logging)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.cryptography.core)
             implementation(libs.cryptography.provider.optimal)
             implementation(libs.cryptography.random)
             implementation(libs.sqldelight.runtime)
             implementation(libs.sqldelight.coroutines.extensions)
-            implementation(libs.navigation.compose)
             implementation(libs.koin.core)
-            implementation(libs.koin.compose)
-            implementation(libs.koin.compose.viewmodel)
+            // Compose runtime + ui: @Immutable, snapshot state, ImageBitmap.
+            implementation(libs.jetbrains.compose.foundation)
             implementation(libs.filekit.core)
-            implementation(libs.filekit.dialogs.compose)
             implementation(libs.kotlinx.io.core)
-            implementation(libs.kotlinx.immutableCollections)
             implementation(libs.coil3)
             implementation(libs.okio)
             // CommonMark AST parser for markdownToPlainPreview (MarkdownPlain.kt).
@@ -179,14 +174,9 @@ kotlin {
         // androidDeviceTest rather than trying to wire the inheritance.
         getByName("androidHostTest").dependsOn(jvmAndNativeTest)
         androidMain.dependencies {
-            implementation(libs.androidx.appcompat)
             implementation(libs.androidx.exifinterface)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.androidx.activity.compose)
-            implementation(libs.androidx.browser)
-            implementation(libs.androidx.media3.exoplayer)
-            implementation(libs.androidx.media3.exoplayer.hls)
-            implementation(libs.androidx.media3.ui)
             implementation(libs.sqldelight.android.driver)
             implementation(libs.android.database.sqlcipher)
             implementation(libs.ffmpeg.kit)
@@ -212,11 +202,8 @@ kotlin {
 
             implementation(libs.ktor.server.core)
             implementation(libs.ktor.server.cio)
-            implementation(libs.ktor.server.html.builder)
 
-            implementation(libs.kotlinx.html.jvm)
 
-            implementation(libs.metadata.extractor)
         }
 
         // Provide Skia native binaries for JVM image tests (platform-specific)
