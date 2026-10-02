@@ -55,13 +55,6 @@ data class UnixTimeUtc(val milliseconds: Long) : Comparable<UnixTimeUtc> {
         get() = milliseconds / 1000
 
     /**
-     * Returns a new UnixTimeUtc object with the seconds added
-     */
-    fun addSeconds(s: Long): UnixTimeUtc {
-        return UnixTimeUtc(milliseconds + (s * 1000))
-    }
-
-    /**
      * Returns a new UnixTimeUtc object with the hours added
      */
     fun addHours(h: Long): UnixTimeUtc {

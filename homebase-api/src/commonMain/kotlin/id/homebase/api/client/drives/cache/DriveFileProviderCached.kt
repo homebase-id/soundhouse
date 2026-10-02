@@ -408,10 +408,9 @@ class DriveFileProviderCached(
         }
     }
 
-    // Entry points for reads this class cannot issue itself. A peer read lives in
-    // PeerFileByGlobalTransitProvider, which injecting here would cycle, so it hands in its
-    // own key and fetch instead. Cached bytes stay encrypted — callers decrypt post-read
-    // with the KeyHeader from the file header, since no response headers survive a hit.
+    // A read through the payload cache with a caller-supplied key and fetch. Cached bytes stay
+    // encrypted — callers decrypt post-read with the KeyHeader from the file header, since no
+    // response headers survive a hit.
     suspend fun readPayloadThrough(
             cacheKey: String,
             fetch: suspend () -> ByteApiResponse

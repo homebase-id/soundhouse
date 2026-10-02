@@ -11,11 +11,6 @@ import kotlinx.serialization.Serializable
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.Uuid
 
-data class SendReadReceiptResultFileItem(
-    val fileId: Uuid,
-    val status: List<SendReadReceiptResultRecipientStatusItem>
-)
-
 @Serializable
 data class SendReadReceiptResultRecipientStatusItem(
     val recipient: OdinId?,

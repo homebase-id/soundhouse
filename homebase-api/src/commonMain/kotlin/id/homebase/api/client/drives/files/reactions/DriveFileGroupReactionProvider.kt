@@ -13,10 +13,6 @@ import kotlin.uuid.Uuid
 
 // ==================== REQUEST / RESPONSE MODELS ====================
 
-data class ReactionTransitOptions(
-    val recipients: List<OdinId>
-)
-
 // ==================== PROVIDER ====================
 
 @OptIn(ExperimentalEncodingApi::class)

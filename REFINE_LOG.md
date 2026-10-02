@@ -25,7 +25,7 @@ Release APK: 111,510,189 bytes.
 - [x] B. Chat-only services: peer websockets, push plumbing, contacts sync (outbox paths: see C)
 - [x] C. Dead-code passes again (reach, names, R8 methods) + outbox + chat DB wrappers
 - [x] D. Resources / dependencies / catalog freed by A–C
-- [ ] E. Comments in touched files
+- [x] E. Comments in touched files
 - [ ] Final: gate, release, liveTest, summary
 
 ## Log
@@ -100,3 +100,11 @@ Release APK: 111,510,189 bytes.
 - Verified: all targets incl. iOS; gate --apps exit 0; assembleRelease exit 0; liveTest 10/10; Android launch 0 crashes;
   desktop distributable launched 25 s with no errors (database opened, login state machine running).
 - Release APK 35.88 MB → 35.87 MB.
+
+### E. Stale comments in touched files — commit below
+- Found comments in files changed tonight that name deleted code; rewrote nine (PeerFileByGlobalTransitProvider in the
+  payload cache, OutboxSync in outbox staging, BackgroundSyncOrchestrator ×4 in AuthConnectionCoordinator, the
+  contacts/profile links in ProfileAttribute). Fixing them exposed ProfileProvider/ProfileRepository as referenced only
+  by each other: removed. `readPayloadThrough` looked dead but tests drive the live read-through cache through it, so it
+  stays with a corrected comment. A last name pass with the full (iOS-including) compile took 26 more lines.
+- Verified: gate --apps exit 0; assembleRelease exit 0; liveTest 10/10; Android launch 0 crashes; desktop launch clean.

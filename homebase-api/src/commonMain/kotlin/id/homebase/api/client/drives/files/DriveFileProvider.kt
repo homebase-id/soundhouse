@@ -436,13 +436,3 @@ data class DeleteFileResult(
     val recipientStatus: Map<String, TransferUploadStatus>? = null
 )
 
-data class DeleteFileByGroupIdResult(
-    val groupId: Uuid,
-    val deleteFileResults: List<DeleteFileResult>
-)
-
-data class DeleteByGroupIdRequest(
-    val groupId: Uuid,
-    val recipients: List<OdinId>? = null
-)
-

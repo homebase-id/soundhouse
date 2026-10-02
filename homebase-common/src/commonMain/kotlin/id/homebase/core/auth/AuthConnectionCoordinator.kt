@@ -145,8 +145,7 @@ class AuthConnectionCoordinator(
     // [onAuthStateChanged] still fires Authenticated, but for a headless
     // wake-up we should NOT open the WebSocket, run [onPostAuthenticated]'s
     // UI preload, start the registry observer, or load the profile.
-    // [BackgroundSyncOrchestrator.syncIfAuthenticated] only needs the
-    // drive mounts and registry bootstrap to do its QueryBatch.
+    // A background sync only needs the drive mounts and registry bootstrap.
     //
     // [headless] starts true ONLY on background-wake-capable platforms
     // (Android/iOS — see [startsHeadless] / [PlatformInfo.supportsBackgroundWake]);
@@ -314,8 +313,7 @@ class AuthConnectionCoordinator(
 
                 if (headless) {
                     // Still kick the reconcile: a background wake's syncAll() may be the only
-                    // pass a drive activated on another device gets, and BackgroundSyncOrchestrator
-                    // awaits this job before syncing.
+                    // pass a drive activated on another device gets.
                     scheduleRegistryReconcile(initialDrives)
                     Logger.i(tag = "AuthLifecycle") {
                         "AuthCC: Authenticated branch — mode=headless " +
@@ -602,9 +600,7 @@ class AuthConnectionCoordinator(
                     old.close()
                     // close() sets the client's terminal `closed` flag BEFORE cancelling its loop, so
                     // its handleDisconnected() early-returns and the onDisconnected callback never
-                    // fires. Mark offline here ourselves — otherwise isOnline stays stale-true and
-                    // BackgroundSyncOrchestrator.syncIfAuthenticated() would skip the FCM→HTTP
-                    // background sync ("WS online — skipping"), silently breaking background sync.
+                    // fires. Mark offline here ourselves, or the connection state stays stale-true.
                     _connectionState.update { connectionStateAfterWsPark(it) }
                     BgTrace.log(BgTrace.wsPark("backgrounded-push-covered"))
                     Logger.i(tag = "AuthLifecycle") {
@@ -932,7 +928,7 @@ internal fun wsHoldDecision(
  * The connection state after the WS is parked for background (#1108): offline and not connecting.
  * Extracted so a test locks the invariant that a park marks us offline — required because
  * OdinWebSocketClient.close() never fires onDisconnected, so without this the state would stay
- * stale-connected and BackgroundSyncOrchestrator would skip the FCM→HTTP background sync.
+ * stale-connected.
  */
 internal fun connectionStateAfterWsPark(current: AuthConnectionState): AuthConnectionState =
     current.copy(isConnected = false, isConnecting = false)

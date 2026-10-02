@@ -19,11 +19,11 @@ import kotlin.uuid.Uuid
  *
  * [id] and [versionTag] together address the attribute for an edit: every save must echo the latest
  * [versionTag] (a stale tag → 409, re-read and retry). [data] is the attribute's full value object,
- * kept as a raw [JsonObject] so unknown keys we don't model survive a round-trip (writes REPLACE,
- * not merge — see [ProfileProvider.saveAttribute]).
+ * kept as a raw [JsonObject] so unknown keys we don't model survive a round-trip (writes replace,
+ * not merge).
  *
- * [fileId]/[driveId]/[keyHeader]/[payloads] are only populated for attributes read via
- * [ProfileRepository.loadAttributes] (they mirror the underlying `HomebaseFile`) — null when an
+ * [fileId]/[driveId]/[keyHeader]/[payloads] are only populated for attributes read from the drive
+ * (they mirror the underlying `HomebaseFile`) — null when an
  * instance is hand-constructed elsewhere (e.g. caching a just-written text attribute). They exist
  * so a [ProfileAttributeTypes.PHOTO] attribute's image payload can be fetched for display; see
  * `ProfileAttribute.photoImageData()` in homebase-core.
@@ -85,7 +85,7 @@ data class ProfileWriteResponse(
 /**
  * Typed outcome of a profile-attribute write. Unlike the contacts controller, the profile endpoint
  * does NOT merge on conflict — a 409 means the [SaveProfileAttributeRequest.expectedVersionTag] is
- * stale, so recovery must re-read the current attribute and resend (handled in [ProfileRepository]).
+ * stale, so recovery must re-read the current attribute and resend.
  * Transport/auth failures (403 = missing ManageProfile, 5xx, …) still throw from the provider.
  */
 sealed interface ProfileWriteResult {
