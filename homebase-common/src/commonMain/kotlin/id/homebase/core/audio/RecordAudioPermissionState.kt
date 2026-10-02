@@ -35,7 +35,6 @@ fun rememberRecordAudioPermissionState(
             }
         }
 
-
     LaunchedEffect(Unit) {
         hasPermission = permissionsHandler.isPermissionGranted(PermissionType.RECORD_AUDIO)
 
@@ -64,9 +63,5 @@ class RecordAudioPermissionState(
             return
         }
         permissionsManager.askPermission(PermissionType.RECORD_AUDIO)
-    }
-
-    fun launchSettings() {
-        permissionsManager.launchSettings()
     }
 }

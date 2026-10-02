@@ -51,10 +51,4 @@ object ActivityProvider {
                     ?: throw kotlin.IllegalStateException(
                         "Application context not initialized. Call ActivityProvider.initializeApplicationContext(this) in Application.onCreate()"
                     )
-
-    /** Clear all references. Call this in Activity.onDestroy() if needed. */
-    fun clear() {
-        activityRef = null
-        appContext = null
-    }
 }

@@ -122,3 +122,14 @@ references in docs/config, reuse, quality) and that is recorded per commit.
   6 candidates left in place (their files didn't compile after cutting).
 - Verified: all-target compile, gate --apps exit 0, assembleRelease exit 0.
 - Kotlin lines → 95,945.
+
+### 8. Methods R8 never reaches, where the name is shared with live code
+- Candidates from a fresh R8 member report: methods in vendored classes R8 drops as uncalled on Android (no
+  getters/setters/synthetics/serializer or data-class members), declared exactly once by that name in the file, not
+  override/operator/expect/actual/abstract. Cut by the same script; a compile error anywhere (desktop and iOS callers
+  included) reverted the declaring file — 63 of 77 files went back, 14 kept (drive HTTP/query helpers, peer/temporal
+  providers, owner session, profile repository, YouAuth params, enum helpers, activity provider). Also one 16-line
+  file the earlier pass had left orphaned (DriveQueryModel.kt).
+- Audit: all 32 removed hunks start with a candidate method. Verified: all-target compile, gate --apps exit 0,
+  assembleRelease exit 0.
+- Kotlin lines → 95,241.

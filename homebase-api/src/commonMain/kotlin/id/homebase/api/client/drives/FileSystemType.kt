@@ -17,9 +17,5 @@ enum class FileSystemType(val value: Int) {
     // Add more as needed from the C# enum
 
     companion object {
-        fun fromInt(value: Int): FileSystemType {
-            return entries.firstOrNull { it.value == value }
-                ?: throw IllegalArgumentException("Unknown FileSystemType: $value")
-        }
     }
 }

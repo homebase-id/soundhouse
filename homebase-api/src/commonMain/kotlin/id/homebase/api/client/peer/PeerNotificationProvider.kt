@@ -37,7 +37,6 @@ class PeerNotificationProvider(
     httpClient: HttpClient,
     credentialsManager: CredentialsManager,
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
-
     /**
      * Exchange (via the user's own host) for a short-lived auth token + shared secret that authorise
      * a direct websocket to [ownerOdinId]'s host. The result should be cached per owner by the
@@ -60,31 +59,6 @@ class PeerNotificationProvider(
             return null
         }
         return deserialize(response.body)
-    }
-
-    /**
-     * Arm a closed-app push subscription on the user's own host so the owner's host pushes a
-     * notification when the community ([subscriptionId] = communityId) changes. Returns true on 2xx.
-     */
-    suspend fun subscribeToPeerNotifications(ownerOdinId: OdinId, subscriptionId: Uuid): Boolean {
-        val creds = requireCreds()
-        val url = apiUrl(creds.domain, "/peer/notify/subscriptions/push-notification")
-        val body = OdinSystemSerializer.serialize(
-            PeerPushSubscriptionRequest(identity = ownerOdinId, subscriptionId = subscriptionId)
-        )
-        val response = encryptedPostJson(
-            url = url,
-            token = creds.accessToken,
-            jsonBody = body,
-            secret = creds.secret,
-        )
-        val ok = response.status in 200..299
-        if (!ok) {
-            Logger.w(tag = TAG) {
-                "subscribeToPeerNotifications: FAIL owner=${ownerOdinId.domainName} sub=$subscriptionId status=${response.status}"
-            }
-        }
-        return ok
     }
 
     companion object {

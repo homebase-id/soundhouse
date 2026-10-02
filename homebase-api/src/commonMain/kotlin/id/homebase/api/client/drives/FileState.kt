@@ -17,9 +17,5 @@ enum class FileState(val value: Int) {
     // Archived(3) - commented out in original
 
     companion object {
-        fun fromInt(value: Int): FileState {
-            return entries.firstOrNull { it.value == value }
-                ?: throw IllegalArgumentException("Unknown FileState: $value")
-        }
     }
 }

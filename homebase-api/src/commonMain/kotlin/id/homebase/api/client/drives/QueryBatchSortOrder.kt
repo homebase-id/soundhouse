@@ -20,9 +20,5 @@ enum class QueryBatchSortOrder(val value: Int) {
     OldestFirst(2);
 
     companion object {
-        fun fromInt(value: Int): QueryBatchSortOrder {
-            return entries.firstOrNull { it.value == value }
-                ?: throw IllegalArgumentException("Unknown QueryBatchSortOrder: $value")
-        }
     }
 }

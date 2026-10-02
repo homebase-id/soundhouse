@@ -28,7 +28,6 @@ class OwnerSessionRepository internal constructor(
     private val eventBus: EventBus,
     private val scope: CoroutineScope,
 ) {
-
     private val _user = MutableStateFlow<OwnerSession?>(null)
     val user: StateFlow<OwnerSession?> = _user
 
@@ -65,23 +64,6 @@ class OwnerSessionRepository internal constructor(
         debouncedRefreshJob = scope.launch {
             delay(PUBLIC_PROFILE_REFRESH_DEBOUNCE_MS)
             load(odinId)
-        }
-    }
-
-    /**
-     * For the client that itself just wrote [artifact] (e.g. the avatar edit screen after an
-     * upload/delete), rather than [load] directly, so its own avatars repaint without waiting on
-     * the server's websocket echo. [onPublicProfileContentPublished] above covers every other
-     * client, for which that echo is the only signal available.
-     */
-    suspend fun reloadAfterOwnPublish(odinId: OdinId, artifact: PublicProfileArtifact) {
-        val before = _user.value
-        invalidateCachedArtifact(odinId, artifact)
-        load(odinId)
-        val after = _user.value
-        Logger.d(tag = TAG) {
-            "reloadAfterOwnPublish artifact=$artifact " +
-                "fileId ${before?.profileImageFileId} -> ${after?.profileImageFileId}"
         }
     }
 

@@ -20,7 +20,6 @@ data class RangeHeaderResult(
 
 /** Helper functions for drive file operations. Ported from JS/TS odin-js DriveFileHelper. */
 object DriveFileHelpers {
-
     /**
      * Calculates the Range header for partial content requests with encrypted data.
      *
@@ -94,34 +93,6 @@ object DriveFileHelpers {
      */
     fun roundToLargerMultipleOf16(value: Long): Long {
         return ((value + 15) / 16) * 16
-    }
-
-    /**
-     * Parses a byte array to a typed object by deserializing as JSON. Ported from TypeScript
-     * parseBytesToObject function.
-     *
-     * @param data The data containing bytes and content type, or null
-     * @return The parsed object of type T, or null if data is null or parsing fails
-     */
-    inline fun <reified T> parseBytesToObject(data: BytesWithContentType?): T? {
-        if (data == null) return null
-        return tryJsonParse<T>(data.bytes.decodeToString())
-    }
-
-    /**
-     * Attempts to parse a JSON string into the specified type. Returns null if parsing fails
-     * instead of throwing an exception.
-     *
-     * @param json The JSON string to parse
-     * @return The parsed object of type T, or null if parsing fails
-     */
-    inline fun <reified T> tryJsonParse(json: String): T? {
-        return try {
-OdinSystemSerializer.json
-                    .decodeFromString<T>(json)
-        } catch (e: Exception) {
-            null
-        }
     }
 }
 

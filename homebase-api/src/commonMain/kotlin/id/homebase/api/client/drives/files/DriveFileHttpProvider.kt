@@ -43,7 +43,6 @@ public class DriveFileHttpProvider(
     httpClient: HttpClient,
     credentialsManager: CredentialsManager
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
-
     companion object {
         private const val TAG = "DriveFileHttpProvider"
     }
@@ -58,7 +57,6 @@ public class DriveFileHttpProvider(
         fileOps: FileOperationsProvider,
         onProgress: ((Float) -> Unit)? = null,
     ): Boolean {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuid(fileId, "fileId")
         require(key.isNotBlank()) { "Key must be defined" }
@@ -134,7 +132,6 @@ public class DriveFileHttpProvider(
         options: PayloadOperationOptions = PayloadOperationOptions(),
         onDownloadProgress: ((Float) -> Unit)? = null,
     ): ByteApiResponse {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuid(fileId, "fileId")
         require(key.isNotBlank()) { "Key must be defined" }
@@ -207,7 +204,6 @@ public class DriveFileHttpProvider(
         height: Int,
         lastModified: Long? = null
     ): ByteApiResponse {
-
         ValidationUtil.requireValidUuid(driveId, "driveId")
         ValidationUtil.requireValidUuid(fileId, "fileId")
         require(payloadKey.isNotBlank()) { "PayloadKey must be defined" }
@@ -224,7 +220,6 @@ public class DriveFileHttpProvider(
                     put("lastModified", it.toString())
                 }
             }
-
 
         val url =
             apiUrl(
@@ -249,150 +244,6 @@ public class DriveFileHttpProvider(
     }
 
     // ==================== DELETE METHODS ====================
-
-    /**
-     * Deletes a single file from the drive.
-     *
-     * @param driveId The target drive containing the file
-     * @param fileId The ID of the file to delete
-     * @param recipients Optional list of recipients to notify
-     * @param hardDelete If true, performs a hard delete instead of soft delete
-     * @return True if the file was deleted successfully
-     */
-    suspend fun softDeleteFile(
-        driveId: Uuid,
-        fileId: Uuid,
-        recipients: List<OdinId>? = null
-    ): DeleteFileResult {
-
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuid(fileId, "fileId")
-
-        val endpoint = "/drives/$driveId/files/$fileId/delete"
-
-        val creds = requireCreds()
-
-        // fileId not used  because we pass it in via query string
-        val request =
-            DeleteFileRequest(
-                fileId = Uuid.NIL,
-                recipients = recipients
-            )
-
-        val response = encryptedPostJson(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(request),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-
-        return deserialize<DeleteFileResult>(response.body)
-    }
-
-    suspend fun hardDeleteFile(
-        driveId: Uuid,
-        fileId: Uuid,
-        recipients: List<OdinId>? = null,
-    ): Boolean {
-
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuid(fileId, "fileId")
-
-        val endpoint = "/drives/$driveId/files/$fileId/hard-delete"
-
-        val creds = requireCreds()
-
-        // fileId not used  because we pass it in via query string
-        val request =
-            DeleteFileRequest(
-                fileId = Uuid.NIL,
-                recipients = recipients
-            )
-
-        val response = encryptedPostJson(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(request),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-
-        return response.status == 200
-    }
-
-    /** Deletes multiple files from the drive by file IDs. */
-    suspend fun deleteFiles(
-        driveId: Uuid,
-        fileIds: List<Uuid>,
-        recipients: List<OdinId>? = null
-    ): DeleteFileIdBatchResult {
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuidList(fileIds, "fileIds")
-        val creds = requireCreds()
-
-        val endpoint = "/drives/${driveId}/files/delete-batch/by-file-id"
-        val request =
-            DeleteFilesBatchRequest(
-                requests =
-                    fileIds.map { fileId ->
-                        DeleteFileRequest(
-                            fileId = fileId,
-                            recipients = recipients
-                        )
-                    }
-            )
-
-        val response = encryptedPostJson(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(request),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-
-        return deserialize<DeleteFileIdBatchResult>(response.body)
-
-    }
-
-    /** Deletes files from the drive by group IDs. */
-    suspend fun deleteFilesByGroupId(
-        driveId: Uuid,
-        groupIds: List<Uuid>,
-        recipients: List<OdinId>? = null
-    ): DeleteFilesByGroupIdBatchResult {
-        ValidationUtil.requireValidUuid(driveId, "driveId")
-        ValidationUtil.requireValidUuidList(groupIds, "groupIds")
-
-        val creds = requireCreds()
-
-        val endpoint = "/drives/${driveId}/files/delete-batch/by-group-id"
-        val request =
-            DeleteByGroupIdBatchRequest(
-                requests =
-                    groupIds.map { groupId ->
-                        DeleteByGroupIdRequest(
-                            groupId = groupId,
-                            recipients = recipients
-                        )
-                    }
-            )
-
-        val response = encryptedPostJson(
-            url = apiUrl(creds.domain, endpoint),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(request),
-            secret = creds.secret
-        )
-
-        throwForFailure(response)
-
-        return deserialize<DeleteFilesByGroupIdBatchResult>(response.body)
-
-    }
 
     // ==================== INBOX METHODS ====================
 
@@ -423,27 +274,6 @@ public class DriveFileHttpProvider(
 
     // ==================== PRIVATE HELPER METHODS ====================
 
-    /** Decrypts the key header using the shared secret. */
-    private suspend fun decryptKeyHeader(encryptedKeyHeader: EncryptedKeyHeader): KeyHeader? {
-        val sharedSecret = credentialsManager.getActiveCredentials()?.sharedSecret ?: return null
-        return encryptedKeyHeader.decryptAesToKeyHeader(sharedSecret)
-    }
-
-    /** Decrypts JSON content from file metadata. */
-    private suspend fun decryptJsonContent(metadata: FileMetadata, keyHeader: KeyHeader): String? {
-        val content = metadata.appData.content ?: return null
-        if (!metadata.isEncrypted) return content
-
-        return try {
-            val encryptedBytes = Base64.decode(content)
-            val decryptedBytes = keyHeader.decrypt(encryptedBytes)
-            decryptedBytes.decodeToString()
-        } catch (e: Exception) {
-            Logger.e(tag = TAG) { "[odin-kt:decryptJsonContent] ${e.message}" }
-            null
-        }
-    }
-
     /**
      * Decrypts bytes using the shared secret (full payload/thumbnail decryption).
      */
@@ -452,7 +282,6 @@ public class DriveFileHttpProvider(
         headers: Headers,
         bytes: ByteArray
     ): ByteArray {
-
         val payloadEncrypted =
             headers["payloadencrypted"]?.equals("true", ignoreCase = true) == true
 
@@ -468,7 +297,6 @@ public class DriveFileHttpProvider(
         }
     }
 
-
     /** Decrypts chunked bytes with offset handling. */
     suspend fun decryptChunkedBytes(
         headers: Headers,
@@ -477,12 +305,10 @@ public class DriveFileHttpProvider(
         startOffset: Int,
         chunkStart: Int
     ): ByteArray {
-
         val payloadEncrypted =
             headers["payloadencrypted"]?.equals("true", ignoreCase = true) == true
 
         if (payloadEncrypted) {
-
             val key = keyHeader.aesKey
 
             val (iv, cipher) = run {
@@ -530,13 +356,11 @@ public class DriveFileHttpProvider(
                 if (chunkStart < 16) startOffset else maxOf(startOffset - 16, 0)
 
             return decryptedBytes.copyOfRange(sliceStart, decryptedBytes.size)
-
         } else {
             // Not encrypted → return raw bytes with offset
             return responseBytes.copyOfRange(startOffset, responseBytes.size)
         }
     }
-
 
     fun mergeByteArrays(chunks: List<ByteArray>): ByteArray {
         var size = 0
@@ -564,5 +388,4 @@ public class DriveFileHttpProvider(
     ): ByteArray {
         return keyHeader.decrypt(encryptedBytes)
     }
-
 }

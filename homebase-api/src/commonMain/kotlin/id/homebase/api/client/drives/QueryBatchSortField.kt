@@ -26,9 +26,5 @@ enum class QueryBatchSortField(val value: Int) {
     OnlyModifiedDate(4);  // Not yet implemented
 
     companion object {
-        fun fromInt(value: Int): QueryBatchSortField {
-            return entries.firstOrNull { it.value == value }
-                ?: throw IllegalArgumentException("Unknown QueryBatchSortField: $value")
-        }
     }
 }
