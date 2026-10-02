@@ -22,7 +22,7 @@ Release APK: 111,510,189 bytes.
 
 - [x] 0. Tooling in scripts/deadcode/ (portable paths, `--fast`, cut-loop, R8 usage script)
 - [x] A. Video pipeline + FFmpeg-kit (keep old outbox rows readable)
-- [ ] B. Chat-only services: peer websockets, push plumbing, contacts sync, chat-only outbox paths
+- [x] B. Chat-only services: peer websockets, push plumbing, contacts sync (outbox paths: see C)
 - [ ] C. Dead-code passes again (reach, names, R8 methods)
 - [ ] D. Resources / dependencies / catalog freed by A–C
 - [ ] E. Comments in touched files
@@ -44,3 +44,21 @@ Release APK: 111,510,189 bytes.
 - Verified: all targets incl. iOS compile; gate --apps exit 0; assembleRelease exit 0; liveTest 10/10;
   release APK on the emulator launches to login, no crash, cold start 0.43 s.
 - Release APK 111.5 MB → 37.1 MB. Kotlin lines → 84,585.
+
+### B. Chat-only services — commit below
+- Peer websockets: they only open for drives hosted on another identity (ownerOdinId != null); Soundhouse mounts only
+  its own Audio drive with the registry off, so only reset() ever ran. Removed PeerWebSocketManager from
+  AuthConnectionCoordinator (mountDrive keeps its own-drive path), ApiModule and AudioModules; then dropped five peer
+  provider registrations and ProfileRepository/ProfileProvider, which no code requested. 8 peer files went.
+- Push notifications: NotificationService ran with a no-op backend; its only effect was reRegisterAsync() after sign-in
+  calling the server's push endpoint, which answered 403 (seen on the phone). Removed it from LoginViewModel and the app
+  setup, with PushNotificationApi, kmpnotifier (and with it Firebase Messaging and the c2dm permission), the Nucleus
+  desktop-notification libraries and PDFBox. 25 files (notification display, badges, background sync) and 14 tests went.
+- Contacts: ContactInfoGateway checked the synced Contacts drive before the public profile, but Soundhouse never syncs
+  that drive, so the list was always empty. The gateway now serves only what is used (profileCard, avatarBytes,
+  clearCaches) from the public profile cache; the Contacts provider/repository/readers went (17 files, 14 tests).
+  Sign-in name/avatar behave the same.
+- Behaviour changes: no failing push call after sign-in; no c2dm permission; no Firebase messaging init.
+- Verified: all targets incl. iOS; gate --apps exit 0; assembleRelease exit 0; liveTest 10/10; release APK on the
+  emulator launches to login, no crash.
+- Release APK 37.1 MB → 36.1 MB. Kotlin lines → 75,396.

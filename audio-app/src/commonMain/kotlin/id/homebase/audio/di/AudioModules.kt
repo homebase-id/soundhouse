@@ -47,9 +47,6 @@ import id.homebase.audio.ui.loading.AppLoadingViewModel
 import id.homebase.auth.login.LoginViewModel
 import id.homebase.core.auth.AuthConnectionCoordinator
 import id.homebase.core.config.mandatorySyncDrives
-import id.homebase.core.notifications.NotificationBackend
-import id.homebase.core.notifications.NotificationService
-import id.homebase.core.notifications.PendingNotificationTap
 import id.homebase.core.session.IdentitySessionScope
 import id.homebase.core.settings.UserPreferences
 import id.homebase.core.sync.DriveRegistry
@@ -64,21 +61,6 @@ import org.koin.dsl.module
 val audioAppModule = module {
     single { UserPreferences(get()) }
 
-    single<NotificationBackend> { NoPushNotificationBackend }
-    single { PendingNotificationTap() }
-    single {
-        NotificationService(
-            api = get(),
-            scope = get(),
-            contactInfo = get(),
-            userPreferences = get(),
-            credentialsManager = get(),
-            pendingNotificationTap = get(),
-            notificationBackend = get(),
-            eventBus = get(),
-            authState = get<YouAuthFlowManager>().authState,
-        )
-    }
 
     // Only the copied auth coordinator reads the registry; it lives on the Chat drive, which this
     // app never requests, so its server half 403s and falls back to the mandatory Audio drive.
@@ -134,7 +116,6 @@ val audioAppModule = module {
             databaseManager = get(),
             driveRegistry = get(),
             securityContextProvider = get(),
-            peerWebSocketManager = get(),
             identitySession = get(),
             // Audio drive only: never read the Chat drive's cross-app registry of optional drives.
             useDriveRegistry = false,

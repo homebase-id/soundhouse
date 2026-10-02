@@ -7,7 +7,6 @@ import id.homebase.api.client.auth.OwnerSessionRepository
 import id.homebase.api.client.drives.TargetDrive
 import id.homebase.api.client.eventbus.BackendEvent
 import id.homebase.api.client.eventbus.EventBus
-import id.homebase.api.client.peer.PeerWebSocketManager
 import id.homebase.api.client.websockets.OdinWebSocketClient
 import id.homebase.api.client.websockets.isWebSocketUpgradeUnauthorized
 import id.homebase.api.common.OdinId
@@ -53,7 +52,6 @@ class AuthConnectionCoordinator(
     private val databaseManager: DatabaseManager,
     private val driveRegistry: DriveRegistry,
     private val securityContextProvider: SecurityContextProvider,
-    private val peerWebSocketManager: PeerWebSocketManager,
     // Lifetime of every per-identity object in the graph. Opened on the authenticated
     // transition below, closed on logout — so signing out destroys that state rather than
     // resetting it, and a stale identity cannot survive into the next session.
@@ -123,12 +121,6 @@ class AuthConnectionCoordinator(
     // at process start (the app opens in the foreground); lastTransitionAtMs anchors the first window.
     private var currentForeground: Boolean = true
     private var lastTransitionAtMs: Long = UnixTimeUtc().milliseconds
-
-    // Peer (owner-hosted) drives mounted this session, alias -> (owner, drive). Lets [unmountDrive]
-    // tear down the right per-owner peer websocket given only a driveId. Guarded by [peerOwnersMutex]
-    // because mounts arrive from both the Authenticated branch and the registry observer coroutine.
-    private val peerDriveOwners = mutableMapOf<Uuid, Pair<OdinId, TargetDrive>>()
-    private val peerOwnersMutex = kotlinx.coroutines.sync.Mutex()
 
     // Serializes the compound WS lifecycle transitions that close+rebuild [wsClient] — the #1108
     // background close/reconnect ([applyWsHold]) and the drive-subscription reconnect
@@ -356,9 +348,6 @@ class AuthConnectionCoordinator(
                         "AuthCC: Authenticated — backgrounded on push-capable platform, deferring WS connect"
                     }
                 }
-                // Owner-hosted (peer) drives don't ride the own-host WebSocket — open a per-owner
-                // peer websocket for each so live community updates arrive over the owner's host.
-                startPeerConnections(initialDrives)
                 // Observe cross-device registry changes. We seed the diff baseline with the
                 // bootstrap result so the chat-drive sync that later writes the same file
                 // into the local index doesn't trigger a spurious onMount for drives that
@@ -502,8 +491,7 @@ class AuthConnectionCoordinator(
                 scope = scope,
                 eventBus = eventBus,
                 databaseManager = databaseManager,
-                // Own-host WebSocket subscribes to own drives only. Peer (owner-hosted) drives get
-                // their own per-owner connection via [startPeerConnections] / [PeerWebSocketManager].
+                // The WebSocket subscribes to own drives only.
                 drives = (mandatorySyncDrives + optionalDrives.filter { it.ownerOdinId == null })
                     .map { it.drive },
                 // Fires asynchronously once the server handshake has completed.
@@ -679,44 +667,28 @@ class AuthConnectionCoordinator(
             }
             return
         }
-        if (owner != null) {
-            // Peer drive: open/extend the per-owner peer websocket instead of reconnecting the
-            // own-host socket (the community drive isn't hosted on creds.domain).
-            peerOwnersMutex.withLock { peerDriveOwners[drive.drive.alias] = owner to drive.drive }
-            peerWebSocketManager.mount(owner, drive.drive)
-        } else {
-            // An explicit activation means the read grant was JUST obtained — typically seconds
-            // ago, in a browser. [grantedDriveIds] is a snapshot taken at connect time, so it
-            // predates that grant, and [retainGrantedDrives] would filter this very drive out of
-            // the subscription we are rebuilding for it. The drive would stay mounted (HTTP sync
-            // works, the grant is live server-side) but deaf to push: files written afterwards
-            // only surface on the next app start.
-            //
-            // So resolve the grant set first, then rebuild. Runs in [scope], not the caller's:
-            // an add-on activates from a viewModelScope that may die with the screen. A failed
-            // fetch leaves the set null, which disables the filter entirely — the drive is
-            // included rather than dropped, so the socket is rebuilt either way.
-            scope.launch {
-                // Rare and consequential (it closes and reopens the socket), so it says so.
-                Logger.i(tag = "AuthLifecycle") {
-                    "AuthCC: activation of '${drive.label}' (${drive.drive.alias}) — refreshing " +
-                        "drive grants, then rebuilding the WS subscription"
-                }
-                try {
-                    refreshGrantedDriveIds()
-                } finally {
-                    refreshWsSubscription.trigger()
-                }
+        // An explicit activation means the read grant was JUST obtained — typically seconds
+        // ago, in a browser. [grantedDriveIds] is a snapshot taken at connect time, so it
+        // predates that grant, and [retainGrantedDrives] would filter this very drive out of
+        // the subscription we are rebuilding for it. The drive would stay mounted (HTTP sync
+        // works, the grant is live server-side) but deaf to push: files written afterwards
+        // only surface on the next app start.
+        //
+        // So resolve the grant set first, then rebuild. Runs in [scope], not the caller's:
+        // an add-on activates from a viewModelScope that may die with the screen. A failed
+        // fetch leaves the set null, which disables the filter entirely — the drive is
+        // included rather than dropped, so the socket is rebuilt either way.
+        scope.launch {
+            // Rare and consequential (it closes and reopens the socket), so it says so.
+            Logger.i(tag = "AuthLifecycle") {
+                "AuthCC: activation of '${drive.label}' (${drive.drive.alias}) — refreshing " +
+                    "drive grants, then rebuilding the WS subscription"
             }
-        }
-    }
-
-    /** Open a peer websocket for every owner-hosted drive in [drives]. No-op for own drives. */
-    private suspend fun startPeerConnections(drives: List<LabeledDrive>) {
-        for (drive in drives) {
-            val owner = drive.ownerOdinId ?: continue
-            peerOwnersMutex.withLock { peerDriveOwners[drive.drive.alias] = owner to drive.drive }
-            peerWebSocketManager.mount(owner, drive.drive)
+            try {
+                refreshGrantedDriveIds()
+            } finally {
+                refreshWsSubscription.trigger()
+            }
         }
     }
 
@@ -735,13 +707,7 @@ class AuthConnectionCoordinator(
     suspend fun unmountDrive(driveId: Uuid, persist: Boolean = true) {
         if (persist && useDriveRegistry) driveRegistry.removeDrive(driveId)
         driveSyncManager.unmountDrive(driveId)
-        val peer = peerOwnersMutex.withLock { peerDriveOwners.remove(driveId) }
-        if (peer != null) {
-            // Peer drive: tear down its per-owner websocket rather than reconnecting the own-host one.
-            peerWebSocketManager.unmount(peer.first, peer.second)
-        } else {
-            refreshWsSubscription.trigger()
-        }
+        refreshWsSubscription.trigger()
     }
 
     // Close the current WebSocket and open a new one. [connect] reads the DriveRegistry
@@ -783,10 +749,6 @@ class AuthConnectionCoordinator(
         grantedDriveIds = null
         refreshWsSubscription.cancel()
         driveRegistry.stop()
-        // Close every per-owner peer websocket so a second login doesn't inherit the first user's
-        // community connections.
-        peerWebSocketManager.reset()
-        peerOwnersMutex.withLock { peerDriveOwners.clear() }
         outboxSync.setOnline(false)
         // Keep isConnecting = true so the next login cycle correctly starts in
         // StartupState.Loading.  While logged out the auth state is Unauthenticated,

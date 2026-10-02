@@ -4,11 +4,7 @@ import co.touchlab.kermit.Logger
 import id.homebase.api.client.HttpClientProvider
 import id.homebase.api.client.auth.CredentialsManager
 import id.homebase.api.client.auth.OwnerSessionRepository
-import id.homebase.api.client.contacts.ContactHeaderReader
 import id.homebase.api.client.contacts.ContactInfoGateway
-import id.homebase.api.client.contacts.ContactPayloadReader
-import id.homebase.api.client.contacts.ContactRepository
-import id.homebase.api.client.contacts.ContactsProvider
 import id.homebase.api.client.drives.cache.DriveFileProviderCached
 import id.homebase.api.client.drives.files.DriveFileHttpProvider
 import id.homebase.api.client.drives.files.DriveFileOperationsProvider
@@ -21,16 +17,7 @@ import id.homebase.api.client.drives.query.DriveQueryProvider
 import id.homebase.api.client.drives.upload.DriveUploadProvider
 import id.homebase.api.client.eventbus.EventBus
 import id.homebase.api.client.identity.PublicIdentityRepository
-import id.homebase.api.client.notifications.PushNotificationApi
 import id.homebase.api.client.notifications.ScheduledPushNotificationProvider
-import id.homebase.api.client.peer.PeerDriveQueryProvider
-import id.homebase.api.client.peer.PeerDriveUploadProvider
-import id.homebase.api.client.peer.PeerFileByGlobalTransitProvider
-import id.homebase.api.client.peer.PeerNotificationProvider
-import id.homebase.api.client.peer.PeerWebSocketManager
-import id.homebase.api.client.peer.temporal.TemporalDriveReadProvider
-import id.homebase.api.client.profile.ProfileProvider
-import id.homebase.api.client.profile.ProfileRepository
 import id.homebase.api.client.profile.PublicProfileProviderCached
 import id.homebase.api.file.StartupCacheAudit
 import id.homebase.api.sync.database.DatabaseManager
@@ -94,61 +81,10 @@ val apiModule = module {
     factoryOf(::DriveFileOperationsProvider)
     factoryOf(::DriveFileGroupReactionProvider)
 
-    factoryOf(::PeerDriveQueryProvider)
-    factoryOf(::PeerFileByGlobalTransitProvider)
-    factoryOf(::TemporalDriveReadProvider)
-    factoryOf(::PeerDriveUploadProvider)
-    factoryOf(::PeerNotificationProvider)
-    // Single: one set of peer (owner-hosted) websocket connections per app session; reset on logout
-    // via AuthConnectionCoordinator.disconnect(). Uses its own internal scope (default ctor arg).
-    single {
-        PeerWebSocketManager(
-            credentialsManager = get(),
-            peerNotificationProvider = get(),
-            eventBus = get(),
-            databaseManager = get(),
-        )
-    }
-    // Single so the per-contact AES-key cache used by setContactImage survives across calls.
-    // ContactHeaderReader adapts DriveFileProvider's header-by-uid read so ContactsProvider stays
-    // off the heavier drive-file/caching graph.
-    single<ContactHeaderReader> {
-        val driveFileProvider = get<DriveFileProvider>()
-        ContactHeaderReader { driveId, uniqueId ->
-            driveFileProvider.getFileHeaderByUid(driveId, uniqueId)
-        }
-    }
-    // Reads + decrypts a contact's on-demand payloads (ext_data bios, appextdata). The list/index
-    // header omits per-payload IVs, so go through the full file header for the IV + file key, then
-    // decrypt via the normal cached payload path. Narrow seam (like ContactHeaderReader) keeps
-    // ContactRepository off the drive-file graph and fakeable in tests.
-    single<ContactPayloadReader> {
-        val driveFileProvider = get<DriveFileProvider>()
-        ContactPayloadReader { driveId, fileId, payloadKey ->
-            driveFileProvider.getPayloadBytesDecryptedViaResponseHeader(driveId, fileId, payloadKey)
-        }
-    }
-    singleOf(::ContactsProvider)
-    singleOf(::ContactRepository)
-    // Owner profile-attribute editor: write client + read/orchestration (queries the ProfileDrive
-    // on demand; the drive is not in mandatorySyncDrives). Needs the ManageProfile permission +
-    // ProfileDrive Read grant from AppConfig.
-    factoryOf(::ProfileProvider)
-    factoryOf(::ProfileRepository)
     singleOf(::PublicProfileProviderCached)
-    // The single supported entry point for a peer's name/avatar/profile; the provider above
-    // is internal to this module so nothing else can reach /pub/profile or /pub/image.
-    single {
-        ContactInfoGateway(
-            contactRepository = { get() },
-            publicProfiles = get(),
-            driveFiles = get(),
-            contactHeaders = get(),
-        )
-    }
+    single { ContactInfoGateway(publicProfiles = get()) }
 
     factoryOf(::SecurityContextProvider)
-    factoryOf(::PushNotificationApi)
     factoryOf(::ScheduledPushNotificationProvider)
 
     single { EventBus() }

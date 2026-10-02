@@ -20,7 +20,6 @@ import id.homebase.core.config.circleDriveTargetRequest
 import id.homebase.core.config.loginCircleIds
 import id.homebase.core.config.createAccountReturnUrl
 import id.homebase.core.config.targetDriveAccessRequest
-import id.homebase.core.notifications.NotificationService
 import id.homebase.core.util.CreatedIdentityRelay
 import id.homebase.resources.MR
 import id.homebase.resources.error_unknown
@@ -49,7 +48,6 @@ class LoginViewModel(
     private val youAuthFlowManager: YouAuthFlowManager,
     private val authConnectionCoordinator: AuthConnectionCoordinator,
     private val usernameStorage: UsernameStorage,
-    private val notificationService: NotificationService,
     private val httpClient: HttpClient,
     private val driveSyncManager: DriveSyncManager,
     private val contactInfo: ContactInfoGateway,
@@ -399,7 +397,6 @@ class LoginViewModel(
     private fun handleAuthenticatedUser() {
         if (didHandleAuthenticated) return
         didHandleAuthenticated = true
-        notificationService.reRegisterAsync()
         usernameStorage.saveUsername(_uiState.value.homebaseId)
         _uiState.update {
             it.copy(

@@ -15,8 +15,6 @@ androidx-testRunner = "1.7.0"
 androidx-testCore = "1.7.0"
 composeMultiplatform = "1.10.3"
 konsist = "0.17.3"
-nucleus = "1.14.4"
-pdfbox = "3.0.5"
 jna = "5.18.1"
 jetbrains-compose-material3 = "1.10.0-alpha04"
 jetbrains-compose-material3-adaptive = "1.2.0"
@@ -46,11 +44,9 @@ koin = "4.2.1"
 filekit = "0.13.0"
 atomicfu = "0.32.1"
 uiToolingPreview = "1.11.0"
-kmpnotifier = "1.6.1"
 buildconfig = "6.0.9"
 
 [libraries]
-pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 konsist = { module = "com.lemonappdev:konsist", version.ref = "konsist" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
@@ -137,11 +133,6 @@ coil3-video = { group = "io.coil-kt.coil3", name = "coil-video", version.ref = "
 coil3-svg = { group = "io.coil-kt.coil3", name = "coil-svg", version.ref = "coil3" }
 coil3-gif = { group = "io.coil-kt.coil3", name = "coil-gif", version.ref = "coil3" }
 androidsvg = { module = "com.caverock:androidsvg-aar", version = "1.4" }
-kmpnotifier = { module = "io.github.mirzemehdi:kmpnotifier", version.ref = "kmpnotifier" }
-nucleus-notification-common = { module = "io.github.kdroidfilter:nucleus.notification-common", version.ref = "nucleus" }
-nucleus-notification-windows = { module = "io.github.kdroidfilter:nucleus.notification-windows", version.ref = "nucleus" }
-nucleus-notification-macos = { module = "io.github.kdroidfilter:nucleus.notification-macos", version.ref = "nucleus" }
-nucleus-notification-linux = { module = "io.github.kdroidfilter:nucleus.notification-linux", version.ref = "nucleus" }
 
 [plugins]
 androidTest = { id = "com.android.test", version.ref = "agp" }
