@@ -9,6 +9,7 @@ import id.homebase.audio.data.TrackOrigin
 import id.homebase.audio.data.TrackUploadTarget
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -127,7 +128,20 @@ class TrackImporter(
                 queue.send(Uuid.parse(staged.id))
             }
         }
-        repeat(MAX_PARALLEL) { scope.launch { for (id in queue) run(id) } }
+        // One dispatcher takes jobs in queue order and starts each only once it has a slot, so uploads
+        // begin in the order they were queued whatever the limit.
+        scope.launch {
+            for (id in queue) {
+                val request = pending.value[id]
+                if (request == null) {
+                    _jobs.update { jobs -> jobs.filterNot { it.id == id } }
+                    continue
+                }
+                val large = fileOps.getFileSize(request.path) >= largeFileBytes
+                val held = slots.acquire(large)
+                scope.launch(start = CoroutineStart.UNDISPATCHED) { run(id, request, large, held) }
+            }
+        }
         if (eventBus != null) {
             scope.launch { eventBus.events.collect { if (it is BackendEvent.SessionEnded) dropAll() } }
         }
@@ -172,25 +186,22 @@ class TrackImporter(
         _jobs.update { jobs -> jobs.filterNot { it.status == ImportStatus.Done } }
     }
 
-    private suspend fun run(id: Uuid) {
-        val request = pending.value[id] ?: run {
-            _jobs.update { jobs -> jobs.filterNot { it.id == id } }
-            return
-        }
+    /** Starts holding the slot(s) the dispatcher took; retries give them back while they wait. */
+    private suspend fun run(id: Uuid, request: PendingImport, large: Boolean, firstHeld: Int) {
         var attempt = 0
-        val sizeBytes = fileOps.getFileSize(request.path)
+        var held = firstHeld
         while (true) {
-            val failure = slots.withSlot(large = sizeBytes >= largeFileBytes) {
+            val failure = try {
                 setJob(id) { it.copy(status = ImportStatus.Uploading, progress = 0f, failure = null) }
-                try {
-                    upload(id, request)
-                    null
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Logger.e(e, TAG) { "Import of ${request.fileName} failed (attempt ${attempt + 1})" }
-                    importFailureOf(e)
-                }
+                upload(id, request)
+                null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.e(e, TAG) { "Import of ${request.fileName} failed (attempt ${attempt + 1})" }
+                importFailureOf(e)
+            } finally {
+                slots.release(held)
             }
             if (failure == null) {
                 forget(id)
@@ -206,6 +217,7 @@ class TrackImporter(
             }
             setJob(id) { it.copy(status = ImportStatus.Retrying, failure = failure) }
             delay(wait)
+            held = slots.acquire(large)
         }
     }
 
@@ -299,8 +311,6 @@ class TrackImporter(
 
     private companion object {
         const val TAG = "TrackImporter"
-        /** Workers available; [parallelism] decides how many of them may upload at once. */
-        const val MAX_PARALLEL = 5
     }
 }
 

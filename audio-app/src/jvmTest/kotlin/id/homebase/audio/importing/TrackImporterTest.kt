@@ -252,10 +252,12 @@ class TrackImporterTest {
         val maxOverlap = java.util.concurrent.atomic.AtomicInteger()
         val overlapWhileUploading = java.util.concurrent.ConcurrentHashMap<String, Int>()
         val uploaded = java.util.Collections.synchronizedList(mutableListOf<AudioTrackContent>())
+        val starts = java.util.Collections.synchronizedList(mutableListOf<String>())
         override suspend fun uploadTrack(
             sourcePath: String, content: AudioTrackContent, tags: List<Uuid>, uniqueId: Uuid,
             coverArt: ByteArray?, onProgress: (Float) -> Unit,
         ): UploadedTrack {
+            starts += content.fileName ?: ""
             val now = running.incrementAndGet()
             maxOverlap.accumulateAndGet(now) { a, b -> maxOf(a, b) }
             delay(holdMs)
@@ -324,5 +326,21 @@ class TrackImporterTest {
         limit.value = 5
         withTimeout(10_000) { importer.jobs.first { jobs -> jobs.size == 6 && jobs.all { it.status == ImportStatus.Done } } }
         assertTrue(target.maxOverlap.get() >= 3, "overlap after raising was ${target.maxOverlap.get()}")
+    }
+
+    @Test
+    fun `uploads start in the order they were queued at any limit`() = runBlocking<Unit> {
+        for (limit in listOf(1, 3)) {
+            val target = OverlapTarget(holdMs = 40)
+            val importer = TrackImporter(
+                target, TestFileOps(dir), scope, onUploaded = {},
+                readMetadata = { AudioFileMetadata(null, null) }, readCover = { null },
+                parallelism = kotlinx.coroutines.flow.MutableStateFlow(limit),
+            )
+            val names = List(if (limit == 1) 8 else 9) { "o$limit-$it.mp3" }
+            names.forEach { importer.enqueue(file(it, 1).path, it) }
+            withTimeout(10_000) { importer.jobs.first { jobs -> jobs.size == names.size && jobs.all { it.status == ImportStatus.Done } } }
+            assertEquals(names, target.starts.toList(), "start order at limit $limit")
+        }
     }
 }

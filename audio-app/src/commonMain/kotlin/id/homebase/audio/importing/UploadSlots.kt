@@ -19,12 +19,19 @@ class UploadSlots(private val limit: StateFlow<Int>) {
     private val lock = Mutex()
 
     suspend fun <T> withSlot(large: Boolean, block: suspend () -> T): T {
-        val held = if (large) largeGate.withLock { takeAll() } else takeOne()
+        val held = acquire(large)
         try {
             return block()
         } finally {
-            inUse.update { it - held }
+            release(held)
         }
+    }
+
+    /** Returns the number of slots taken; give it back to [release]. */
+    suspend fun acquire(large: Boolean): Int = if (large) largeGate.withLock { takeAll() } else takeOne()
+
+    fun release(held: Int) {
+        inUse.update { it - held }
     }
 
     private suspend fun takeOne(): Int {
