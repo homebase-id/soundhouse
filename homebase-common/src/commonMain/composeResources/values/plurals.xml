@@ -1,39 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <plurals name="chat_group_selected_members">
-        <item quantity="one">%1$d member</item>
-        <item quantity="other">%1$d members</item>
-    </plurals>
-    <plurals name="chat_group_heal_main_resent">
-        <item quantity="one">Resent group file to %1$d peer</item>
-        <item quantity="other">Resent group file to %1$d peers</item>
-    </plurals>
-    <plurals name="chat_group_heal_admin_resent">
-        <item quantity="one">Resent admin file to %1$d peer</item>
-        <item quantity="other">Resent admin file to %1$d peers</item>
-    </plurals>
-    <plurals name="chat_group_heal_request_sent">
-        <item quantity="one">Asked %1$d peer to clean up their copy</item>
-        <item quantity="other">Asked %1$d peers to clean up their copies</item>
-    </plurals>
-    <plurals name="moments_detail_shared_with_group_members">
-        <item quantity="one">· %1$d member</item>
-        <item quantity="other">· %1$d members</item>
-    </plurals>
-    <plurals name="chat_drop_files_count">
-        <item quantity="one">%1$d file</item>
-        <item quantity="other">%1$d files</item>
-    </plurals>
-    <plurals name="chat_drop_images_count">
-        <item quantity="one">%1$d image</item>
-        <item quantity="other">%1$d images</item>
-    </plurals>
-    <plurals name="conversations_selected">
-        <item quantity="one">%1$d conversation selected</item>
-        <item quantity="other">%1$d conversations selected</item>
-    </plurals>
-    <plurals name="sending_to_conversations">
-        <item quantity="one">Sending to %1$d conversation…</item>
-        <item quantity="other">Sending to %1$d conversations…</item>
-    </plurals>
 </resources>

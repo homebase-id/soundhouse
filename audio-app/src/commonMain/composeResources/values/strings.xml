@@ -5,7 +5,6 @@
     <string name="library_no_matches">No tracks match your search</string>
     <string name="library_search_hint">Search by title</string>
     <string name="library_search_clear">Clear search</string>
-    <string name="library_sort">Sort</string>
     <string name="library_sort_newest">Newest</string>
     <string name="library_sort_title_ascending">A–Z</string>
     <string name="library_sort_title_descending">Z–A</string>
@@ -110,7 +109,6 @@
     <string name="settings_usage_automatic">Automatic downloads use %1$s of %2$s</string>
     <string name="settings_usage_own">Your own downloads use %1$s</string>
     <string name="player_now_playing">Now playing</string>
-    <string name="home_title">Home</string>
     <string name="home_play_all">Play all</string>
     <string name="home_shuffle">Shuffle</string>
     <string name="home_continue">Continue listening</string>

@@ -40,7 +40,7 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - [x] 3. Stricter reachability (package/import-aware) and repeat
 - [x] 4. Koin definitions that nothing injects (registered but dead), then their classes
 - [ ] 5. Unused members inside live files (R8 member report), vendored layer
-- [ ] 6. Unused Compose string resources (all modules, incl. values-da) and Android resources
+- [x] 6. Unused Compose string resources (all modules, incl. values-da) and resource files
 - [ ] 7. Unused declarations in audio-app / androidApp / desktopApp
 - [ ] 8. Unused Gradle dependencies, plugins, version-catalog entries
 - [ ] 9. Comments violating CLAUDE.md in touched audio-app code; duplicated audio-app helpers
@@ -99,3 +99,13 @@ references in docs/config, reuse, quality) and that is recorded per commit.
   ran because nothing injected it). Freed 4 files (location preview, web-mercator, payload download service) + 4 tests.
 - Verified: all-target compile, gate --apps exit 0.
 - Kotlin lines → 97745.
+
+### 6. Unused Compose resources
+- A resource is unused when its name appears in no .kt file (generated accessors are referenced by name; no
+  `allStringResources`/`allDrawableResources`/`readBytes("files/…")`/computed-name lookups exist). Removed 3,825
+  entries: homebase-common 2,154 strings + 9 plurals (and the matching 1,654 + 6 Danish ones), audio-app 2
+  (`library_sort`, `home_title`); 89 files: dice and Thunderbird setup images, compose sample icon, emoji data JSON.
+  homebase-common now has 79 strings. Common English words used as names (`settings`, `delete`, …) are kept even if
+  unused — the word check is conservative.
+- Verified: all-target compile, gate --apps exit 0 (incl. UI render tests).
+- XML lines −4,239 (Kotlin unchanged).
