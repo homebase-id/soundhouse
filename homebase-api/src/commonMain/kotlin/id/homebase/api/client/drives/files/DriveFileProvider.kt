@@ -542,21 +542,6 @@ public class DriveFileProvider(
         return encryptedKeyHeader.decryptAesToKeyHeader(sharedSecret)
     }
 
-    /** Decrypts JSON content from file metadata. */
-    private suspend fun decryptJsonContent(metadata: FileMetadata, keyHeader: KeyHeader): String? {
-        val content = metadata.appData.content ?: return null
-        if (!metadata.isEncrypted) return content
-
-        return try {
-            val encryptedBytes = Base64.decode(content)
-            val decryptedBytes = keyHeader.decrypt(encryptedBytes)
-            decryptedBytes.decodeToString()
-        } catch (e: Exception) {
-            Logger.e(tag = TAG) { "[odin-kt:decryptJsonContent] ${e.message}" }
-            null
-        }
-    }
-
     /**
      * Decrypts bytes using the shared secret (full payload/thumbnail decryption).
      */
@@ -588,95 +573,6 @@ public class DriveFileProvider(
             else ->
                 bytes
         }
-    }
-
-    /** Decrypts chunked bytes with offset handling. */
-    suspend fun decryptChunkedBytes(
-        headers: Headers,
-        responseBytes: ByteArray,
-        startOffset: Int,
-        chunkStart: Int
-    ): ByteArray {
-        val payloadEncrypted =
-            headers["payloadencrypted"]?.equals("True", ignoreCase = false) == true
-
-        val encryptedHeader64 =
-            headers["sharedsecretencryptedheader64"]
-
-        if (payloadEncrypted && encryptedHeader64 != null) {
-            val encryptedKeyHeader = EncryptedKeyHeader.fromBase64(encryptedHeader64)
-            val keyHeader = decryptKeyHeader(encryptedKeyHeader)
-                ?: throw IllegalStateException("Can't decrypt; missing key header")
-
-            val key = keyHeader.aesKey
-
-            val (iv, cipher) = run {
-                val padding = ByteArray(16) { 16 }
-
-                val encryptedPadding =
-                    AesCbc.encrypt(
-                        padding,
-                        key,
-                        iv = responseBytes.copyOfRange(
-                            responseBytes.size - 16,
-                            responseBytes.size
-                        )
-                    ).copyOfRange(0, 16)
-
-                if (chunkStart == 0) {
-                    // First block
-                    Pair(
-                        keyHeader.iv,
-                        mergeByteArrays(
-                            listOf(responseBytes, encryptedPadding)
-                        )
-                    )
-                } else {
-                    // Middle blocks
-                    Pair(
-                        responseBytes.copyOfRange(0, 16),
-                        mergeByteArrays(
-                            listOf(
-                                responseBytes.copyOfRange(16, responseBytes.size),
-                                encryptedPadding
-                            )
-                        )
-                    )
-                }
-            }
-
-            val decryptedBytes = AesCbc.decrypt(cipher, key, iv)
-
-            // Match TS behavior:
-            // decryptedBytes.slice(startOffset ? startOffset - 16 : 0)
-            val sliceStart =
-                if (startOffset > 0) maxOf(startOffset - 16, 0) else 0
-
-            return decryptedBytes.copyOfRange(sliceStart, decryptedBytes.size)
-        } else {
-            // Not encrypted → return raw bytes with offset
-            return responseBytes.copyOfRange(startOffset, responseBytes.size)
-        }
-    }
-
-    fun mergeByteArrays(chunks: List<ByteArray>): ByteArray {
-        var size = 0
-        for (chunk in chunks) {
-            size += chunk.size
-        }
-
-        val merged = ByteArray(size)
-        var offset = 0
-
-        for (chunk in chunks) {
-            chunk.copyInto(
-                destination = merged,
-                destinationOffset = offset
-            )
-            offset += chunk.size
-        }
-
-        return merged
     }
 
     private suspend fun decryptUsingKeyHeader(

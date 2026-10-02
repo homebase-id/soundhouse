@@ -122,13 +122,6 @@ class OdinId public constructor(
 
         /** Quick validity check (delegates to `AsciiDomainNameValidator`). */
         fun isValid(odinId: String?): Boolean = AsciiDomainNameValidator.tryValidateDomain(odinId)
-
-        /** Throws if the string is not a valid OdinId domain. */
-        fun validate(odinId: String?) {
-            if (odinId.isNullOrBlank())
-                throw IllegalArgumentException("Domain cannot be null or blank")
-            AsciiDomainNameValidator.assertValidDomain(odinId)
-        }
     }
 }
 

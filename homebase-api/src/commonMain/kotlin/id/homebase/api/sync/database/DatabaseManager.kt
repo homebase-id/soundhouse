@@ -216,15 +216,6 @@ class DatabaseManager(
         private val _databaseUpgradeState =
             MutableStateFlow<DatabaseUpgradeState>(DatabaseUpgradeState.Idle)
 
-        /**
-         * Called by the UI once it has shown the upgrade snackbar so the sticky
-         * [DatabaseUpgradeState.JustUpgraded] is cleared. Without this, recomposition
-         * would keep re-firing the snackbar effect.
-         */
-        fun markUpgradeConsumed() {
-            _databaseUpgradeState.value = DatabaseUpgradeState.Idle
-        }
-
         // Single source of truth for every table in OdinDatabase. If a new table is
         // added to the schema, add it here or wipeAndRecreate() will silently skip it
         // on logout — exactly the class of bug that leaks Outbox rows across sessions.

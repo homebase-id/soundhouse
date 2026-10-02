@@ -33,22 +33,4 @@ class ConnectionCacheWrapper(
             delegate.upsert(identityId, odinId, status, lastRefresh)
         }
     }
-
-    suspend fun deleteByIdentityAndOdinId(identityId: Uuid, odinId: String) {
-        databaseManager.withWrite {
-            delegate.deleteByIdentityAndOdinId(identityId, odinId)
-        }
-    }
-
-    suspend fun deleteAllByIdentity(identityId: Uuid) {
-        databaseManager.withWrite {
-            delegate.deleteAllByIdentity(identityId)
-        }
-    }
-
-    suspend fun deleteAllRows() {
-        databaseManager.withWrite {
-            delegate.deleteAllRows()
-        }
-    }
 }

@@ -77,11 +77,6 @@ class ContactRepository(
     // Lifecycle / read
     // ------------------------------------------------------------
 
-    /** Load from the local DB. Called from the post-auth bootstrap. */
-    fun start() {
-        scope.launch { loadAll() }
-    }
-
     /** Clear all in-memory state for a clean login as a different identity. */
     fun reset() {
         _contacts.value = emptyList()
@@ -186,30 +181,6 @@ class ContactRepository(
             val idx = current.indexOfFirst { it.uniqueId == contact.uniqueId }
             if (idx >= 0) current.toMutableList().apply { this[idx] = contact }
             else current + contact
-        }
-    }
-
-    /**
-     * Fetches and parses a contact's on-demand `ext_data` payload (bios / rich text) — call only
-     * when actually showing the bios; it is not part of the list/detail read.
-     *
-     * Returns null when there is nothing to show: the contact has no `ext_data` payload (its key is
-     * absent from [Contact.payloadKeys], or the fetch 404s), the row is optimistic (no
-     * [Contact.fileId] yet), or the fetch/parse fails. Callers treat null as "empty extended data".
-     */
-    suspend fun loadExtData(contact: Contact): ContactExtData? {
-        if (ContactsProvider.CONTACT_EXT_DATA_PAYLOAD_KEY !in contact.payloadKeys) return null
-        val fileId = contact.fileId ?: return null
-
-        val bytes = contactPayloadReader.fetchPayload(
-            driveId, fileId, ContactsProvider.CONTACT_EXT_DATA_PAYLOAD_KEY,
-        ) ?: return null
-
-        return runCatching {
-            OdinSystemSerializer.deserialize<ContactExtData>(bytes.decodeToString())
-        }.getOrElse {
-            Logger.w(it, TAG) { "loadExtData parse failed for ${contact.uniqueId}" }
-            null
         }
     }
 
@@ -338,14 +309,6 @@ class ContactRepository(
         versionTag: Uuid,
     ): ContactWriteResponse? = runAppDataWrite("setAppExtData", uniqueId) {
         contactsProvider.setContactAppExtData(uniqueId, content, versionTag)
-    }
-
-    /** Bulk-tier delete. Same error contract as [setAppData]. */
-    suspend fun deleteAppExtData(
-        uniqueId: Uuid,
-        versionTag: Uuid,
-    ): ContactWriteResponse? = runAppDataWrite("deleteAppExtData", uniqueId) {
-        contactsProvider.deleteContactAppExtData(uniqueId, versionTag)
     }
 
     /**

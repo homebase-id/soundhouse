@@ -79,27 +79,6 @@ class DriveMainIndexWrapper(
         return OdinSystemSerializer.deserialize<HomebaseFile>(row.jsonHeader)
     }
 
-    suspend fun selectByIdentityAndDriveAndUniqueIds(
-        identityId: Uuid,
-        driveId: Uuid,
-        uniqueIds: Collection<Uuid>,
-    ): List<DriveMainIndex> {
-        if (uniqueIds.isEmpty()) return emptyList()
-        return databaseManager.readValue("selectByIdentityAndDriveAndUniqueIds") {
-            delegate.selectByIdentityAndDriveAndUniqueIds(identityId, driveId, uniqueIds)
-                .executeAsList()
-        }
-    }
-
-    suspend fun selectByIdentityAndDriveAndGlobal(
-        identityId: Uuid,
-        driveId: Uuid,
-        globalTransitId: Uuid,
-    ): DriveMainIndex? = databaseManager.readValue("selectByIdentityAndDriveAndGlobal") {
-        delegate.selectByIdentityAndDriveAndGlobal(identityId, driveId, globalTransitId)
-            .executeAsOneOrNull()
-    }
-
     suspend fun <T : Any> selectAll(
         mapper: (
             rowId: Long,
@@ -132,11 +111,6 @@ class DriveMainIndexWrapper(
     suspend fun countAll(): Long =
         databaseManager.readValue("countAll") { delegate.countAll().executeAsOne() }
 
-    suspend fun countByIdentityAndDrive(identityId: Uuid, driveId: Uuid): Long =
-        databaseManager.readValue("countByIdentityAndDrive") {
-            delegate.countByIdentityAndDrive(identityId, driveId).executeAsOne()
-        }
-
     /**
      * Row shape for the Defragmenter's streaming scan — carries enough to
      *  - call [HomebaseFile.isSoftDeleted] from the deserialised jsonHeader,
@@ -152,70 +126,6 @@ class DriveMainIndexWrapper(
         val archivalStatus: Long,
         val jsonHeader: String,
     )
-
-    /**
-     * Keyset-paged scan of a drive's rows. Caller passes `sinceRowId = 0` on
-     * the first call and then `sinceRowId = lastRowIdOfPreviousChunk` on each
-     * subsequent call until an empty list is returned.
-     */
-    fun selectFileIdAndJsonByDriveSince(
-        identityId: Uuid,
-        driveId: Uuid,
-        sinceRowId: Long,
-        limit: Long,
-    ): List<PagedScanRow> = delegate.selectFileIdAndJsonByDriveSince(
-        identityId,
-        driveId,
-        sinceRowId,
-        limit,
-    ) { rowId, fileId, userDate, archivalStatus, jsonHeader ->
-        PagedScanRow(
-            rowId = rowId,
-            fileId = fileId,
-            userDate = userDate,
-            archivalStatus = archivalStatus,
-            jsonHeader = jsonHeader,
-        )
-    }.executeAsList()
-
-    /**
-     * Defragmenter: re-project archivalStatus on a single row. Used by the
-     * repair pass to correct rows where the SQL projection has drifted from
-     * the header's soft-delete state.
-     */
-    suspend fun repairArchivalStatusByRowId(rowId: Long, archivalStatus: Long): Boolean {
-        return databaseManager.withWriteValue { db ->
-            db.driveMainIndexQueries
-                .repairArchivalStatusByRowId(archivalStatus, rowId)
-                .value > 0
-        }
-    }
-
-    /**
-     * Defragmenter: re-project userDate on a single row from the header's
-     * metadata.created fallback. Used by the repair pass to correct
-     * LegacyUserDateZero rows.
-     */
-    suspend fun repairUserDateByRowId(rowId: Long, userDate: Long): Boolean {
-        return databaseManager.withWriteValue { db ->
-            db.driveMainIndexQueries
-                .repairUserDateByRowId(userDate, rowId)
-                .value > 0
-        }
-    }
-
-    /**
-     * Defragmenter: rewrite a row's jsonHeader text after the
-     * LegacyUserDateZero repair has patched `appData.userDate` in the
-     * parsed header. Local-only.
-     */
-    suspend fun repairJsonHeaderByRowId(rowId: Long, jsonHeader: String): Boolean {
-        return databaseManager.withWriteValue { db ->
-            db.driveMainIndexQueries
-                .repairJsonHeaderByRowId(jsonHeader, rowId)
-                .value > 0
-        }
-    }
 
     suspend fun upsertDriveMainIndex(
         identityId: Uuid,

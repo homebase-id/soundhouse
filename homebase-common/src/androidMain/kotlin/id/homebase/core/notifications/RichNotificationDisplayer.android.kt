@@ -22,7 +22,6 @@ import androidx.core.graphics.drawable.IconCompat
  * and conversation grouping (Signal-style).
  */
 actual class RichNotificationDisplayer actual constructor() {
-
     actual fun show(data: RichNotificationData) {
         val context = appContext ?: return
         val icon = if (smallIconResId != 0) smallIconResId else context.applicationInfo.icon
@@ -284,12 +283,6 @@ actual class RichNotificationDisplayer actual constructor() {
 
         /** Small icon resource ID for notifications (monochrome silhouette). */
         internal var smallIconResId: Int = 0
-
-        /** Call from Application.onCreate() to provide Context for notification display. */
-        fun initialize(context: Context, smallIconResId: Int = 0) {
-            appContext = context.applicationContext
-            this.smallIconResId = smallIconResId
-        }
     }
 }
 

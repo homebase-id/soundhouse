@@ -71,10 +71,4 @@ object HashUtil {
 
         return derivation.deriveSecretToByteArray(sharedEccSecret)
     }
-
-    /** Reduce a SHA-256 hash to 16 bytes by taking first 16 bytes */
-    private suspend fun reduceSha256Hash(data: ByteArray): ByteArray {
-        val hash = sha256(data)
-        return hash.copyOf(16)
-    }
 }

@@ -133,3 +133,12 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - Audit: all 32 removed hunks start with a candidate method. Verified: all-target compile, gate --apps exit 0,
   assembleRelease exit 0.
 - Kotlin lines → 95,241.
+
+### 9. Same R8 method pass, refined per candidate
+- Instead of reverting a whole file on any error, each round starts clean, cuts all remaining candidates, and turns
+  errors into exclusions: a name an error mentions (or, for receiver-mismatch errors that quote nothing, any
+  identifier on the failing source line) excludes that candidate; an edited file with an error naming no candidate
+  excludes its candidates. Converged in a few rounds: 43 more methods in 21 files (contacts, credentials, crypto
+  helpers, outbox wrapper, drive cache…). Over-exclusion only keeps code.
+- Audit: all 38 hunks start with a candidate. Verified: all-target compile, gate --apps exit 0, assembleRelease exit 0.
+- Kotlin lines → 94,565.

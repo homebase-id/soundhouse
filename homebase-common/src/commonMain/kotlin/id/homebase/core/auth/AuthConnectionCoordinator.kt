@@ -411,53 +411,6 @@ class AuthConnectionCoordinator(
     }
 
     /**
-     * Flip out of headless mode and run any deferred foreground-only work
-     * (`onPostAuthenticated`, `connect`, `driveRegistry.start`,
-     * `loadProfile`) that the headless [onAuthStateChanged] branch skipped.
-     *
-     * Called by the first foreground entry point per process —
-     * `MainActivity.onCreate` on Android, `MainViewController()` on iOS.
-     * Both fire only on actual UI launch (FCM cold-wake doesn't trigger
-     * either), which is exactly the signal we want.
-     *
-     * Idempotent: safe on Activity recreation (config change, return from
-     * background) and on multiple iOS view-controller creates. Non-suspend
-     * for caller ergonomics — the actual replay runs on the AuthCC scope.
-     */
-    fun promoteToForeground() {
-        if (!headless) {
-            Logger.d(tag = "AuthLifecycle") {
-                "AuthCC: promoteToForeground() — already foreground, no-op"
-            }
-            return
-        }
-        headless = false
-        val drives = lastAuthenticatedDrives
-        if (drives == null) {
-            Logger.i(tag = "AuthLifecycle") {
-                "AuthCC: promoteToForeground() — flipped to foreground; auth not yet resolved, " +
-                    "deferred work will run on the next Authenticated"
-            }
-            return
-        }
-        Logger.i(tag = "AuthLifecycle") {
-            "AuthCC: promoteToForeground() — running deferred=[onPostAuthenticated, connect, " +
-                "driveRegistry.start, loadProfile]"
-        }
-        scope.launch {
-            runPostAuthenticatedOnce()
-            connect(extraDrives = drives)
-            startPeerConnections(drives)
-            startRegistryObserver(drives)
-            scheduleRegistryReconcile(drives)
-            loadProfile()
-            // Retry point: a cold background wake may have missed the grant fetch on a dead
-            // network; the first real foreground open re-runs it (cancel-and-relaunch) and prunes.
-            scheduleGrantReconcile()
-        }
-    }
-
-    /**
      * Single-line summary of session-critical state. Fired at every auth transition and
      * after each [_connectionState] mutation so a grep on `AuthLifecycle SNAPSHOT` gives
      * a complete narrative of the mount / connect / sync flow.

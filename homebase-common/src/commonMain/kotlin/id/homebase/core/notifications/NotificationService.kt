@@ -298,18 +298,6 @@ class NotificationService(
         notificationBackend.setLogger { message -> Logger.d(tag = "KMPNotifier") { message } }
     }
 
-    /**
-     * Called from platform FCM service when a message is received.
-     * Since DriveFcmService overrides KMPNotifier's MyFirebaseMessagingService,
-     * we handle the payload directly here.
-     */
-    fun onFcmMessageReceived(title: String?, body: String?, data: Map<String, String>) {
-        Logger.i(tag = "NotificationService") {
-            "FCM message received — title=$title body=$body data=$data"
-        }
-        handleIncomingPayload(data)
-    }
-
     private fun registerToken(token: String) {
         scope.launch {
             val maxAttempts = 5
@@ -718,18 +706,6 @@ class NotificationService(
         } catch (e: Exception) {
             Logger.w(tag = "NotificationService") { "Failed to get push token: ${e.message}" }
             null
-        }
-    }
-
-    /** Deletes the current push notification token and unsubscribes from server. */
-    suspend fun deleteToken() {
-        try {
-            Logger.i(tag = "NotificationService") { "Unsubscribing token..." }
-            api.unsubscribe()
-            notificationBackend.deletePushToken()
-            Logger.i(tag = "NotificationService") { "Token deleted and unsubscribed" }
-        } catch (e: Exception) {
-            Logger.w(tag = "NotificationService") { "Failed to delete token/unsubscribe: ${e.message}" }
         }
     }
 

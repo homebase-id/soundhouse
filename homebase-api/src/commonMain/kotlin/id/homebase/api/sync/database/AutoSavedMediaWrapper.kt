@@ -13,10 +13,6 @@ class AutoSavedMediaWrapper(
             (delegate.isSaved(fileId, payloadKey).executeAsOneOrNull() ?: 0L) > 0L
         }
 
-    suspend fun markSaved(fileId: String, payloadKey: String) {
-        databaseManager.withWriteValue { delegate.markSaved(fileId, payloadKey) }
-    }
-
     suspend fun deleteAll() {
         databaseManager.withWriteValue { delegate.deleteAll() }
     }

@@ -35,46 +35,11 @@ class ProfileProvider(
     httpClient: HttpClient,
     credentialsManager: CredentialsManager,
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
-
     companion object {
         private const val BASE = "/profile/attributes"
 
         /** The ProfileDrive fileType that standard-profile attribute files use. */
         const val PROFILE_ATTRIBUTE_FILE_TYPE: Int = 77
-    }
-
-    /**
-     * PUT /api/v2/profile/attributes — creates or edits one attribute.
-     *
-     * Pass [id] = null to CREATE; pass [id] + [expectedVersionTag] to EDIT. [data] is sent whole and
-     * replaces the stored value. Returns [ProfileWriteResult.Ok] (200, with the new id + versionTag)
-     * or [ProfileWriteResult.Conflict] (409, stale tag). 403/5xx throw via [throwForFailure].
-     */
-    suspend fun saveAttribute(
-        type: String,
-        id: Uuid?,
-        expectedVersionTag: Uuid?,
-        visibility: ProfileVisibility,
-        data: JsonObject,
-    ): ProfileWriteResult {
-        val creds = requireCreds()
-
-        val response = encryptedPutJson(
-            url = apiUrl(creds.domain, BASE),
-            token = creds.accessToken,
-            jsonBody = OdinSystemSerializer.serialize(
-                SaveProfileAttributeRequest(
-                    type = type,
-                    id = id,
-                    expectedVersionTag = expectedVersionTag,
-                    visibility = visibility.wireValue,
-                    data = data,
-                )
-            ),
-            secret = creds.secret,
-        )
-
-        return toWriteResult(response)
     }
 
     /**
@@ -97,24 +62,6 @@ class ProfileProvider(
         )
 
         return toWriteResult(response)
-    }
-
-    /**
-     * DELETE /api/v2/profile/attributes/{id}?versionTag=… — removes an attribute. Returns `true` on
-     * 2xx, `false` if there is no such attribute (404). Other failures throw.
-     */
-    suspend fun deleteAttribute(id: Uuid, versionTag: Uuid): Boolean {
-        val creds = requireCreds()
-
-        val response = encryptedDelete(
-            url = apiUrl(creds.domain, "$BASE/$id?versionTag=$versionTag"),
-            token = creds.accessToken,
-            secret = creds.secret,
-        )
-
-        if (response.status == 404) return false
-        throwForFailure(response)
-        return true
     }
 
     private fun toWriteResult(response: ApiResponse): ProfileWriteResult =

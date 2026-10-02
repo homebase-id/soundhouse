@@ -46,7 +46,6 @@ class ContactsProvider(
     credentialsManager: CredentialsManager,
     private val contactHeaderReader: ContactHeaderReader,
 ) : OdinApiProviderBase(httpClient, credentialsManager) {
-
     companion object {
         private const val TAG = "ContactsProvider"
         private const val BASE = "/contacts"
@@ -222,11 +221,6 @@ class ContactsProvider(
         }
     }
 
-    /**
-     * DELETE /api/v2/contacts/{uniqueId}/image — removes the contact's avatar. Version-gated with
-     * the same bounded retry as [setContactImage].
-     */
-    @OptIn(ExperimentalUuidApi::class)
     suspend fun deleteContactImage(
         uniqueId: Uuid,
         versionTag: Uuid,
@@ -287,13 +281,6 @@ class ContactsProvider(
         versionTag: Uuid,
         maxAttempts: Int = 3,
     ): ContactWriteResult = putAppData("app-ext-data", uniqueId, content, versionTag, maxAttempts)
-
-    /** DELETE /api/v2/contacts/{uniqueId}/app-ext-data — clears this app's bulk-tier slot. */
-    suspend fun deleteContactAppExtData(
-        uniqueId: Uuid,
-        versionTag: Uuid,
-        maxAttempts: Int = 3,
-    ): ContactWriteResult = deleteAppData("app-ext-data", uniqueId, versionTag, maxAttempts)
 
     private suspend fun putAppData(
         pathSuffix: String,
@@ -406,12 +393,6 @@ class ContactsProvider(
     // Internals
     // ------------------------------------------------------------
 
-    /**
-     * Runs a version-gated write through the bounded merge-and-retry loop: on 409 it takes the
-     * authoritative `conflict.versionTag` and re-invokes [call] with it. Returns on Ok/NotFound;
-     * throws [IllegalStateException] if [maxAttempts] is exhausted by contention.
-     */
-    @OptIn(ExperimentalUuidApi::class)
     private suspend fun retryVersionGated(
         initialTag: Uuid,
         maxAttempts: Int,
@@ -428,8 +409,6 @@ class ContactsProvider(
         error("contact image write contention exceeded $maxAttempts attempts")
     }
 
-    /** Reads (and caches) the contact file's AES key; null if the contact header isn't found. */
-    @OptIn(ExperimentalUuidApi::class)
     private suspend fun resolveAesKey(uniqueId: Uuid, contactDriveId: Uuid): SecureByteArray? {
         aesKeyCacheMutex.withLock { aesKeyCache[uniqueId] }?.let { return it }
 
@@ -439,7 +418,6 @@ class ContactsProvider(
         return aesKey
     }
 
-    @OptIn(ExperimentalUuidApi::class)
     private suspend fun putContactImageOnce(
         uniqueId: Uuid,
         request: SetContactImageRequest,

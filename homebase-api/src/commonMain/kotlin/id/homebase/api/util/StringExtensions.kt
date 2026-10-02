@@ -56,19 +56,6 @@ fun String.sanitizePreviewText(): String =
 
 private const val NOTE_PREVIEW_MAX_LENGTH = 200
 
-/**
- * One-line plain-text preview of a markdown body, capped at
- * [NOTE_PREVIEW_MAX_LENGTH] code points, or null if the body has no visible
- * text. Delegates to the shared [markdownToPlainPreview] AST walk so the
- * grammar mirrors the renderer exactly (the old regex `[*_~`>]` class stripped
- * legitimate hyphens/underscores from the middle of plain words).
- */
-fun String.stripMarkdownForPreview(): String? {
-    val plain = markdownToPlainPreview(this, NOTE_PREVIEW_MAX_LENGTH)
-    if (plain.isEmpty()) return null
-    return plain
-}
-
 // Truncate a string to maxVisibleCharacters (be sure UTF characters aren't chopped in the middle)
 fun String.truncateToCodePoints(maxVisibleCharacters: Int): String {
     if (maxVisibleCharacters <= 0) return ""
@@ -83,21 +70,6 @@ fun String.truncateToCodePoints(maxVisibleCharacters: Int): String {
         codePointCount += 1
     }
     return substring(0, charIndex)
-}
-
-/**
- * Counts Unicode code points (not UTF-16 chars), so a surrogate pair (emoji or
- * other non-BMP character) counts as one. Mirrors [truncateToCodePoints]'s walk —
- * use it for length-budget checks on user text instead of `.length`.
- */
-fun String.codePointCount(): Int {
-    var count = 0
-    var charIndex = 0
-    while (charIndex < length) {
-        charIndex += if (charIndex + 1 < length && this[charIndex].isHighSurrogate() && this[charIndex + 1].isLowSurrogate()) 2 else 1
-        count += 1
-    }
-    return count
 }
 
 /**

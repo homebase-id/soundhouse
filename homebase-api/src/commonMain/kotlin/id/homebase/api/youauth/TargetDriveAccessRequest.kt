@@ -37,32 +37,6 @@ data class TargetDriveAccessRequest(
     val allowSubscriptions: Boolean? = null,
     val requireStorageKey: Boolean = false,
 ) {
-    /**
-     * Convert to a map for serialization using short keys matching the API.
-     * - a: alias
-     * - t: type
-     * - n: name
-     * - d: description
-     * - p: permissions (sum of bitwise values)
-     * - ds: driveSlug
-     * - ts: driveTypeSlug
-     * - r: allowAnonymousRead
-     * - s: allowSubscriptions
-     * - at: attributes (JSON encoded)
-     */
-    fun toMap(): Map<String, Any?> = buildMap {
-        put("a", alias)
-        put("t", type)
-        put("n", name)
-        put("d", description)
-        put("p", DrivePermission.combine(permissions))
-        driveSlug?.let { put("ds", it) }
-        driveTypeSlug?.let { put("ts", it) }
-        allowAnonymousRead?.let { put("r", it) }
-        allowSubscriptions?.let { put("s", it) }
-        attributes?.let { put("at", Json.encodeToString(serializer(), it)) }
-    }
-
     /** Convert to JsonObject for proper serialization. */
     fun toJsonObject(): JsonObject = buildJsonObject {
         put("a", JsonPrimitive(alias))

@@ -37,25 +37,6 @@ class EncryptedKeyHeader(
         throw Exception("Unsupported encryption version")
     }
 
-    /**
-     * Combines IV and encrypted AES key into a single byte array
-     */
-    fun combine(): SecureByteArray {
-        // TODO: I don't know the length of encrypted AES Key so maybe base64 encode this instead?
-        return SecureByteArray(ByteArrayUtil.combine(iv, encryptedAesKey))
-    }
-
-    /**
-     * Converts this encrypted key header to Base64 string
-     */
-    fun toBase64(): String {
-        val versionBytes = ByteArrayUtil.int32ToBytes(encryptionVersion)
-        val combinedBytes = ByteArrayUtil.combine(iv, encryptedAesKey, versionBytes)
-        val encryptedKeyHeader64 = combinedBytes.toBase64()
-        SecureByteArray(combinedBytes).clear()
-        return encryptedKeyHeader64
-    }
-
     companion object {
         /**
          * Encrypts a KeyHeader using AES
@@ -120,6 +101,5 @@ class EncryptedKeyHeader(
                     ((bytes[2].toInt() and 0xFF) shl 16) or
                     ((bytes[3].toInt() and 0xFF) shl 24)
         }
-
     }
 }
