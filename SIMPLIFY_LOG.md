@@ -42,7 +42,7 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - [x] 5. Unused members inside live files (name-based fixpoint), vendored layer
 - [x] 6. Unused Compose string resources (all modules, incl. values-da) and resource files
 - [ ] 7. Unused declarations in audio-app / androidApp / desktopApp
-- [x] 8. Unused Gradle dependencies (catalog entries/plugins still to check)
+- [x] 8. Unused Gradle dependencies, plugins, version-catalog entries
 - [ ] 9. Comments violating CLAUDE.md in touched audio-app code; duplicated audio-app helpers
 - [ ] 10. Final /simplify over the whole branch diff, gate, liveTest, summary
 
@@ -162,3 +162,9 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - Verified: all-target compile, gate --apps exit 0, assembleRelease exit 0 (R8 reports no missing classes), release
   APK launched on the emulator to login with no crash, desktop distributable launched for 20 s with no errors.
 - Release APK 112.9 MB → 111.6 MB.
+
+### 11. Version catalog and root plugins
+- Removed 49 catalog libraries and 2 catalog plugins no build file references, 5 root `apply false` plugins no
+  module applies (kotlinAndroid, composeHotReload, androidLint, googleServices, firebaseCrashlytics), then 34
+  `[versions]` entries nothing points at, and the comment blocks that described removed entries.
+- Verified: all-target compile, gate --apps exit 0, assembleRelease + :baselineprofile:assemble exit 0.

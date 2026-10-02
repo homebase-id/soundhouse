@@ -9,11 +9,6 @@ plugins {
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.sqldelight) apply false
-    alias(libs.plugins.kotlinAndroid) apply false
-    alias(libs.plugins.composeHotReload) apply false
-    alias(libs.plugins.androidLint) apply false
-    alias(libs.plugins.googleServices) apply false
-    alias(libs.plugins.firebaseCrashlytics) apply false
     alias(libs.plugins.buildConfigPlugin) apply false
 }
 
