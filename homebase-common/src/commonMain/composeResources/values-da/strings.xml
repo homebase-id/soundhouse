@@ -2,60 +2,16 @@
 <resources>
     <string name="app_name">Soundhouse</string>
 
-    <!-- Menu options -->
-    <string name="settings">Indstillinger</string>
-
-    <string name="expand">Udvid</string>
-    <string name="collapse">Gør mindre</string>
-    <string name="delete">Slet</string>
-    <string name="edit">Redigér</string>
-    <string name="save">Gem</string>
     <string name="done">Færdig</string>
-    <string name="create">Opret</string>
-    <string name="share">Del</string>
-    <string name="ok">Ok</string>
     <string name="cancel">Annullér</string>
     <string name="close">Luk</string>
-    <string name="search">Søg</string>
-    <string name="skip">Spring over</string>
-    <string name="next">Næste</string>
-    <string name="contacts">Kontakter</string>
-    <string name="groups">Grupper</string>
-    <string name="recents">Seneste</string>
-    <string name="members">Medlemmer</string>
-    <string name="remove">Fjern</string>
-    <string name="discard">Kassér</string>
-    <string name="details">Detaljer</string>
-    <string name="you">Dig</string>
-    <string name="recipients">Modtagere</string>
-    <string name="uploaded">Uploadet</string>
     <string name="failed">Mislykkedes</string>
-    <string name="updated">Opdateret</string>
-    <string name="reactions">Reaktioner</string>
-    <string name="sent">Sendt</string>
-    <string name="connect">Forbind</string>
-    <string name="loading">Indlæser...</string>
-    <string name="someone">Nogen</string>
-    <string name="leave">Forlad</string>
-    <string name="send">Send</string>
-    <string name="media">Medie</string>
-    <string name="logging">Logning</string>
     <string name="homebase_logo">Homebase logo</string>
-    <string name="info">Info</string>
-    <string name="manage">Administrér</string>
-    <string name="error">Fejl</string>
-    <string name="update">Opdater</string>
     <string name="timeout_in_seconds">Timeout om %1$ss</string>
     <string name="number_of_records">%1$s poster</string>
 
     <string name="avatar_default">Standard avatar</string>
     <string name="avatar_public">Offentlig avatar</string>
-
-    <!-- Language options -->
-    <string name="language">Sprog</string>
-
-    <!-- Theme options -->
-    <string name="theme">Tema</string>
 
     <string name="login_sub_title">Log ind med dit Homebase ID</string>
     <string name="login_id_label">Homebase ID</string>
@@ -76,9 +32,6 @@
     <string name="login_error_generic">Login mislykkedes</string>
     <string name="login_popup_blocked">Din browser blokerede loginvinduet.</string>
     <string name="login_continue_button">Fortsæt til login</string>
-
-    <string name="crop">Beskær</string>
-    <string name="draw">Tegn</string>
 
     <string name="error_unknown">Ukendt fejl</string>
 

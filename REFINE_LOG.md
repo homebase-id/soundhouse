@@ -24,7 +24,7 @@ Release APK: 111,510,189 bytes.
 - [x] A. Video pipeline + FFmpeg-kit (keep old outbox rows readable)
 - [x] B. Chat-only services: peer websockets, push plumbing, contacts sync (outbox paths: see C)
 - [x] C. Dead-code passes again (reach, names, R8 methods) + outbox + chat DB wrappers
-- [ ] D. Resources / dependencies / catalog freed by A–C
+- [x] D. Resources / dependencies / catalog freed by A–C
 - [ ] E. Comments in touched files
 - [ ] Final: gate, release, liveTest, summary
 
@@ -83,3 +83,20 @@ Release APK: 111,510,189 bytes.
   queries instead of the removed wrappers, and the route-through-lane tests keep their cases for live wrappers.
 - Verified: all targets incl. iOS; gate --apps exit 0; assembleRelease exit 0; liveTest 10/10; emulator launch, 0 crashes.
 - Release APK 36.1 MB → 35.9 MB. Kotlin lines → 65,382.
+
+### D. Resources, dependencies, catalog — commit below
+- Strings: a precise reference check (`string.x` / `plurals.x` / an import of the generated accessor) instead of last
+  night's loose word match found 40 homebase-common strings never used as resources (`settings`, `delete`, `ok`, …
+  only appeared as ordinary words); removed from English and Danish.
+- Dependencies: removed 21 declarations no code in the module imports — homebase-api: FileKit core, the markdown
+  parser, SQLDelight coroutine extensions; homebase-common/homebase-auth: kotlinx-datetime/io, viewmodel-compose
+  (common), Ktor content negotiation/serialization (installed only in homebase-api) and the duplicate engine
+  declarations (homebase-api already supplies OkHttp/Darwin/CIO), Coil in homebase-auth (re-exported by common);
+  notifshared kotlinx-datetime; audio-app viewmodel-compose; desktopApp Kermit. Kept although import-free: Ktor
+  engines (chosen at runtime), the desktop SQLite JDBC driver (loaded by name), JNA (FileKit on desktop), Coil
+  artifacts (runtime discovery, re-exported), multiplatform-settings in audio-app (type crosses modules), and
+  viewmodel-compose in homebase-auth (provides ViewModel there — restored after the compile said so).
+- Catalog: 3 orphaned entries.
+- Verified: all targets incl. iOS; gate --apps exit 0; assembleRelease exit 0; liveTest 10/10; Android launch 0 crashes;
+  desktop distributable launched 25 s with no errors (database opened, login state machine running).
+- Release APK 35.88 MB → 35.87 MB.

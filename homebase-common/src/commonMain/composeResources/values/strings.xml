@@ -2,61 +2,17 @@
 <resources>
     <string name="app_name">Soundhouse</string>
 
-    <!-- Menu options -->
-    <string name="settings">Settings</string>
-
-    <string name="expand">Expand</string>
-    <string name="collapse">Collapse</string>
-    <string name="delete">Delete</string>
-    <string name="edit">Edit</string>
-    <string name="save">Save</string>
     <string name="done">Done</string>
-    <string name="create">Create</string>
-    <string name="share">Share</string>
-    <string name="ok">Ok</string>
     <string name="cancel">Cancel</string>
     <string name="close">Close</string>
     <string name="in_app_browser_secure">Secure connection</string>
-    <string name="search">Search</string>
-    <string name="skip">Skip</string>
-    <string name="next">Next</string>
-    <string name="contacts">Contacts</string>
-    <string name="groups">Groups</string>
-    <string name="recents">Recents</string>
-    <string name="members">Members</string>
-    <string name="remove">Remove</string>
-    <string name="discard">Discard</string>
-    <string name="details">Details</string>
-    <string name="you">You</string>
-    <string name="recipients">Recipients</string>
-    <string name="uploaded">Uploaded</string>
     <string name="failed">Failed</string>
-    <string name="updated">Updated</string>
-    <string name="reactions">Reactions</string>
-    <string name="sent">Sent</string>
-    <string name="connect">Connect</string>
-    <string name="loading">Loading...</string>
-    <string name="someone">Someone</string>
-    <string name="leave">Leave</string>
-    <string name="send">Send</string>
-    <string name="media">Media</string>
-    <string name="logging">Logging</string>
     <string name="homebase_logo">Homebase Logo</string>
-    <string name="info">Info</string>
-    <string name="manage">Manage</string>
-    <string name="error">Error</string>
-    <string name="update">Updates</string>
     <string name="timeout_in_seconds">Timeout in %1$ss</string>
     <string name="number_of_records">%1$s records</string>
 
     <string name="avatar_default">Default avatar</string>
     <string name="avatar_public">Public avatar</string>
-
-    <!-- Language options -->
-    <string name="language">Language</string>
-
-    <!-- Theme options -->
-    <string name="theme">Theme</string>
 
     <string name="login_sub_title">Sign in with your Homebase ID</string>
     <string name="login_id_label">Homebase ID</string>
@@ -85,9 +41,6 @@
     <string name="login_welcome_back_rest">back</string>
     <string name="login_continue_as">Continue as %1$s</string>
     <string name="login_use_different_id">Use a different Homebase ID</string>
-
-    <string name="crop">Crop</string>
-    <string name="draw">Draw</string>
 
     <string name="error_unknown">Unknown error</string>
 

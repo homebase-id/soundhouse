@@ -92,18 +92,15 @@ kotlin {
             implementation(libs.cryptography.provider.optimal)
             implementation(libs.cryptography.random)
             implementation(libs.sqldelight.runtime)
-            implementation(libs.sqldelight.coroutines.extensions)
             implementation(libs.koin.core)
             // Compose runtime + ui: @Immutable, snapshot state, ImageBitmap.
             implementation(libs.jetbrains.compose.foundation)
-            implementation(libs.filekit.core)
             implementation(libs.kotlinx.io.core)
             implementation(libs.coil3)
             implementation(libs.okio)
             // CommonMark AST parser for markdownToPlainPreview (MarkdownPlain.kt).
             // Same engine the chat renderer (mikepenz) and editor (richeditor)
             // use, so the preview strip grammar mirrors the rendered output.
-            implementation(libs.jetbrains.markdown)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

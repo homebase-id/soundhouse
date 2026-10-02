@@ -86,13 +86,9 @@ kotlin {
             implementation(libs.jetbrains.compose.material3)
             implementation(libs.jetbrains.compose.material3.adaptive)
             implementation(libs.jetbrains.compose.material.icons.extended)
-            implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation(libs.kotlinx.datetime)
             implementation(libs.multiplatform.settings)
             implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.content.negotiation)
-            implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.filekit.core)
             api(libs.coil3)
             api(libs.coil3.compose)
@@ -117,18 +113,12 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.browser)
-            implementation(libs.ktor.client.okhttp)
             api(libs.coil3.video)
             // coil-gif is an Android-only aar in Coil 3.4.0 and Coil has no Skia animated decoder,
             // so the other targets animate through our AnimatedSkiaDecoder in skiaMain.
             api(libs.coil3.gif)
         }
-        appleMain.dependencies {
-            implementation(libs.ktor.client.darwin)
-        }
         jvmMain.dependencies {
-            implementation(libs.ktor.client.cio)
-            implementation(libs.kotlinx.io.core.jvm)
             implementation(libs.jna)
             implementation(libs.jna.platform)
         }

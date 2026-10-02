@@ -45,25 +45,16 @@ kotlin {
             implementation(libs.jetbrains.compose.resources)
             implementation(libs.jetbrains.compose.material3)
             implementation(libs.jetbrains.compose.material.icons.extended)
-            implementation(libs.jetbrains.compose.ui.tooling.preview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
+            implementation(libs.jetbrains.compose.ui.tooling.preview)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.immutableCollections)
             implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.content.negotiation)
-            implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.coil3)
-            implementation(libs.coil3.compose)
         }
         androidMain.dependencies {
-            implementation(libs.ktor.client.okhttp)
             implementation(libs.androidx.ui.tooling)
         }
-        appleMain.dependencies {
-            implementation(libs.ktor.client.darwin)
-        }
         jvmMain.dependencies {
-            implementation(libs.ktor.client.cio)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
