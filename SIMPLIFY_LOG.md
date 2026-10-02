@@ -37,8 +37,8 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 ## Plan
 
 - [x] 1–2. Whole files unreachable from the app on every platform (reachability pass), all vendored modules
-- [ ] 3. Re-run R8 analysis (removals expose more) and repeat 1–2
-- [ ] 4. Koin definitions that nothing injects (registered but dead), then their classes
+- [x] 3. Stricter reachability (package/import-aware) and repeat
+- [x] 4. Koin definitions that nothing injects (registered but dead), then their classes
 - [ ] 5. Unused members inside live files (R8 member report), vendored layer
 - [ ] 6. Unused Compose string resources (all modules, incl. values-da) and Android resources
 - [ ] 7. Unused declarations in audio-app / androidApp / desktopApp
@@ -67,3 +67,17 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - Kept: `StartupCacheAudit` (nothing injects it, but it is created at start on purpose; removing it changes startup).
 - Verified: all-target compile, gate --apps exit 0.
 - Kotlin lines → 121522.
+
+### 3. Stricter reachability: names resolve through packages and imports
+- The first pass matched bare words, so shared names (`TAG`, `log`, `tag`, keywords) chained unrelated files together.
+  The analysis now resolves a name only within the file's package or through its imports, skips private top-level
+  declarations, and takes roots only from real class names in manifests (`android:name`), keep rules and services.
+  (First attempt mis-parsed `fun interface NetworkMonitor` and broke 5 live files; caught by the compile, regex fixed,
+  re-run clean.)
+- Removed 167 files (camera capture UI/engine, location tracking, crash reporting, main-thread watchdog, haptics,
+  clipboard image paste, full-payload image cache, HomebaseImageLoader/HomebaseImage, video decoders, GIF shrinker,
+  AES-GCM, vault/moments/location preferences, Thunderbird mail launch, …) and 44 tests that covered only them (no
+  symbol they need remains in main sources).
+- Verified: all-target compile, gate --apps exit 0, assembleRelease exit 0, release build launched on the emulator to
+  the login screen with no crash.
+- Kotlin lines → 101657.
