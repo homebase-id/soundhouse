@@ -1,12 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108">
   
   <g id="soundprint">
-    <rect x="25.100" y="48.000" width="5.6" height="12" rx="2.8" fill="#FFFFFF"/>
-    <rect x="33.800" y="42.000" width="5.6" height="24" rx="2.8" fill="#FFFFFF"/>
-    <rect x="42.500" y="36.000" width="5.6" height="36" rx="2.8" fill="#FFFFFF"/>
-    <rect x="51.200" y="30.000" width="5.6" height="48" rx="2.8" fill="#FFFFFF"/>
-    <rect x="59.900" y="36.000" width="5.6" height="36" rx="2.8" fill="#FFFFFF"/>
-    <rect x="68.600" y="42.000" width="5.6" height="24" rx="2.8" fill="#FFFFFF"/>
-    <rect x="77.300" y="48.000" width="5.6" height="12" rx="2.8" fill="#FFFFFF"/>
+    <g transform="translate(54 54) scale(0.88) translate(-54 -54)"><path d="M33,56 L33,45.5 L54,27.5 L75,45.5 L75,56" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><path d="M33,66 L33,75 L75,75 L75,66" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><path d="M27.00,61.00 L42.00,61.00 L46.00,66.00 L51.00,44.00 L57.00,70.00 L61.00,61.00 L81.00,61.00" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/></g>
   </g>
 </svg>

@@ -231,10 +231,11 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
 
 ### App icon (2026-10-02)
 
-- New "soundprint" icon: white waveform bars on a blue-to-violet gradient. Android adaptive layers (foreground,
+- New icon: a house outline with a waveform pulse, in white on a violet gradient (replaced the first
+  soundprint-bars version the same day). Android adaptive layers (foreground,
   background, monochrome for themed icons and notifications, legacy) at all five densities, desktop icns/ico/png,
   and the SVG masters in `icons/source/` for future edits. Checked: exact sizes, transparent foreground/monochrome,
-  opaque background, glyph radius 116.5 px of the 132 px safe circle (no launcher clipping), previews in circle,
+  opaque background, glyph radius 111.7 px of the 132 px safe circle (no launcher clipping), previews in circle,
   squircle and rounded-square masks and at 48 px.
 
 ### Open problems
