@@ -246,6 +246,15 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
   repo, desktop data dirs `SimplyAudio`/`SimplyAudioDev`, installer package name (the notification check reads it),
   wake-lock tags.
 
+### Parallel uploads (2026-10-02)
+
+- The importer runs up to 3 uploads at once (3 workers on the persisted queue, a 3-slot semaphore). A file of
+  100 MB or more takes all 3 slots and uploads alone, so big files don't compete or pile up encrypted temp copies;
+  a mutex lets only one large file collect slots at a time (two could otherwise each hold part and deadlock), and
+  slots taken are counted so cancellation can't leak them. A job shows Uploading only once it holds its slot;
+  retry backoff waits outside the slot. The notification shows "12 of 40 uploaded" with batch progress.
+- Tests: at most 3 overlap, a large file overlaps with nothing, waiting files stay Queued (stable over 5 runs).
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first

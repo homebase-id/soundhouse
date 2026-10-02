@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -81,6 +82,7 @@ class TrackImporterTest {
             onUploaded = { stored += it },
             readMetadata = { path -> if (path.endsWith("a.mp3")) AudioFileMetadata("Tagged", 1234) else AudioFileMetadata(null, null) },
             readCover = { path -> if (path.endsWith("a.mp3")) byteArrayOf(1, 2, 3) else null },
+            maxParallel = 1,
         )
         importer.enqueue(file("a.mp3", 10).path, "a.mp3")
         importer.enqueue(file("b side.flac", 20).path, "b side.flac")
@@ -242,5 +244,69 @@ class TrackImporterTest {
         second.retry(restored.id)
         withTimeout(5_000) { second.jobs.first { it.single().status == ImportStatus.Done } }
         assertEquals(1, target.uploaded.size)
+    }
+
+    /** Records how many uploads overlap; each upload takes [holdMs]. */
+    private class OverlapTarget(private val holdMs: Long = 150) : TrackUploadTarget {
+        private val running = java.util.concurrent.atomic.AtomicInteger()
+        val maxOverlap = java.util.concurrent.atomic.AtomicInteger()
+        val overlapWhileUploading = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        val uploaded = java.util.Collections.synchronizedList(mutableListOf<AudioTrackContent>())
+        override suspend fun uploadTrack(
+            sourcePath: String, content: AudioTrackContent, tags: List<Uuid>, uniqueId: Uuid,
+            coverArt: ByteArray?, onProgress: (Float) -> Unit,
+        ): UploadedTrack {
+            val now = running.incrementAndGet()
+            maxOverlap.accumulateAndGet(now) { a, b -> maxOf(a, b) }
+            delay(holdMs)
+            overlapWhileUploading.merge(content.fileName ?: "", running.get()) { a, b -> maxOf(a, b) }
+            running.decrementAndGet()
+            uploaded += content
+            return UploadedTrack(Uuid.random(), uniqueId, Uuid.random())
+        }
+        override suspend fun getTrackFile(fileId: Uuid): HomebaseFile = buildTrackFile(trackContentJson(uploaded.last()), fileId = fileId)
+    }
+
+    @Test
+    fun `small files upload three at a time and never more`() = runBlocking<Unit> {
+        val target = OverlapTarget()
+        val importer = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) }, readCover = { null },
+        )
+        repeat(7) { importer.enqueue(file("s$it.mp3", 1).path, "s$it.mp3") }
+        val jobs = withTimeout(10_000) { importer.jobs.first { jobs -> jobs.size == 7 && jobs.all { it.status == ImportStatus.Done } } }
+        assertEquals(7, jobs.size)
+        assertEquals(3, target.maxOverlap.get())
+    }
+
+    @Test
+    fun `a large file uploads alone`() = runBlocking<Unit> {
+        val target = OverlapTarget()
+        val importer = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) }, readCover = { null },
+            largeFileBytes = 10,
+        )
+        importer.enqueue(file("small1.mp3", 1).path, "small1.mp3")
+        importer.enqueue(file("big.mp3", 20).path, "big.mp3")
+        importer.enqueue(file("small2.mp3", 1).path, "small2.mp3")
+        importer.enqueue(file("small3.mp3", 1).path, "small3.mp3")
+        withTimeout(10_000) { importer.jobs.first { jobs -> jobs.size == 4 && jobs.all { it.status == ImportStatus.Done } } }
+        assertEquals(1, target.overlapWhileUploading["big.mp3"])
+        assertEquals(4, target.uploaded.size)
+    }
+
+    @Test
+    fun `files waiting for a slot stay queued`() = runBlocking<Unit> {
+        val target = OverlapTarget(holdMs = 400)
+        val importer = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) }, readCover = { null },
+            maxParallel = 2,
+        )
+        repeat(4) { importer.enqueue(file("q$it.mp3", 1).path, "q$it.mp3") }
+        val busy = withTimeout(5_000) { importer.jobs.first { jobs -> jobs.count { it.status == ImportStatus.Uploading } == 2 } }
+        assertEquals(2, busy.count { it.status == ImportStatus.Queued })
     }
 }

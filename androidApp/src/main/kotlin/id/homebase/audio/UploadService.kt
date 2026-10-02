@@ -86,6 +86,7 @@ class UploadService : Service() {
 
     private fun notification(jobs: List<ImportJob>): Notification {
         val current = jobs.firstOrNull { it.status == ImportStatus.Uploading || it.status == ImportStatus.Retrying }
+        val batch = jobs.filter { it.status != ImportStatus.Failed }
         val builder = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher_monochrome)
             .setContentTitle(getString(R.string.upload_notification_title))
@@ -98,11 +99,18 @@ class UploadService : Service() {
             )
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-        when (current?.status) {
-            ImportStatus.Uploading -> builder
+        when {
+            batch.size > 1 -> {
+                val done = batch.count { it.status == ImportStatus.Done }
+                val progress = (done + batch.filter { it.status == ImportStatus.Uploading }.sumOf { it.progress.toDouble() }) / batch.size
+                builder
+                    .setContentText(getString(R.string.upload_notification_count, done, batch.size))
+                    .setProgress(PROGRESS_MAX, (progress * PROGRESS_MAX).toInt(), false)
+            }
+            current?.status == ImportStatus.Uploading -> builder
                 .setContentText(current.fileName)
                 .setProgress(PROGRESS_MAX, (current.progress * PROGRESS_MAX).toInt(), current.progress <= 0f)
-            ImportStatus.Retrying -> builder
+            current?.status == ImportStatus.Retrying -> builder
                 .setContentText(getString(R.string.upload_notification_retrying))
             else -> builder.setProgress(0, 0, true)
         }

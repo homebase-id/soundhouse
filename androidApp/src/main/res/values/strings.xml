@@ -7,5 +7,6 @@
     <string name="playback_previous">Previous</string>
     <string name="upload_channel">Uploads</string>
     <string name="upload_notification_title">Uploading to your Homebase</string>
+    <string name="upload_notification_count">%1$d of %2$d uploaded</string>
     <string name="upload_notification_retrying">Connection lost. Trying again shortly…</string>
 </resources>

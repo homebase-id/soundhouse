@@ -20,6 +20,8 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -86,8 +88,8 @@ data class PendingImport(
 )
 
 /**
- * Uploads picked or recorded files one at a time. Lives in an app-lifetime scope so an import keeps
- * going when the user leaves the screen that started it. With a [queueFile] the queue survives the
+ * Uploads picked or recorded files, up to [maxParallel] at once (large ones alone). Lives in an
+ * app-lifetime scope so an import keeps going when the user leaves the screen that started it. With a [queueFile] the queue survives the
  * process: app-owned copies move into [stagingDir] (the cache can be cleared under the app) and stay
  * until the upload lands or the user dismisses it, so a failed import can be retried.
  */
@@ -103,10 +105,14 @@ class TrackImporter(
     private val fileSystem: FileSystem = systemFileSystem,
     private val retryDelaysMs: List<Long> = listOf(10_000, 30_000, 60_000, 120_000, 300_000),
     eventBus: EventBus? = null,
+    private val maxParallel: Int = 3,
+    private val largeFileBytes: Long = 100L * 1024 * 1024,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val pending = MutableStateFlow<Map<Uuid, PendingImport>>(emptyMap())
     private val writeLock = Mutex()
+    private val slots = Semaphore(maxParallel)
+    private val largeGate = Mutex()
 
     private val _jobs = MutableStateFlow<List<ImportJob>>(emptyList())
     val jobs: StateFlow<List<ImportJob>> = _jobs.asStateFlow()
@@ -124,7 +130,7 @@ class TrackImporter(
                 queue.send(Uuid.parse(staged.id))
             }
         }
-        scope.launch { for (id in queue) run(id) }
+        repeat(maxParallel) { scope.launch { for (id in queue) run(id) } }
         if (eventBus != null) {
             scope.launch { eventBus.events.collect { if (it is BackendEvent.SessionEnded) dropAll() } }
         }
@@ -175,16 +181,19 @@ class TrackImporter(
             return
         }
         var attempt = 0
+        val sizeBytes = fileOps.getFileSize(request.path)
         while (true) {
-            setJob(id) { it.copy(status = ImportStatus.Uploading, progress = 0f, failure = null) }
-            val failure = try {
-                upload(id, request)
-                null
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Logger.e(e, TAG) { "Import of ${request.fileName} failed (attempt ${attempt + 1})" }
-                importFailureOf(e)
+            val failure = withUploadSlot(sizeBytes) {
+                setJob(id) { it.copy(status = ImportStatus.Uploading, progress = 0f, failure = null) }
+                try {
+                    upload(id, request)
+                    null
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Logger.e(e, TAG) { "Import of ${request.fileName} failed (attempt ${attempt + 1})" }
+                    importFailureOf(e)
+                }
             }
             if (failure == null) {
                 forget(id)
@@ -200,6 +209,20 @@ class TrackImporter(
             }
             setJob(id) { it.copy(status = ImportStatus.Retrying, failure = failure) }
             delay(wait)
+        }
+    }
+
+    /** A large file takes every slot so it uploads alone; one at a time, so two can't each hold part of them. */
+    private suspend fun <T> withUploadSlot(sizeBytes: Long, block: suspend () -> T): T {
+        if (sizeBytes < largeFileBytes) return slots.withPermit { block() }
+        return largeGate.withLock {
+            var held = 0
+            try {
+                repeat(maxParallel) { slots.acquire(); held++ }
+                block()
+            } finally {
+                repeat(held) { slots.release() }
+            }
         }
     }
 
