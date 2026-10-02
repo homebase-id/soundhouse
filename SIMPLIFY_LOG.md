@@ -81,3 +81,13 @@ references in docs/config, reuse, quality) and that is recorded per commit.
 - Verified: all-target compile, gate --apps exit 0, assembleRelease exit 0, release build launched on the emulator to
   the login screen with no crash.
 - Kotlin lines → 101657.
+
+### 4. Dead components in homebase-common's Android manifest, and location tracking
+- The library manifest merged two location receivers and a Thunderbird `<queries>` entry into Simply Audio.
+  `LocationBootReceiver` can never fire (the app doesn't hold RECEIVE_BOOT_COMPLETED); `LocationUpdatesReceiver`
+  only receives PendingIntents that LocationTracker creates, and only those receivers reach LocationTracker; the
+  Thunderbird code is already gone. Removed all three; kept InAppBrowserActivity (LoginScreen launches it).
+- Reachability then freed 31 location-tracking files; 5 tests covered only them.
+- Milestone: liveTest 10/10 passed (before this commit, after commit 3).
+- Verified: all-target compile, gate --apps exit 0.
+- Kotlin lines → 98619.
