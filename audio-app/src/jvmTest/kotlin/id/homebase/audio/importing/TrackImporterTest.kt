@@ -82,7 +82,7 @@ class TrackImporterTest {
             onUploaded = { stored += it },
             readMetadata = { path -> if (path.endsWith("a.mp3")) AudioFileMetadata("Tagged", 1234) else AudioFileMetadata(null, null) },
             readCover = { path -> if (path.endsWith("a.mp3")) byteArrayOf(1, 2, 3) else null },
-            maxParallel = 1,
+            parallelism = kotlinx.coroutines.flow.MutableStateFlow(1),
         )
         importer.enqueue(file("a.mp3", 10).path, "a.mp3")
         importer.enqueue(file("b side.flac", 20).path, "b side.flac")
@@ -303,10 +303,26 @@ class TrackImporterTest {
         val importer = TrackImporter(
             target, TestFileOps(dir), scope, onUploaded = {},
             readMetadata = { AudioFileMetadata(null, null) }, readCover = { null },
-            maxParallel = 2,
+            parallelism = kotlinx.coroutines.flow.MutableStateFlow(2),
         )
         repeat(4) { importer.enqueue(file("q$it.mp3", 1).path, "q$it.mp3") }
         val busy = withTimeout(5_000) { importer.jobs.first { jobs -> jobs.count { it.status == ImportStatus.Uploading } == 2 } }
         assertEquals(2, busy.count { it.status == ImportStatus.Queued })
+    }
+
+    @Test
+    fun `raising the limit lets waiting files start`() = runBlocking<Unit> {
+        val target = OverlapTarget(holdMs = 300)
+        val limit = kotlinx.coroutines.flow.MutableStateFlow(1)
+        val importer = TrackImporter(
+            target, TestFileOps(dir), scope, onUploaded = {},
+            readMetadata = { AudioFileMetadata(null, null) }, readCover = { null },
+            parallelism = limit,
+        )
+        repeat(6) { importer.enqueue(file("r$it.mp3", 1).path, "r$it.mp3") }
+        withTimeout(5_000) { importer.jobs.first { jobs -> jobs.count { it.status == ImportStatus.Uploading } == 1 } }
+        limit.value = 5
+        withTimeout(10_000) { importer.jobs.first { jobs -> jobs.size == 6 && jobs.all { it.status == ImportStatus.Done } } }
+        assertTrue(target.maxOverlap.get() >= 3, "overlap after raising was ${target.maxOverlap.get()}")
     }
 }

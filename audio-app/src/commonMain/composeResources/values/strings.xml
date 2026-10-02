@@ -108,6 +108,9 @@
     <string name="settings_limit_gb">%1$d GB</string>
     <string name="settings_usage_automatic">Automatic downloads use %1$s of %2$s</string>
     <string name="settings_usage_own">Your own downloads use %1$s</string>
+    <string name="settings_uploads_heading">Uploads</string>
+    <string name="settings_uploads_at_once">Uploads at once</string>
+    <string name="settings_uploads_detail">More finishes a batch of small files sooner on a fast connection. Files over 100 MB always upload one at a time.</string>
     <string name="player_now_playing">Now playing</string>
     <string name="home_play_all">Play all</string>
     <string name="home_shuffle">Shuffle</string>

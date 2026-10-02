@@ -1,5 +1,9 @@
 package id.homebase.audio.di
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import co.touchlab.kermit.Logger
 import id.homebase.api.client.drives.files.DriveFileProvider
 import id.homebase.api.client.drives.upload.DriveUploadProvider
@@ -151,6 +155,9 @@ val audioAppModule = module {
             queueFile = importQueueFile(),
             stagingDir = importStagingDirectory(),
             eventBus = get(),
+            parallelism = get<AudioSettings>().preferences
+                .map { it.uploadsAtOnce }
+                .stateIn(get<CoroutineScope>(), SharingStarted.Eagerly, get<AudioSettings>().preferences.value.uploadsAtOnce),
         )
     }
 

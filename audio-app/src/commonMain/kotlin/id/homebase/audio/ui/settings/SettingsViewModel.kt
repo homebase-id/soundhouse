@@ -40,9 +40,11 @@ class SettingsViewModel(
     fun setKeepRecent(value: Boolean) = settings.update { it.copy(keepRecentOffline = value) }
     fun setLimit(bytes: Long) = settings.update { it.copy(offlineLimitBytes = bytes) }
     fun setWifiOnly(value: Boolean) = settings.update { it.copy(offlineOnWifiOnly = value) }
+    fun setUploadsAtOnce(value: Int) = settings.update { it.copy(uploadsAtOnce = value) }
 
     companion object {
         val LIMITS_GB = listOf(1, 2, 5, 10)
+        val UPLOADS_AT_ONCE = listOf(1, 2, 3, 5)
         const val GB = 1024L * 1024 * 1024
     }
 }

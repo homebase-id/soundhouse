@@ -42,6 +42,9 @@ import id.homebase.audio.resources.settings_title
 import id.homebase.audio.resources.settings_usage_automatic
 import id.homebase.audio.resources.settings_usage_own
 import id.homebase.audio.resources.settings_wifi_only
+import id.homebase.audio.resources.settings_uploads_at_once
+import id.homebase.audio.resources.settings_uploads_detail
+import id.homebase.audio.resources.settings_uploads_heading
 import id.homebase.common.util.formatBytes
 import org.jetbrains.compose.resources.stringResource
 
@@ -54,6 +57,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
         onKeepRecent = viewModel::setKeepRecent,
         onLimit = viewModel::setLimit,
         onWifiOnly = viewModel::setWifiOnly,
+        onUploadsAtOnce = viewModel::setUploadsAtOnce,
     )
 }
 
@@ -65,6 +69,7 @@ fun SettingsContent(
     onKeepRecent: (Boolean) -> Unit,
     onLimit: (Long) -> Unit,
     onWifiOnly: (Boolean) -> Unit,
+    onUploadsAtOnce: (Int) -> Unit = {},
 ) {
     val prefs = uiState.preferences
     Scaffold(
@@ -120,6 +125,29 @@ fun SettingsContent(
                 )
                 Text(
                     stringResource(AR.string.settings_usage_own, formatBytes(uiState.ownBytes)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                stringResource(AR.string.settings_uploads_heading),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 4.dp),
+            )
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(AR.string.settings_uploads_at_once), style = MaterialTheme.typography.bodyLarge)
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    SettingsViewModel.UPLOADS_AT_ONCE.forEachIndexed { index, count ->
+                        SegmentedButton(
+                            selected = prefs.uploadsAtOnce == count,
+                            onClick = { onUploadsAtOnce(count) },
+                            shape = SegmentedButtonDefaults.itemShape(index, SettingsViewModel.UPLOADS_AT_ONCE.size),
+                        ) { Text(count.toString()) }
+                    }
+                }
+                Text(
+                    stringResource(AR.string.settings_uploads_detail),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

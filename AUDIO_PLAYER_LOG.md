@@ -255,6 +255,16 @@ Baseline (Pixel_8_Pro emulator, debug build): first frame +12.6 s as installed, 
   retry backoff waits outside the slot. The notification shows "12 of 40 uploaded" with batch progress.
 - Tests: at most 3 overlap, a large file overlaps with nothing, waiting files stay Queued (stable over 5 runs).
 
+### "Uploads at once" setting (2026-10-02)
+
+- Settings → Uploads: 1 / 2 / 3 / 5 (default 3), saved in `AudioSettings` and read live. The semaphore became
+  `UploadSlots`, whose limit can change while uploads run: raising it starts waiting files at once, lowering it lets
+  running uploads finish and holds back new ones. Files of 100 MB or more still go alone, and while one waits for
+  the others to drain no new small upload starts, so it can't be starved. Five workers exist; the setting decides
+  how many may upload.
+- Tests: live raise/lower of the limit, a waiting large upload goes before later small ones, plus the earlier
+  overlap/alone/queued tests.
+
 ### Open problems
 
 - **Cold start is still 5–9 s on the emulator** (debug build, AOT-compiled): what's left is Compose's first
