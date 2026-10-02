@@ -82,21 +82,11 @@ class HomeViewModel(
         playback.playQueue(queue.map { it.track }, queue.indexOf(item).coerceAtLeast(0), startAtMs = item.entry.positionMs)
     }
 
-    fun playRecent(item: ListenedTrack) {
-        val queue = _uiState.value.recentlyPlayed.map { it.track }
-        playback.playQueue(queue, queue.indexOf(item.track).coerceAtLeast(0))
-    }
+    fun playRecent(item: ListenedTrack) = playback.playFrom(_uiState.value.recentlyPlayed.map { it.track }, item.track)
 
-    fun playAdded(track: AudioTrack) {
-        val queue = _uiState.value.recentlyAdded
-        playback.playQueue(queue, queue.indexOf(track).coerceAtLeast(0))
-    }
+    fun playAdded(track: AudioTrack) = playback.playFrom(_uiState.value.recentlyAdded, track)
 
-    fun playAll(shuffle: Boolean) {
-        val tracks = _uiState.value.allTracks.sortedByDescending { it.dateAddedMs }
-        if (tracks.isEmpty()) return
-        playback.playQueue(if (shuffle) tracks.shuffled() else tracks, 0)
-    }
+    fun playAll(shuffle: Boolean) = playback.playAll(_uiState.value.allTracks.sortedByDescending { it.dateAddedMs }, shuffle)
 
     fun onFilesPicked(files: List<PlatformFile>) {
         viewModelScope.launch { enqueuePicked(files, importer, fileOps) }

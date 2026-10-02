@@ -86,8 +86,7 @@ class LibraryViewModel(
 
     /** Plays [track] with the list as shown (filter and sort applied) as the queue. */
     fun play(track: AudioTrack) {
-        val queue = _uiState.value.tracks
-        playback.playQueue(queue, queue.indexOf(track).coerceAtLeast(0))
+        playback.playFrom(_uiState.value.tracks, track)
     }
 
     fun download(track: AudioTrack) = offline.keep(track)

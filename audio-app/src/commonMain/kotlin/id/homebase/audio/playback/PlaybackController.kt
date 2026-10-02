@@ -90,6 +90,12 @@ class PlaybackController(
         startCurrent(startAtMs)
     }
 
+    fun playFrom(queue: List<AudioTrack>, track: AudioTrack) = playQueue(queue, queue.indexOf(track).coerceAtLeast(0))
+
+    fun playAll(tracks: List<AudioTrack>, shuffle: Boolean) {
+        if (tracks.isNotEmpty()) playQueue(if (shuffle) tracks.shuffled() else tracks, 0)
+    }
+
     fun togglePlayPause() {
         val state = _state.value
         if (state.current == null || state.isLoading) return

@@ -160,11 +160,7 @@ class OfflineKeeper(
 
     private fun write(snapshot: KeeperState) {
         try {
-            val path = stateFile.toPath()
-            path.parent?.let { fileSystem.createDirectories(it) }
-            val temp = "$stateFile.tmp".toPath()
-            fileSystem.write(temp) { writeUtf8(json.encodeToString(snapshot)) }
-            fileSystem.atomicMove(temp, path)
+            fileSystem.writeTextAtomically(stateFile, json.encodeToString(snapshot))
         } catch (e: Exception) {
             Logger.w(e, TAG) { "Could not save offline state" }
         }

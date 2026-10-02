@@ -168,3 +168,11 @@ references in docs/config, reuse, quality) and that is recorded per commit.
   module applies (kotlinAndroid, composeHotReload, androidLint, googleServices, firebaseCrashlytics), then 34
   `[versions]` entries nothing points at, and the comment blocks that described removed entries.
 - Verified: all-target compile, gate --apps exit 0, assembleRelease + :baselineprofile:assemble exit 0.
+
+### 12. Shared helpers in audio-app
+- `FileSystem.writeTextAtomically` replaces three copies of temp-file-then-atomicMove (ListeningHistory,
+  TrackImporter, OfflineKeeper). `PlaybackController.playFrom(queue, track)` / `playAll(tracks, shuffle)` replace
+  six copies of index-lookup and shuffle-or-not code across the Home, Library and Collection view models.
+- One intentional behaviour change: TrackImporter's save now reads the queue under its write lock, the same race
+  fixed in ListeningHistory before (two quick saves could land oldest-last).
+- Verified: all-target compile, gate --apps exit 0.

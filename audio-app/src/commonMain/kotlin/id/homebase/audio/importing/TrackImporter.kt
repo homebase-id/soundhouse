@@ -1,5 +1,6 @@
 package id.homebase.audio.importing
 
+import id.homebase.audio.download.writeTextAtomically
 import co.touchlab.kermit.Logger
 import id.homebase.api.client.drives.HomebaseFile
 import id.homebase.api.file.FileOperationsProvider
@@ -273,15 +274,12 @@ class TrackImporter(
 
     private fun save() {
         val file = queueFile ?: return
-        val snapshot = pending.value.values.toList()
         scope.launch(Dispatchers.IO) {
             writeLock.withLock {
+                // Read under the lock: saves can start out of order, and the last write must be the latest state.
+                val snapshot = pending.value.values.toList()
                 try {
-                    val path = file.toPath()
-                    path.parent?.let { fileSystem.createDirectories(it) }
-                    val temp = "$file.tmp".toPath()
-                    fileSystem.write(temp) { writeUtf8(json.encodeToString(snapshot)) }
-                    fileSystem.atomicMove(temp, path)
+                    fileSystem.writeTextAtomically(file, json.encodeToString(snapshot))
                 } catch (e: Exception) {
                     Logger.w(e, TAG) { "Could not save the import queue" }
                 }

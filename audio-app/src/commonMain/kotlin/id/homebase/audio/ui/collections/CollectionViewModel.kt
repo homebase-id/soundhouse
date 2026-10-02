@@ -66,14 +66,11 @@ class CollectionViewModel(
     }
 
     fun play(track: AudioTrack) {
-        val queue = _uiState.value.tracks
-        playback.playQueue(queue, queue.indexOf(track).coerceAtLeast(0))
+        playback.playFrom(_uiState.value.tracks, track)
     }
 
     fun playAll(shuffle: Boolean) {
-        val tracks = _uiState.value.tracks
-        if (tracks.isEmpty()) return
-        playback.playQueue(if (shuffle) tracks.shuffled() else tracks, 0)
+        playback.playAll(_uiState.value.tracks, shuffle)
     }
 
     fun download(track: AudioTrack) = offline.keep(track)

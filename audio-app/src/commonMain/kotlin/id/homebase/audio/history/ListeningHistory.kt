@@ -1,5 +1,6 @@
 package id.homebase.audio.history
 
+import id.homebase.audio.download.writeTextAtomically
 import co.touchlab.kermit.Logger
 import id.homebase.api.client.eventbus.BackendEvent
 import id.homebase.api.client.eventbus.EventBus
@@ -109,11 +110,7 @@ class ListeningHistory(
                 // Read under the lock: saves can start out of order, and the last write must be the latest state.
                 val snapshot = _entries.value.values.sortedByDescending { it.lastPlayedMs }.take(MAX_ENTRIES)
                 try {
-                    val path = file.toPath()
-                    path.parent?.let { fileSystem.createDirectories(it) }
-                    val temp = "$file.tmp".toPath()
-                    fileSystem.write(temp) { writeUtf8(json.encodeToString(snapshot)) }
-                    fileSystem.atomicMove(temp, path)
+                    fileSystem.writeTextAtomically(file, json.encodeToString(snapshot))
                 } catch (e: Exception) {
                     Logger.w(e, TAG) { "Could not save listening history" }
                 }
