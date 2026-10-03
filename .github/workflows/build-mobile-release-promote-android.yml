@@ -1,0 +1,55 @@
+name: Promote Android Release to public
+
+on:
+  workflow_dispatch:
+    inputs:
+      fromTrack:
+        description: 'From track'
+        type: choice
+        options: [internal, alpha, beta]
+        default: 'internal'
+      promoteTrack:
+        description: 'To track'
+        type: choice
+        options: [alpha, beta, production]
+        default: 'production'
+
+concurrency:
+  group: mobile-release-android-public-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Write Google Play service account key
+        env:
+          PLAY_KEY: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: printf '%s' "$PLAY_KEY" > google-play-key.json
+
+      - name: Promote on Google Play
+        env:
+          FROM_TRACK: ${{ inputs.fromTrack }}
+          TO_TRACK: ${{ inputs.promoteTrack }}
+        run: ./gradlew :androidApp:promoteReleaseArtifact --from-track "$FROM_TRACK" --promote-track "$TO_TRACK" --release-status completed
+
+      - name: Summary
+        env:
+          FROM_TRACK: ${{ inputs.fromTrack }}
+          TO_TRACK: ${{ inputs.promoteTrack }}
+        run: |
+          echo "Promoted release from $FROM_TRACK to $TO_TRACK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verify the rollout in the Google Play Console under Soundhouse > Release." >> "$GITHUB_STEP_SUMMARY"

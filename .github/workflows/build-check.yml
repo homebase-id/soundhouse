@@ -1,0 +1,147 @@
+name: Build Check
+
+on:
+  push:
+    branches: [main]
+  # Unfiltered: a stacked PR based on a feature branch gets no checks at all if
+  # this is restricted to main, so a layer can reach merge never having compiled.
+  pull_request:
+
+concurrency:
+  group: build-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Gradle Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Run JVM + Android host unit tests
+        # Unqualified task names fan out to every module, so a new module is covered without an
+        # allow-list. The live suite is its own `liveTest` task and never runs here.
+        run: ./gradlew --continue jvmTest testAndroidHostTest
+        env:
+          JDK_21: ${{ env.JAVA_HOME }}
+          CI: true
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        # Fork PRs get a read-only token and can't create check runs.
+        if: always() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          files: |
+            **/build/test-results/jvmTest/TEST-*.xml
+            **/build/test-results/testAndroidHostTest/TEST-*.xml
+          check_name: JVM Test Results
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 30
+
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            name: Android & Desktop
+            build-command: ./gradlew :androidApp:assembleDebug :desktopApp:createDistributable
+          - os: macos-latest
+            name: iOS
+            # The iOS app isn't shipped, but the framework must keep compiling and linking.
+            build-command: ./gradlew :audio-app:linkDebugFrameworkIosArm64
+      fail-fast: false
+    name: Build ${{ matrix.name }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Gradle Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Cache Kotlin/Native
+        if: matrix.os == 'macos-latest'
+        uses: actions/cache@v5
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/gradle.properties') }}
+          restore-keys: |
+            konan-${{ runner.os }}-
+
+      - name: Run build command
+        run: ${{ matrix.build-command }}
+        env:
+          JDK_21: ${{ env.JAVA_HOME }}
+
+      - name: Run iOS simulator tests
+        if: ${{ matrix.name == 'iOS' }}
+        run: ./gradlew --continue iosSimulatorArm64Test
+        env:
+          JDK_21: ${{ env.JAVA_HOME }}
+
+      - name: Upload Android artifact
+        if: ${{ matrix.name == 'Android & Desktop' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-apk
+          path: androidApp/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload Desktop artifact
+        if: ${{ matrix.name == 'Android & Desktop' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-dist
+          path: desktopApp/build/compose/binaries/main/app/
+          if-no-files-found: error
+
+      - name: Upload iOS artifact
+        if: ${{ matrix.name == 'iOS' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-framework
+          path: audio-app/build/bin/iosArm64/debugFramework/*.framework
+          if-no-files-found: error

@@ -9,7 +9,10 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.conveyorPlugin)
 }
+
+version = versionName
 
 kotlin {
     jvm()
@@ -22,7 +25,7 @@ kotlin {
     sourceSets {
         jvmMain.dependencies {
             implementation(project(":audio-app"))
-            implementation(compose.desktop.currentOs)
+            implementation(compose.desktop.common)
             implementation(libs.jetbrains.compose.runtime)
             implementation(libs.jetbrains.compose.foundation)
             implementation(libs.jetbrains.compose.material3)
@@ -36,6 +39,31 @@ kotlin {
             implementation(libs.sqlite.jdbc.crypt)
         }
     }
+}
+
+// Conveyor packages every platform from one host: each machine gets its own Compose runtime and its
+// own ffmpeg/ffprobe pair, laid out where FFmpegBinaryManager looks for them.
+val conveyorMachines = mapOf(
+    "linuxAmd64" to "linux-x64",
+    "linuxAarch64" to "linux-arm64",
+    "macAmd64" to "macos-x64",
+    "macAarch64" to "macos-arm64",
+    "windowsAmd64" to "windows-x64",
+)
+val ffmpegJars = conveyorMachines.mapValues { (_, platform) ->
+    tasks.register<Jar>("ffmpegJar-$platform") {
+        archiveBaseName.set("ffmpeg-$platform")
+        from(rootProject.layout.projectDirectory.dir("desktop-ffmpeg/$platform")) { into("ffmpeg/$platform") }
+    }
+}
+
+dependencies {
+    "linuxAmd64"(libs.jetbrains.compose.desktop.jvm.linux.x64)
+    "linuxAarch64"(libs.jetbrains.compose.desktop.jvm.linux.arm64)
+    "macAmd64"(libs.jetbrains.compose.desktop.jvm.macos.x64)
+    "macAarch64"(libs.jetbrains.compose.desktop.jvm.macos.arm64)
+    "windowsAmd64"(libs.jetbrains.compose.desktop.jvm.windows.x64)
+    ffmpegJars.forEach { (machine, jar) -> add(machine, files(jar)) }
 }
 
 compose.desktop {

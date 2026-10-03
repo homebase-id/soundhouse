@@ -1,0 +1,95 @@
+name: Build Desktop Release Dev
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-release-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-desktop:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check release secrets
+        env:
+          CONVEYOR_GITHUB_TOKEN: ${{ secrets.CONVEYOR_DESKTOP_GITHUB_TOKEN }}
+          SIGNING_KEY: ${{ secrets.CONVEYOR_SIGNING_KEY }}
+        run: |
+          if [ -z "$CONVEYOR_GITHUB_TOKEN" ] || [ -z "$SIGNING_KEY" ]; then
+            echo "::error ::Desktop release secrets aren't configured. See .github/RELEASING.md."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Cache Conveyor installation
+        id: cache-conveyor
+        uses: actions/cache@v5
+        with:
+          path: .conveyor/install
+          key: conveyor-22.0-linux-amd64
+
+      - name: Download Conveyor
+        if: steps.cache-conveyor.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://downloads.hydraulic.dev/conveyor/conveyor-22.0-linux-amd64.tar.gz
+          mkdir -p .conveyor/install
+          tar xzf conveyor-22.0-linux-amd64.tar.gz -C .conveyor/install
+
+      - name: Cache Conveyor data
+        uses: actions/cache@v5
+        with:
+          key: conveyor-data-${{ github.run_id }}
+          path: .conveyor/cache
+          restore-keys: conveyor-data
+
+      - name: Set version
+        id: version
+        run: .github/scripts/ci-version.sh ${{ github.run_number }}
+
+      # Every platform's ffmpeg arrives through Conveyor's per-machine jars; the host's copy in
+      # audio-app's jar would ship Linux binaries to everyone. Appended so every Gradle call
+      # (including Conveyor's own printConveyorConfig) sees it.
+      - name: Drop the host ffmpeg from the shared jar
+        run: printf '\nsoundhouse.bundleHostFfmpeg=false\n' >> gradle.properties
+
+      - name: Build binaries
+        run: ./gradlew :desktopApp:createReleaseDistributable
+        env:
+          JDK_21: ${{ env.JAVA_HOME }}
+
+      - name: Run Conveyor
+        working-directory: ./desktopApp
+        env:
+          CONVEYOR_GITHUB_TOKEN: ${{ secrets.CONVEYOR_DESKTOP_GITHUB_TOKEN }}
+          SIGNING_KEY: ${{ secrets.CONVEYOR_SIGNING_KEY }}
+          CONVEYOR_AGREE_TO_LICENSE: 1
+          JDK_21: ${{ env.JAVA_HOME }}
+        run: |
+          PATH="$PATH:../.conveyor/install/conveyor-22.0/bin"
+          conveyor --cache-dir="../.conveyor/cache" "-Kapp.signing-key=$SIGNING_KEY" -f ci.conveyor.conf make site
+
+      - name: Publish to soundhouse-desktop-release-bleeding
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CONVEYOR_DESKTOP_GITHUB_TOKEN }}
+          script: |
+            await require('./.github/scripts/publish-desktop-release.js')({
+              github, context,
+              repo: 'soundhouse-desktop-release-bleeding',
+              version: '${{ steps.version.outputs.VERSION_NAME }}',
+              label: 'development',
+              keep: 3,
+            });
