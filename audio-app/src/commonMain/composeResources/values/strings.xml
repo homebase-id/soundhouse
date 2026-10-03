@@ -199,4 +199,5 @@
     <string name="details_recorded">Recorded</string>
     <string name="details_format_pending">Sample rate, bit depth and bitrate appear once the file has been read.</string>
     <string name="player_buffering">Buffering…</string>
+    <string name="download_in_progress">Downloading · %1$s</string>
 </resources>
