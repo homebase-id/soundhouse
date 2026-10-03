@@ -56,6 +56,9 @@ class AndroidAudioPlayer(private val context: Context) : AudioPlayer {
                     // ranged read is a full round trip, and on cellular data a seek shouldn't pull
                     // tens of MB that may never be heard.
                     .setBufferDurationsMs(MIN_BUFFER_MS, MAX_BUFFER_MS, START_BUFFER_MS, REBUFFER_MS)
+                    // Otherwise the ~13 MB default byte target for audio wins over MAX_BUFFER_MS
+                    // (observed: 14 MB read ahead on start, ~4 MB after every seek).
+                    .setPrioritizeTimeOverSizeThresholds(true)
                     .build(),
             )
             .setLooper(Looper.getMainLooper())
