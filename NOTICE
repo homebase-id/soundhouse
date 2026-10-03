@@ -1,0 +1,33 @@
+Soundhouse (Kotlin Multiplatform)
+
+The homebase-api, homebase-common and homebase-auth modules are derived from
+Homebase Chat (chat-kmp, imported at commit 6b083f6ffbddc19ab399c603f4fd38db2092bc2f)
+and are covered by the Homebase.id License in LICENSE, with the GNU GPL text in
+LICENSE-GPL.
+
+
+Code derived from Signal-Android
+--------------------------------
+
+Commits 9861473 through e89c230 of this repository's history contain in-app
+camera code that chat-kmp ported from Signal-Android's Compose camera module
+(feature/camera) at upstream commit 0d8f7d7f99 "Bump version to 8.29.0":
+
+    homebase-common/src/commonMain/kotlin/id/homebase/core/camera/
+        ZoomPresets.kt, CaptureButtonState.kt, DeviceRotation.kt
+    homebase-common/src/androidMain/kotlin/id/homebase/core/camera/
+        CameraCapability.android.kt, CameraEngine.android.kt, DeviceRotation.android.kt
+
+Signal-Android is by Signal Messenger, LLC, and is licensed under the GNU Affero
+General Public License v3.0 (https://www.gnu.org/licenses/agpl-3.0.html).
+Upstream: https://github.com/signalapp/Signal-Android
+
+That code was removed and is not part of the current tree.
+
+
+Bundled fonts
+-------------
+
+    Montserrat and Montserrat Alternates
+        (c) The Montserrat Project Authors, SIL Open Font License 1.1.
+        Full terms: homebase-common/licenses-OFL-Montserrat.txt
