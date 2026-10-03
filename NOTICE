@@ -9,7 +9,7 @@ LICENSE-GPL.
 Code derived from Signal-Android
 --------------------------------
 
-Commits 9861473 through e89c230 of this repository's history contain in-app
+Commits 9861473 up to (not including) 3676fdb of this repository's history contain in-app
 camera code that chat-kmp ported from Signal-Android's Compose camera module
 (feature/camera) at upstream commit 0d8f7d7f99 "Bump version to 8.29.0":
 
