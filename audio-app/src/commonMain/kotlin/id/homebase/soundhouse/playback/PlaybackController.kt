@@ -18,12 +18,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import id.homebase.core.audio.coerceToPlaybackSpeed
 import kotlin.time.Clock
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 data class PlaybackState(
     val queue: List<AudioTrack> = emptyList(),
     val index: Int = -1,
     val isPlaying: Boolean = false,
     val isLoading: Boolean = false,
+    /** Waiting on data mid-track: after a seek, or when the stream runs dry. */
+    val isBuffering: Boolean = false,
     val positionMs: Long = 0,
     val durationMs: Long = 0,
     val failed: Boolean = false,
@@ -62,6 +66,8 @@ class PlaybackController(
     val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
     private var generation = 0
+    @kotlin.concurrent.Volatile private var seekStarted: Pair<Long, TimeMark>? = null
+    @kotlin.concurrent.Volatile private var stallStarted: TimeMark? = null
     private var sleepJob: Job? = null
 
     init {
@@ -71,9 +77,28 @@ class PlaybackController(
                 scope.launch(playerLane) { advanceAfterCompletion() }
             }
 
+            override fun onBufferingChanged(buffering: Boolean) {
+                if (buffering) {
+                    if (stallStarted == null) stallStarted = TimeSource.Monotonic.markNow()
+                } else {
+                    val seek = seekStarted
+                    val stall = stallStarted
+                    when {
+                        seek != null -> Logger.i(tag = TRACE) {
+                            "seek to ${seek.first / 1000} s: playing again after ${seek.second.elapsedNow().inWholeMilliseconds} ms"
+                        }
+                        stall != null -> Logger.i(tag = TRACE) { "stalled for ${stall.elapsedNow().inWholeMilliseconds} ms" }
+                    }
+                    seekStarted = null
+                    stallStarted = null
+                }
+                _state.update { it.copy(isBuffering = buffering) }
+            }
+
             override fun onProgressUpdate(positionMs: Long, durationMs: Long) {
                 _state.update { state ->
-                    if (!state.isPlaying || state.isLoading) state
+                    // While buffering the player can still report where it was; the seek target stands.
+                    if (!state.isPlaying || state.isLoading || state.isBuffering) state
                     else state.copy(
                         positionMs = positionMs,
                         durationMs = if (durationMs > 0) durationMs else state.durationMs,
@@ -127,6 +152,7 @@ class PlaybackController(
         if (state.current == null || state.isLoading) return
         val target = positionMs.coerceIn(0, state.durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE)
         _state.update { it.copy(positionMs = target) }
+        seekStarted = target to TimeSource.Monotonic.markNow()
         scope.launch(playerLane) { player.jumpTo(target) }
     }
 
@@ -210,14 +236,18 @@ class PlaybackController(
         val track = _state.value.current ?: return
         val myGeneration = ++generation
         _state.update {
-            it.copy(isLoading = true, isPlaying = false, failed = false, positionMs = startAtMs, durationMs = track.durationMs ?: 0)
+            it.copy(isLoading = true, isPlaying = false, isBuffering = false, failed = false, positionMs = startAtMs, durationMs = track.durationMs ?: 0)
         }
         scope.launch(playerLane) {
             try {
+                val opening = TimeSource.Monotonic.markNow()
                 val source = locator.locate(track)
                 if (myGeneration != generation) return@launch
                 player.stop()
                 player.play(source)
+                Logger.i(tag = TRACE) {
+                    "opened ${track.fileId.toString().take(8)} (${if (source.startsWith("http")) "streamed" else "downloaded"}) in ${opening.elapsedNow().inWholeMilliseconds} ms"
+                }
                 if (startAtMs > 0) player.jumpTo(startAtMs)
                 if (myGeneration != generation) return@launch
                 _state.update { it.copy(isLoading = false, isPlaying = true) }
@@ -246,6 +276,7 @@ class PlaybackController(
 
     private companion object {
         const val TAG = "PlaybackController"
+        const val TRACE = "StreamTrace"
         const val RESTART_THRESHOLD_MS = 3_000L
     }
 }

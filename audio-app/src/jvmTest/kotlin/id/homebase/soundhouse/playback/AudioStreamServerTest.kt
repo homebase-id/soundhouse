@@ -1,5 +1,6 @@
 package id.homebase.soundhouse.playback
 
+import kotlinx.coroutines.delay
 import id.homebase.api.video.FFmpegBinaryManager
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -133,5 +134,31 @@ class AudioStreamServerTest {
         check(process.waitFor(30, TimeUnit.SECONDS)) { "${command.first()} timed out" }
         check(process.exitValue() == 0) { "${command.first()} exited ${process.exitValue()}: $output" }
         output
+    }
+
+    @Test
+    fun `reads several chunks at once and still returns them in order`() = runBlocking {
+        val inFlight = AtomicInteger()
+        val peak = AtomicInteger()
+        val slow = object : TrackByteSource {
+            override val size: Long get() = payload.size.toLong()
+            override val mimeType: String get() = "audio/mpeg"
+            override suspend fun read(start: Long, length: Long): ByteArray {
+                peak.accumulateAndGet(inFlight.incrementAndGet(), ::maxOf)
+                // Later chunks answer first, so in-order output can't come from arrival order.
+                delay(40 - (start / 1024) * 3)
+                inFlight.decrementAndGet()
+                return payload.copyOfRange(start.toInt(), (start + length).toInt())
+            }
+        }
+        val readAhead = AudioStreamServer(chunkSize = 1024, readAhead = 4)
+        try {
+            val response = get(readAhead.urlFor("slow", slow), "bytes=500-")
+            assertEquals(206, response.status)
+            assertContentEquals(payload.copyOfRange(500, payload.size), response.body)
+            assertEquals(4, peak.get())
+        } finally {
+            readAhead.stop()
+        }
     }
 }

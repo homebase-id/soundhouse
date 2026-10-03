@@ -64,7 +64,7 @@ fun MiniPlayer(viewModel: PlayerViewModel, onOpen: () -> Unit, modifier: Modifie
                 )
                 IconButton(onClick = viewModel::togglePlayPause, enabled = !uiState.isLoading) {
                     when {
-                        uiState.isLoading -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        uiState.isLoading || uiState.isBuffering -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         uiState.isPlaying -> Icon(Icons.Filled.Pause, contentDescription = stringResource(AR.string.player_pause))
                         else -> Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(AR.string.player_play))
                     }
@@ -73,11 +73,16 @@ fun MiniPlayer(viewModel: PlayerViewModel, onOpen: () -> Unit, modifier: Modifie
                     Icon(Icons.Filled.SkipNext, contentDescription = stringResource(AR.string.player_next))
                 }
             }
-            LinearProgressIndicator(
-                progress = { if (uiState.durationMs > 0) (uiState.positionMs.toFloat() / uiState.durationMs).coerceIn(0f, 1f) else 0f },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
-                drawStopIndicator = {},
-            )
+            val barModifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp)
+            if (uiState.isBuffering) {
+                LinearProgressIndicator(barModifier)
+            } else {
+                LinearProgressIndicator(
+                    progress = { if (uiState.durationMs > 0) (uiState.positionMs.toFloat() / uiState.durationMs).coerceIn(0f, 1f) else 0f },
+                    modifier = barModifier,
+                    drawStopIndicator = {},
+                )
+            }
         }
     }
 }

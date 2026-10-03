@@ -15,6 +15,9 @@ interface AudioPlayer {
 interface AudioPlaybackObserver {
     fun onComplete()
     fun onProgressUpdate(positionMs: Long, durationMs: Long)
+
+    /** Playback is waiting on data: after a seek, or when a stream runs dry. */
+    fun onBufferingChanged(buffering: Boolean) {}
 }
 
 const val MIN_PLAYBACK_SPEED = 0.5f

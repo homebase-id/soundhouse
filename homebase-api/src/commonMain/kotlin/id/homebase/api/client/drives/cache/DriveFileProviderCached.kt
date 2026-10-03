@@ -100,6 +100,9 @@ class DriveFileProviderCached(
     private val directory = fileOperationsProvider.getCacheDirectory()
 
     private val payloadSemaphore = Semaphore(1)
+    // Range reads are small and latency-bound (one ~0.4 s round trip each); streamed playback reads
+    // several ahead, which a single permit would serialise.
+    private val chunkSemaphore = Semaphore(8)
     private val thumbnailSemaphore = Semaphore(30)
 
     private val fetchScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -191,7 +194,8 @@ class DriveFileProviderCached(
         // cache — split caches would make every seg-0 prefetch a guaranteed
         // playback miss AND pollute the payload LRU.
         val cache = if (options.chunkStart != null) hlsChunkDiskCache else payloadDiskCache
-        return readThrough(cache, cacheKey, payloadSemaphore, "PayloadIO") {
+        val semaphore = if (options.chunkStart != null) chunkSemaphore else payloadSemaphore
+        return readThrough(cache, cacheKey, semaphore, "PayloadIO") {
             delegate.getPayloadBytesRawNetwork(driveId, fileId, key, options, onDownloadProgress)
         }
     }

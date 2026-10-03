@@ -16,6 +16,10 @@ class AndroidAudioPlayer: AudioPlayer {
     private var positionJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO)
     private var speed = 1f
+    // A seek waits for its data before onSeekComplete; a running stream can also stall on its own.
+    private var seeking = false
+    private var stalled = false
+    private var reportedBuffering = false
 
     override fun play(filePath: String) {
         release()
@@ -28,6 +32,19 @@ class AndroidAudioPlayer: AudioPlayer {
             )
             setDataSource(filePath)
             setOnCompletionListener { observer?.onComplete() }
+            setOnSeekCompleteListener {
+                seeking = false
+                reportBuffering()
+            }
+            setOnInfoListener { _, what, _ ->
+                when (what) {
+                    MediaPlayer.MEDIA_INFO_BUFFERING_START -> stalled = true
+                    MediaPlayer.MEDIA_INFO_BUFFERING_END -> stalled = false
+                    else -> return@setOnInfoListener false
+                }
+                reportBuffering()
+                true
+            }
             prepare()
             start()
         }
@@ -37,6 +54,8 @@ class AndroidAudioPlayer: AudioPlayer {
 
     override fun jumpTo(positionMs: Long) {
         mediaPlayer?.let {
+            seeking = true
+            reportBuffering()
             it.seekTo(positionMs.toInt().coerceIn(0, it.duration))
         }
     }
@@ -61,6 +80,9 @@ class AndroidAudioPlayer: AudioPlayer {
     }
 
     override fun release() {
+        seeking = false
+        stalled = false
+        reportBuffering()
         positionJob?.cancel()
         mediaPlayer?.release()
         mediaPlayer = null
@@ -77,6 +99,14 @@ class AndroidAudioPlayer: AudioPlayer {
         if (!player.isPlaying) return
         runCatching { player.playbackParams = player.playbackParams.setSpeed(speed) }
             .onFailure { Logger.w(it) { "setPlaybackParams($speed) rejected" } }
+    }
+
+    @Synchronized
+    private fun reportBuffering() {
+        val buffering = seeking || stalled
+        if (buffering == reportedBuffering) return
+        reportedBuffering = buffering
+        observer?.onBufferingChanged(buffering)
     }
 
     private fun startPositionPolling() {
