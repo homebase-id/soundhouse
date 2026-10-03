@@ -57,19 +57,26 @@ private class TestableAudioPlayer(
     var fakeLine: FakeSourceDataLine? = null
     var simulateRealtime = false
 
-    override fun startDecoder(filePath: String, seekMs: Long): InputStream {
+    var lastOutput: PcmFormat? = null
+    var refusedFormats: Set<PcmFormat> = emptySet()
+    var probedFormat: PcmFormat? = null
+
+    override fun startDecoder(filePath: String, seekMs: Long, output: PcmFormat): InputStream {
         lastSeekMs = seekMs
+        lastOutput = output
         decoderStartCount++
         return ByteArrayInputStream(fakeAudioBytes)
     }
 
     override fun openAudioLine(format: AudioFormat): SourceDataLine {
+        val asked = PcmFormat(format.sampleRate.toInt(), format.sampleSizeInBits, format.channels)
+        if (asked in refusedFormats) throw javax.sound.sampled.LineUnavailableException("refused $asked")
         val line = FakeSourceDataLine(format, simulateRealtime)
         fakeLine = line
         return line
     }
 
-    override fun probeDurationMs(filePath: String): Long = fakeDurationMs
+    override fun probe(filePath: String): SourceProbe = SourceProbe(fakeDurationMs, probedFormat)
 
     override fun ffmpegExecutable(): String = "/fake/bin/ffmpeg"
 }
@@ -371,6 +378,73 @@ class JvmAudioPlayerTest {
 
         val tooSlow = player.buildFfmpegCommand("/fake/audio.m4a", seekMs = 0, speed = 0.1f)
         assertEquals("atempo=0.5", tooSlow[tooSlow.indexOf("-filter:a") + 1])
+    }
+
+    @Test
+    fun hiResSourcePlaysAtItsOwnRateAndDepth() {
+        val player = TestableAudioPlayer()
+        player.probedFormat = PcmFormat(96_000, 24, 2)
+        player.play("/fake/hires.flac")
+        Thread.sleep(50)
+
+        assertEquals(PcmFormat(96_000, 24, 2), player.lastOutput)
+        assertTrue(player.fakeLine!!.format.matches(AudioFormat(96_000f, 24, 2, true, false)))
+        player.release()
+    }
+
+    @Test
+    fun refusedFormatsFallBackTowardsCdQuality() {
+        val player = TestableAudioPlayer()
+        player.probedFormat = PcmFormat(192_000, 32, 6)
+        player.refusedFormats = setOf(PcmFormat(192_000, 24, 6), PcmFormat(192_000, 24, 2))
+        player.play("/fake/surround.wav")
+        Thread.sleep(50)
+
+        assertEquals(PcmFormat(192_000, 16, 2), player.lastOutput)
+        player.release()
+    }
+
+    @Test
+    fun unprobedSourcesPlayAtCdQuality() {
+        val player = TestableAudioPlayer()
+        player.play("/fake/unknown.bin")
+        Thread.sleep(50)
+        assertEquals(JvmAudioPlayer.DEFAULT_FORMAT, player.lastOutput)
+        player.release()
+    }
+
+    @Test
+    fun ffmpegCommandDecodesToTheChosenFormat() {
+        val command = TestableAudioPlayer().buildFfmpegCommand("/fake/a.flac", seekMs = 0, output = PcmFormat(88_200, 24, 1))
+        assertEquals("s24le", command[command.indexOf("-f") + 1])
+        assertEquals("pcm_s24le", command[command.indexOf("-acodec") + 1])
+        assertEquals("88200", command[command.indexOf("-ar") + 1])
+        assertEquals("1", command[command.indexOf("-ac") + 1])
+    }
+
+    @Test
+    fun probeOutputParsesRateDepthAndChannels() {
+        val flac = JvmAudioPlayer.parseProbe("sample_rate=96000\nchannels=2\nbits_per_sample=0\nbits_per_raw_sample=24\nduration=12.500000\n")
+        assertEquals(SourceProbe(12_500, PcmFormat(96_000, 24, 2)), flac)
+        val mp3 = JvmAudioPlayer.parseProbe("sample_rate=44100\nchannels=2\nbits_per_sample=0\nbits_per_raw_sample=N/A\nduration=3.0\n")
+        assertEquals(PcmFormat(44_100, 16, 2), mp3.format)
+        assertEquals(SourceProbe(0, null), JvmAudioPlayer.parseProbe("garbage"))
+    }
+
+    @Test
+    fun partialFramesAtTheEndOfTheStreamAreDropped() {
+        val completed = CountDownLatch(1)
+        // 24-bit stereo frames are 6 bytes; 1000 leaves a 4-byte tail the line would reject.
+        val player = TestableAudioPlayer(fakeDurationMs = 1_000, fakeAudioBytes = ByteArray(1000))
+        player.probedFormat = PcmFormat(48_000, 24, 2)
+        player.setPlaybackObserver(object : AudioPlaybackObserver {
+            override fun onComplete() { completed.countDown() }
+            override fun onProgressUpdate(positionMs: Long, durationMs: Long) {}
+        })
+        player.play("/fake/a.flac")
+        assertTrue(completed.await(3, TimeUnit.SECONDS))
+        assertEquals(996L, player.fakeLine?.totalBytesWritten)
+        player.release()
     }
 
     @Test
