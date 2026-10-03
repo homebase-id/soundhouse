@@ -10,6 +10,7 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -106,6 +107,9 @@ class ListeningHistory(
     private fun save() {
         lastSaveMs = now()
         scope.launch(Dispatchers.IO) {
+            // Until the stored file is merged in, the map holds only this session's changes; writing it
+            // would replace the whole stored history.
+            _isLoaded.first { it }
             writeLock.withLock {
                 // Read under the lock: saves can start out of order, and the last write must be the latest state.
                 val snapshot = _entries.value.values.sortedByDescending { it.lastPlayedMs }.take(MAX_ENTRIES)
