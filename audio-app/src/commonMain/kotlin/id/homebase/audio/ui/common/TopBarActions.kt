@@ -16,6 +16,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import id.homebase.api.common.OdinId
+import id.homebase.core.avatars.AvatarOptions
+import id.homebase.core.avatars.PublicAvatar
+import id.homebase.core.util.initials
 import id.homebase.audio.resources.AR
 import id.homebase.audio.resources.account_menu
 import id.homebase.audio.resources.record_open
@@ -25,14 +34,24 @@ import org.jetbrains.compose.resources.stringResource
 
 /** Record and account actions, shared by the top bars of both tabs. */
 @Composable
-fun TopBarActions(onOpenRecorder: () -> Unit, onOpenSettings: () -> Unit, onSignOut: () -> Unit) {
+fun TopBarActions(identity: OdinId?, onOpenRecorder: () -> Unit, onOpenSettings: () -> Unit, onSignOut: () -> Unit) {
     IconButton(onClick = onOpenRecorder) {
         Icon(Icons.Filled.Mic, contentDescription = stringResource(AR.string.record_open))
     }
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Filled.AccountCircle, contentDescription = stringResource(AR.string.account_menu))
+        val accountLabel = stringResource(AR.string.account_menu)
+        IconButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = accountLabel }) {
+            if (identity != null) {
+                PublicAvatar(
+                    odinId = identity,
+                    initials = identity.domainName.initials(),
+                    options = AvatarOptions(size = 32.dp),
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+            } else {
+                Icon(Icons.Filled.AccountCircle, contentDescription = null)
+            }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(

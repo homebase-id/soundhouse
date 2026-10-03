@@ -99,6 +99,7 @@ fun AudioNavHost(navController: NavHostController = rememberNavController()) {
     }
     val topBarActions: @Composable () -> Unit = {
         TopBarActions(
+            identity = (authState as? YouAuthState.Authenticated)?.identity,
             onOpenRecorder = openRecorder,
             onOpenSettings = { navController.navigate(AudioRoute.Settings) { launchSingleTop = true } },
             onSignOut = { scope.launch { youAuthFlowManager.logout() } },
