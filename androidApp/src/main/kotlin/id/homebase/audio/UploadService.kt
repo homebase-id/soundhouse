@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import co.touchlab.kermit.Logger
@@ -51,7 +52,7 @@ class UploadService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // startForegroundService requires startForeground within seconds, even if the queue just emptied.
-        startForeground(NOTIFICATION_ID, notification(importer.jobs.value), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        startForegroundCompat(NOTIFICATION_ID, notification(importer.jobs.value), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         if (!started) {
             started = true
             scope.launch { importer.jobs.collect(::render) }
@@ -127,7 +128,9 @@ class UploadService : Service() {
         fun start(context: Context) {
             try {
                 context.startForegroundService(Intent(context, UploadService::class.java))
-            } catch (e: ForegroundServiceStartNotAllowedException) {
+            } catch (e: IllegalStateException) {
+                // Caught as its API 31 superclass: naming the subclass in a catch breaks older devices.
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || e !is ForegroundServiceStartNotAllowedException) throw e
                 // Queue resumed while the app is in the background; MainActivity starts the service when it's opened.
                 Logger.w(e, "UploadService") { "Not allowed to start the upload service from the background" }
             }
