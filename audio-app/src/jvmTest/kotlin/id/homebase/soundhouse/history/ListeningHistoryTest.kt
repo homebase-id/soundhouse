@@ -118,6 +118,24 @@ class ListeningHistoryTest {
     }
 
     @Test
+    fun `a save made while the stored history is still loading doesn't overwrite it`() = runBlocking<Unit> {
+        val a = Uuid.random()
+        val b = Uuid.random()
+        val c = Uuid.random()
+        storedHistoryWith(a, b)
+        val gated = GatedReads()
+        val history = ListeningHistory(file, gated, scope, null, now = { clock })
+        history.record(c, 20_000, 100_000, force = true)
+        // Long enough for an ungated save to land; the stored file must be untouched until it's read.
+        delay(300)
+        val stored = File(file).readText()
+        assertTrue(a.toString() in stored && b.toString() in stored, "stored history overwritten before load: $stored")
+        gated.release.countDown()
+        withTimeout(5_000) { history.isLoaded.first { it } }
+        awaitFile { text -> listOf(a, b, c).all { it.toString() in text } }
+    }
+
+    @Test
     fun `sign-out and delete clear entries`() = runBlocking {
         val bus = EventBus()
         val history = history(bus)
