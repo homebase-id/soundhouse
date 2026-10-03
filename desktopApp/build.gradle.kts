@@ -68,7 +68,7 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "id.homebase.audio.desktop.MainKt"
+        mainClass = "id.homebase.soundhouse.desktop.MainKt"
         jvmArgs += listOf("-Dapple.awt.application.appearance=system")
 
         nativeDistributions {
@@ -97,7 +97,7 @@ compose.desktop {
             macOS {
                 iconFile.set(project.rootProject.file("icons/icon.icns"))
                 packageName = "Soundhouse"
-                bundleID = "id.homebase.audio"
+                bundleID = "id.homebase.soundhouse"
                 infoPlist {
                     extraKeysRawXml = """
                         <key>NSMicrophoneUsageDescription</key>

@@ -1,0 +1,95 @@
+package id.homebase.soundhouse.data
+
+import id.homebase.api.client.KeyHeader
+import id.homebase.api.client.drives.HomebaseFile
+import id.homebase.api.client.drives.upload.EmbeddedThumb
+import id.homebase.api.serialization.OdinSystemSerializer
+import id.homebase.soundhouse.importing.AudioQuality
+import id.homebase.soundhouse.importing.qualityFromMimeType
+import id.homebase.core.config.audioLabeledDrive
+import kotlinx.serialization.Serializable
+import kotlin.io.encoding.Base64
+import kotlin.uuid.Uuid
+
+val audioDriveId: Uuid get() = audioLabeledDrive.drive.alias
+
+const val AUDIO_TRACK_FILE_TYPE = 4410
+
+// Server rule: ^[a-z0-9_]{8,10}$
+const val AUDIO_PAYLOAD_KEY = "audiotrack"
+
+@Serializable
+enum class TrackOrigin { Imported, Recorded }
+
+/** Encrypted into the file's appData.content. */
+@Serializable
+data class AudioTrackContent(
+    val title: String,
+    val sizeBytes: Long,
+    val mimeType: String,
+    val durationMs: Long? = null,
+    val fileName: String? = null,
+    val origin: TrackOrigin = TrackOrigin.Imported,
+    val quality: AudioQuality? = null,
+)
+
+/** A cover thumbnail stored with the payload; [lastModified] versions the thumbnail cache key. */
+data class CoverThumb(val width: Int, val height: Int, val lastModified: Long?)
+
+class AudioTrack(
+    val fileId: Uuid,
+    val uniqueId: Uuid?,
+    val content: AudioTrackContent,
+    val dateAddedMs: Long,
+    val versionTag: Uuid?,
+    val tags: List<Uuid>,
+    val keyHeader: KeyHeader,
+    /** File key with the payload's own IV; the header IV rotates on every update, the payload's doesn't. */
+    val payloadKeyHeader: KeyHeader,
+    val covers: List<CoverThumb> = emptyList(),
+    val coverPreview: EmbeddedThumb? = null,
+) {
+    val hasCover: Boolean get() = covers.isNotEmpty()
+
+    val title: String get() = content.title
+    val durationMs: Long? get() = content.durationMs
+    val sizeBytes: Long get() = content.sizeBytes
+    val mimeType: String get() = content.mimeType
+    val quality: AudioQuality? get() = content.quality
+
+    /** The probed format, or the little the MIME type implies before a probe. */
+    val displayQuality: AudioQuality? get() = content.quality ?: qualityFromMimeType(content.mimeType)
+
+    override fun equals(other: Any?): Boolean =
+        other is AudioTrack && fileId == other.fileId && versionTag == other.versionTag && content == other.content
+
+    override fun hashCode(): Int = 31 * fileId.hashCode() + (versionTag?.hashCode() ?: 0)
+
+    override fun toString(): String = "AudioTrack($fileId, ${content.title})"
+}
+
+fun HomebaseFile.toAudioTrackOrNull(): AudioTrack? {
+    if (isSoftDeleted()) return null
+    val appData = fileMetadata.appData
+    if (appData.fileType != AUDIO_TRACK_FILE_TYPE) return null
+    val payload = fileMetadata.payloads.orEmpty().firstOrNull { it.key == AUDIO_PAYLOAD_KEY } ?: return null
+    val payloadIv = payload.iv?.let { runCatching { Base64.decode(it) }.getOrNull() } ?: keyHeader.iv
+    val json = appData.content ?: return null
+    val content = runCatching { OdinSystemSerializer.deserialize<AudioTrackContent>(json) }.getOrNull() ?: return null
+    return AudioTrack(
+        fileId = fileId,
+        uniqueId = appData.uniqueId,
+        content = content,
+        dateAddedMs = fileMetadata.created.milliseconds,
+        versionTag = fileMetadata.versionTag,
+        tags = appData.tags.orEmpty(),
+        keyHeader = keyHeader,
+        payloadKeyHeader = KeyHeader(iv = payloadIv, aesKey = keyHeader.aesKey),
+        covers = payload.thumbnails.orEmpty().mapNotNull { thumb ->
+            val width = thumb.pixelWidth ?: return@mapNotNull null
+            val height = thumb.pixelHeight ?: return@mapNotNull null
+            CoverThumb(width, height, payload.lastModified)
+        }.sortedBy { it.width },
+        coverPreview = appData.previewThumbnail,
+    )
+}

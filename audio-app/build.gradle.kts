@@ -8,7 +8,7 @@ plugins {
 
 compose.resources {
     publicResClass = true
-    packageOfResClass = "id.homebase.audio.resources"
+    packageOfResClass = "id.homebase.soundhouse.resources"
     nameOfResClass = "AR"
     generateResClass = auto
 }
@@ -45,7 +45,7 @@ kotlin {
     }
 
     android {
-        namespace = "id.homebase.audio.shared"
+        namespace = "id.homebase.soundhouse.shared"
         compileSdk = libs.versions.android.targetSdk.get().toInt()
         compileSdkExtension = 19
         minSdk = libs.versions.android.minSdk.get().toInt()
@@ -132,7 +132,7 @@ kotlin {
     }
 }
 
-val liveTestPackage = "id.homebase.audio.live.*"
+val liveTestPackage = "id.homebase.soundhouse.live.*"
 
 tasks.withType<Test>().matching { it.name == "jvmTest" }.configureEach {
     filter { excludeTestsMatching(liveTestPackage) }

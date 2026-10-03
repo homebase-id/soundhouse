@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "id.homebase.audio.baselineprofile"
+    namespace = "id.homebase.soundhouse.baselineprofile"
     compileSdk {
         version = release(libs.versions.android.targetSdk.get().toInt())
     }

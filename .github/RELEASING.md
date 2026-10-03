@@ -21,8 +21,8 @@ ever collides with a code already on Play.
 
 One-time, outside GitHub:
 
-1. Create two apps in the Play Console: `id.homebase.audio` (Soundhouse) and
-   `id.homebase.audio.dev` (Soundhouse Dev). Play can't create an app from the API, so upload the
+1. Create two apps in the Play Console: `id.homebase.soundhouse` (Soundhouse) and
+   `id.homebase.soundhouse.dev` (Soundhouse Dev). Play can't create an app from the API, so upload the
    first bundle of each by hand (build it with the release workflow and take the artifact).
 2. Give the Play service account release access to both apps.
 

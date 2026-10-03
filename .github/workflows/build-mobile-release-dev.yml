@@ -1,6 +1,6 @@
 name: Build Mobile Release Dev
 
-# Nightly build of the dev app (id.homebase.audio.dev) to the Play internal track.
+# Nightly build of the dev app (id.homebase.soundhouse.dev) to the Play internal track.
 # Android only: the iOS framework compiles in Build Check, but there's no iOS app to ship.
 
 on:

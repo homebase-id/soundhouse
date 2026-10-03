@@ -39,7 +39,7 @@ actual object ShareAuthBridge {
 
     private const val SERVICE = "id.homebase.share.auth"
     private val ACCESS_GROUP: String = NSBundle.mainBundle.infoDictionary
-        ?.get("AppGroupIdentifier") as? String ?: "group.id.homebase.audio"
+        ?.get("AppGroupIdentifier") as? String ?: "group.id.homebase.soundhouse"
     private const val KEY_AUTH_ACTIVE = "share_auth_active"
     private const val KEY_USER_DOMAIN = "share_user_domain"
 
