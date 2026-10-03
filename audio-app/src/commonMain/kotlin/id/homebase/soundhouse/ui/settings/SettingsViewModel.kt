@@ -8,6 +8,7 @@ import id.homebase.soundhouse.download.DownloadStore
 import id.homebase.soundhouse.download.OfflineKeeper
 import id.homebase.soundhouse.settings.AudioPreferences
 import id.homebase.soundhouse.settings.AudioSettings
+import id.homebase.soundhouse.settings.Skin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,6 +42,7 @@ class SettingsViewModel(
     fun setLimit(bytes: Long) = settings.update { it.copy(offlineLimitBytes = bytes) }
     fun setWifiOnly(value: Boolean) = settings.update { it.copy(offlineOnWifiOnly = value) }
     fun setUploadsAtOnce(value: Int) = settings.update { it.copy(uploadsAtOnce = value) }
+    fun setSkin(value: Skin) = settings.update { it.copy(skin = value) }
 
     companion object {
         val LIMITS_GB = listOf(1, 2, 5, 10)

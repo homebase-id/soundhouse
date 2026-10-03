@@ -43,6 +43,8 @@ import id.homebase.soundhouse.ui.record.RecordContent
 import id.homebase.soundhouse.ui.record.RecordPhase
 import id.homebase.soundhouse.ui.record.RecordUiState
 import id.homebase.soundhouse.ui.player.PlayerScreen
+import id.homebase.soundhouse.settings.AudioPreferences
+import id.homebase.soundhouse.settings.Skin
 import id.homebase.soundhouse.ui.player.PlayerViewModel
 import id.homebase.core.audio.AudioPlaybackObserver
 import id.homebase.core.audio.AudioPlayer
@@ -223,6 +225,19 @@ class UiRenderTest {
             Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(top = 120.dp)) {
                 EmptyLibrary(onImport = {}, onRecord = {})
             }
+        }
+    }
+
+    @Test
+    fun `aluminium player renders`() = runBlocking {
+        val controller = PlaybackController(SilentPlayer(), { it.title }, scope)
+        controller.playQueue(tracks, 1)
+        withTimeout(5_000) { controller.state.first { it.isPlaying } }
+        controller.seekTo(124_000)
+        val viewModel = PlayerViewModel(controller, InMemoryAudioSettings(AudioPreferences(skin = Skin.Aluminium)))
+        withTimeout(5_000) { viewModel.uiState.first { it.title != null && it.skin == Skin.Aluminium } }
+        for (dark in listOf(false, true)) render("player-aluminium", dark) {
+            PlayerScreen(viewModel, onBack = {})
         }
     }
 

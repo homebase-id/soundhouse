@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import id.homebase.soundhouse.playback.SleepTimer
 import id.homebase.soundhouse.settings.AudioSettings
+import id.homebase.soundhouse.settings.Skin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -51,8 +52,14 @@ class PlayerViewModel(
                         speed = state.speed,
                         sleepAtEndOfTrack = state.sleepTimer == SleepTimer.EndOfTrack,
                         sleepRemainingMs = it.sleepRemainingMs,
+                        skin = it.skin,
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            settings.preferences.map { it.skin }.distinctUntilChanged().collect { skin ->
+                _uiState.update { it.copy(skin = skin) }
             }
         }
         // A once-a-second countdown, only while a timed sleep is set.
@@ -113,4 +120,5 @@ data class PlayerUiState(
     val speed: Float = 1f,
     val sleepRemainingMs: Long? = null,
     val sleepAtEndOfTrack: Boolean = false,
+    val skin: Skin = Skin.Standard,
 )

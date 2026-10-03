@@ -92,12 +92,32 @@ import id.homebase.soundhouse.ui.common.artworkPalette
 import id.homebase.soundhouse.ui.common.formatDate
 import id.homebase.soundhouse.ui.common.formatDuration
 import id.homebase.soundhouse.ui.theme.tabular
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
+import id.homebase.soundhouse.settings.Skin
+import id.homebase.soundhouse.ui.theme.AluminiumTheme
+import id.homebase.soundhouse.ui.theme.LocalAluminium
+import id.homebase.soundhouse.ui.theme.bevel
+import id.homebase.soundhouse.ui.theme.brushedMetal
+import id.homebase.soundhouse.ui.theme.recessedPanel
+import id.homebase.soundhouse.ui.theme.spunKnob
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    if (uiState.skin == Skin.Aluminium) {
+        AluminiumTheme { AluminiumPlayer(uiState, viewModel, onBack) }
+        return
+    }
     val seed = uiState.artworkSeed
     val tint = if (seed != null) MaterialTheme.colorScheme.artworkPalette(seed).start else MaterialTheme.colorScheme.surface
     Box(
@@ -114,28 +134,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
         Scaffold(
             containerColor = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = {
-                        Column {
-                            Text(stringResource(AR.string.player_now_playing), style = MaterialTheme.typography.titleMedium)
-                            if (uiState.trackCount > 1) {
-                                Text(
-                                    stringResource(AR.string.player_position, uiState.trackNumber, uiState.trackCount),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(AR.string.navigate_back))
-                        }
-                    },
-                )
-            },
+            topBar = { PlayerTopBar(uiState, onBack) },
         ) { padding ->
             val title = uiState.title
             val track = uiState.track
@@ -172,6 +171,181 @@ fun PlayerScreen(viewModel: PlayerViewModel, onBack: () -> Unit) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlayerTopBar(uiState: PlayerUiState, onBack: () -> Unit) {
+    TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+        title = {
+            Column {
+                Text(stringResource(AR.string.player_now_playing), style = MaterialTheme.typography.titleMedium)
+                if (uiState.trackCount > 1) {
+                    Text(
+                        stringResource(AR.string.player_position, uiState.trackNumber, uiState.trackCount),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(AR.string.navigate_back))
+            }
+        },
+    )
+}
+
+/** Brushed metal, a recessed display for the track, spun knobs for transport. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AluminiumPlayer(uiState: PlayerUiState, viewModel: PlayerViewModel, onBack: () -> Unit) {
+    val metal = LocalAluminium.current
+    Box(Modifier.fillMaxSize().brushedMetal(metal)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            topBar = { PlayerTopBar(uiState, onBack) },
+        ) { padding ->
+            val title = uiState.title
+            val track = uiState.track
+            if (title == null || track == null) {
+                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Text(stringResource(AR.string.player_nothing_playing), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                return@Scaffold
+            }
+            Column(
+                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 28.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                val coverShape = RoundedCornerShape(16.dp)
+                TrackCover(
+                    track = track,
+                    minPixels = 640,
+                    cornerRadius = 16.dp,
+                    modifier = Modifier
+                        .widthIn(max = 360.dp)
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .shadow(elevation = 12.dp, shape = coverShape)
+                        .bevel(coverShape, metal),
+                )
+                DisplayPanel(uiState, title)
+                SeekSection(uiState, viewModel, machined = true)
+                KnobControls(uiState, viewModel)
+                ListeningControls(uiState, viewModel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DisplayPanel(uiState: PlayerUiState, title: String) {
+    val metal = LocalAluminium.current
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .recessedPanel(RoundedCornerShape(12.dp), metal)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            color = metal.onPanel,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        val date = uiState.dateAddedMs?.let(::formatDate)
+        if (date != null) {
+            Text(
+                if (uiState.recorded) stringResource(AR.string.track_recorded_on, date)
+                else stringResource(AR.string.track_added_on, date),
+                style = MaterialTheme.typography.bodySmall,
+                color = metal.onPanelDim,
+            )
+        }
+        uiState.quality?.let { quality ->
+            Spacer(Modifier.height(6.dp))
+            Text(
+                qualitySummary(quality),
+                style = MaterialTheme.typography.labelLarge.tabular(),
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+        if (uiState.failed) {
+            Spacer(Modifier.height(6.dp))
+            Text(stringResource(AR.string.player_failed), color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun KnobControls(uiState: PlayerUiState, viewModel: PlayerViewModel) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+        Knob(onClick = viewModel::previous, enabled = uiState.hasPrevious, size = 60.dp) {
+            Icon(Icons.Filled.SkipPrevious, contentDescription = stringResource(AR.string.player_previous), modifier = Modifier.size(28.dp))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            PlayingLed(on = uiState.isPlaying)
+            Spacer(Modifier.height(8.dp))
+            Knob(onClick = viewModel::togglePlayPause, enabled = !uiState.isLoading, size = 96.dp) {
+                when {
+                    uiState.isLoading -> LoadingIndicator(Modifier.size(48.dp))
+                    uiState.isPlaying -> Icon(Icons.Filled.Pause, contentDescription = stringResource(AR.string.player_pause), modifier = Modifier.size(40.dp))
+                    else -> Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(AR.string.player_play), modifier = Modifier.size(40.dp))
+                }
+            }
+            // Balances the LED so the play knob stays centred on the row.
+            Spacer(Modifier.height(14.dp))
+        }
+        Knob(onClick = viewModel::next, enabled = uiState.hasNext, size = 60.dp) {
+            Icon(Icons.Filled.SkipNext, contentDescription = stringResource(AR.string.player_next), modifier = Modifier.size(28.dp))
+        }
+    }
+}
+
+@Composable
+private fun Knob(onClick: () -> Unit, enabled: Boolean, size: Dp, content: @Composable () -> Unit) {
+    val metal = LocalAluminium.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(size)
+            .shadow(if (pressed) 2.dp else 8.dp, CircleShape)
+            .clip(CircleShape)
+            .spunKnob(metal, pressed)
+            .bevel(CircleShape, metal)
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
+    ) {
+        CompositionLocalProvider(LocalContentColor provides if (enabled) metal.engraving else metal.engravingDim.copy(alpha = 0.5f)) {
+            content()
+        }
+    }
+}
+
+/** The one lamp on the deck: amber while sound is playing. */
+@Composable
+private fun PlayingLed(on: Boolean) {
+    val metal = LocalAluminium.current
+    val lamp = MaterialTheme.colorScheme.tertiary
+    val glow by animateFloatAsState(if (on) 1f else 0f)
+    Box(
+        Modifier
+            .size(6.dp)
+            .drawBehind {
+                drawCircle(lamp.copy(alpha = 0.35f * glow), radius = size.minDimension * 1.6f)
+                drawCircle(if (glow > 0.5f) lamp else metal.shadow, radius = size.minDimension / 2)
+            },
+    )
 }
 
 @Composable
@@ -219,7 +393,7 @@ private fun QualityLine(quality: AudioQuality) {
 }
 
 @Composable
-private fun SeekSection(uiState: PlayerUiState, viewModel: PlayerViewModel) {
+private fun SeekSection(uiState: PlayerUiState, viewModel: PlayerViewModel, machined: Boolean = false) {
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     val duration = uiState.durationMs.coerceAtLeast(1)
     val fraction = dragFraction ?: (uiState.positionMs.toFloat() / duration)
@@ -229,6 +403,7 @@ private fun SeekSection(uiState: PlayerUiState, viewModel: PlayerViewModel) {
             enabled = uiState.durationMs > 0 && !uiState.isLoading,
             onDrag = { dragFraction = it },
             onSeek = { viewModel.seekTo((it * duration).toLong()) },
+            machined = machined,
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
