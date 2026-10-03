@@ -58,7 +58,7 @@ class LiveManageTest {
             editor = api,
             writeLocal = store::upsert,
             removeDownload = downloads::remove,
-            onRenamed = { renamedInQueue += it.title },
+            onChanged = { renamedInQueue += it.title },
             onDeleted = { dequeued += it },
         )
         try {

@@ -19,6 +19,7 @@ import id.homebase.audio.data.LibraryReconciler
 import id.homebase.audio.data.TrackManager
 import id.homebase.audio.data.TrackStore
 import id.homebase.audio.importing.TrackImporter
+import id.homebase.audio.playback.QualityBackfill
 import id.homebase.api.file.systemFileSystem
 import id.homebase.audio.download.DownloadStore
 import id.homebase.audio.download.downloadsDirectory
@@ -197,10 +198,12 @@ val audioAppModule = module {
             editor = get<AudioDriveApi>(),
             writeLocal = store::upsert,
             removeDownload = downloads::remove,
-            onRenamed = playback::replaceTrack,
+            onChanged = playback::replaceTrack,
             onDeleted = playback::removeTrack,
         )
     }
+
+    single { QualityBackfill(get(), get(), get(), get()) }
 
     viewModelOf(::AppLoadingViewModel)
     viewModel { PlayerViewModel(get(), get()) }
@@ -209,7 +212,7 @@ val audioAppModule = module {
     viewModelOf(::LoginViewModel)
     viewModelOf(::LibraryViewModel)
     viewModelOf(::SettingsViewModel)
-    viewModel { params -> CollectionViewModel(params.get(), get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { params -> CollectionViewModel(params.get(), get(), get(), get(), get(), get(), get(), get(), get()) }
 }
 
 expect fun audioPlatformModule(): Module
@@ -220,6 +223,7 @@ fun Koin.startAudioServices() {
     get<ListeningRecorder>()
     get<LibraryReconciler>()
     get<OfflineKeeper>()
+    get<QualityBackfill>()
 }
 
 fun allAudioModules(): List<Module> = listOf(audioPlatformModule(), apiModule, audioAppModule)

@@ -92,6 +92,14 @@ fun LibraryScreen(
         }
     }
     var renaming by remember { mutableStateOf<AudioTrack?>(null) }
+    var showingDetails by remember { mutableStateOf<AudioTrack?>(null) }
+    showingDetails?.let { shown ->
+        TrackDetailsSheet(
+            track = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown,
+            onOpen = viewModel::readQuality,
+            onDismiss = { showingDetails = null },
+        )
+    }
     var deleting by remember { mutableStateOf<AudioTrack?>(null) }
     var choosingCollections by remember { mutableStateOf<AudioTrack?>(null) }
     var creatingCollection by remember { mutableStateOf(false) }
@@ -155,6 +163,7 @@ fun LibraryScreen(
             rename = { renaming = it },
             delete = { deleting = it },
             collections = { choosingCollections = it },
+            details = { showingDetails = it },
         )
     }
     val importActions = remember(viewModel) {

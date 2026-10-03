@@ -230,6 +230,7 @@ class TrackImporter(
             durationMs = metadata.durationMs,
             fileName = request.fileName,
             origin = request.origin,
+            quality = metadata.quality,
         )
         val uploaded = target.uploadTrack(
             sourcePath = request.path,

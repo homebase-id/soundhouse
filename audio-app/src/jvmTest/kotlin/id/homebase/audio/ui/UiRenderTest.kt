@@ -99,7 +99,7 @@ class UiRenderTest {
         track("🎵 Lullaby", 194_000, 12),
     )
 
-    private val noActions = TrackActions({}, {}, {}, {}, {})
+    private val noActions = TrackActions({}, {}, {}, {}, {}, {})
 
     private fun sampleCollection(name: String) = AudioCollection(Uuid.random(), Uuid.random(), name, 0, null, KeyHeader.empty())
 

@@ -1,5 +1,6 @@
 package id.homebase.audio.ui.library
 
+import id.homebase.audio.playback.QualityBackfill
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -41,6 +42,7 @@ class LibraryViewModel(
     private val fileOps: FileOperationsProvider,
     private val collectionStore: CollectionStore,
     private val collectionManager: CollectionManager,
+    private val backfill: QualityBackfill,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
@@ -92,6 +94,8 @@ class LibraryViewModel(
     fun download(track: AudioTrack) = offline.keep(track)
 
     fun removeDownload(track: AudioTrack) = offline.release(track)
+
+    fun readQuality(track: AudioTrack) = backfill.request(track)
 
     fun rename(track: AudioTrack, newTitle: String) {
         viewModelScope.launch {

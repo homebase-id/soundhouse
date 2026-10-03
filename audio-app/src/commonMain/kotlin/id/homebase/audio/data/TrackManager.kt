@@ -1,17 +1,18 @@
 package id.homebase.audio.data
 
 import id.homebase.api.client.drives.HomebaseFile
+import id.homebase.audio.importing.AudioQuality
 import kotlin.uuid.Uuid
 
 /**
- * Rename and delete, applied to the server first and then to everything local that holds the track:
+ * Rename, delete and format backfill, applied to the server first and then to everything local that holds the track:
  * the drive index (so the list updates without waiting for sync), offline copies and the play queue.
  */
 class TrackManager(
     private val editor: TrackEditor,
     private val writeLocal: suspend (HomebaseFile) -> Unit,
     private val removeDownload: suspend (Uuid) -> Unit,
-    private val onRenamed: (AudioTrack) -> Unit,
+    private val onChanged: (AudioTrack) -> Unit,
     private val onDeleted: (Uuid) -> Unit,
 ) {
     suspend fun rename(track: AudioTrack, newTitle: String) {
@@ -21,7 +22,15 @@ class TrackManager(
         editor.renameTrack(track, title)
         val header = editor.getTrackFile(track.fileId) ?: return
         writeLocal(header)
-        header.toAudioTrackOrNull()?.let(onRenamed)
+        header.toAudioTrackOrNull()?.let(onChanged)
+    }
+
+    suspend fun setQuality(track: AudioTrack, quality: AudioQuality) {
+        if (track.quality == quality) return
+        editor.setTrackQuality(track, quality)
+        val header = editor.getTrackFile(track.fileId) ?: return
+        writeLocal(header)
+        header.toAudioTrackOrNull()?.let(onChanged)
     }
 
     suspend fun delete(track: AudioTrack) {

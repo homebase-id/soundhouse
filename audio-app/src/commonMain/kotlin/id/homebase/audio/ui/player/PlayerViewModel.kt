@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import id.homebase.audio.data.AudioTrack
 import id.homebase.audio.data.TrackOrigin
-import id.homebase.audio.importing.extensionForMimeType
+import id.homebase.audio.importing.AudioQuality
 import id.homebase.audio.playback.PlaybackController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +36,7 @@ class PlayerViewModel(
                         track = state.current,
                         title = state.current?.title,
                         artworkSeed = state.current?.fileId?.toString(),
-                        format = state.current?.mimeType?.let(::extensionForMimeType)?.uppercase(),
+                        quality = state.current?.displayQuality,
                         dateAddedMs = state.current?.dateAddedMs,
                         recorded = state.current?.content?.origin == TrackOrigin.Recorded,
                         isPlaying = state.isPlaying,
@@ -98,7 +98,7 @@ data class PlayerUiState(
     val track: AudioTrack? = null,
     val title: String? = null,
     val artworkSeed: String? = null,
-    val format: String? = null,
+    val quality: AudioQuality? = null,
     val dateAddedMs: Long? = null,
     val recorded: Boolean = false,
     val isPlaying: Boolean = false,
