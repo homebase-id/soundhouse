@@ -32,6 +32,8 @@ androidApp / desktopApp  — platform entry points
 ./gradlew :audio-app:liveTest         # live server tests; skipped without ~/.config/homebase-audio-test/session.json
 ```
 
+CI and release workflows, their secrets and one-time setup: `.github/RELEASING.md`.
+
 ### Per-module compile checks (type-check one KMP library across targets)
 
 To verify a change in a library module (e.g. `audio-app`) compiles on each target without building

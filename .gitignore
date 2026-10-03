@@ -24,3 +24,6 @@ xcuserdata/
 hs_err_pid*.log
 replay_pid*.log
 .claude/settings.local.json
+
+# Written by the release workflows from a secret
+/google-play-key.json

@@ -179,7 +179,7 @@ class PlaybackService : Service() {
         )
         val notification = notification(state, track.title)
         if (state.isPlaying || state.isLoading || !foreground) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            startForegroundCompat(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
             foreground = true
         }
         if (!state.isPlaying && !state.isLoading) {

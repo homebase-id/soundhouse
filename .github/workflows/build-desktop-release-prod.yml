@@ -1,0 +1,130 @@
+name: Build Desktop Release Production
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-release-prod-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-desktop:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Check release secrets
+        env:
+          CONVEYOR_GITHUB_TOKEN: ${{ secrets.CONVEYOR_DESKTOP_GITHUB_TOKEN }}
+          SIGNING_KEY: ${{ secrets.CONVEYOR_SIGNING_KEY }}
+        run: |
+          if [ -z "$CONVEYOR_GITHUB_TOKEN" ] || [ -z "$SIGNING_KEY" ]; then
+            echo "::error ::Desktop release secrets aren't configured. See .github/RELEASING.md."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Cache Conveyor installation
+        id: cache-conveyor
+        uses: actions/cache@v5
+        with:
+          path: .conveyor/install
+          key: conveyor-22.0-linux-amd64
+
+      - name: Download Conveyor
+        if: steps.cache-conveyor.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://downloads.hydraulic.dev/conveyor/conveyor-22.0-linux-amd64.tar.gz
+          mkdir -p .conveyor/install
+          tar xzf conveyor-22.0-linux-amd64.tar.gz -C .conveyor/install
+
+      - name: Cache Conveyor data
+        uses: actions/cache@v5
+        with:
+          key: conveyor-data-${{ github.run_id }}
+          path: .conveyor/cache
+          restore-keys: conveyor-data
+
+      - name: Set version
+        id: version
+        run: .github/scripts/ci-version.sh ${{ github.run_number }}
+
+      # Every platform's ffmpeg arrives through Conveyor's per-machine jars; the host's copy in
+      # audio-app's jar would ship Linux binaries to everyone. Appended so every Gradle call
+      # (including Conveyor's own printConveyorConfig) sees it.
+      - name: Drop the host ffmpeg from the shared jar
+        run: printf '\nsoundhouse.bundleHostFfmpeg=false\n' >> gradle.properties
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CODESIGN_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_CODESIGN_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_CODESIGN_SUBSCRIPTION_ID }}
+
+      - name: Stage Apple signing material
+        env:
+          APPLE_SIGNING_KEY: ${{ secrets.APPLE_SIGNING_KEY }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          # Conveyor reads both of these from disk; neither can be passed inline.
+          mkdir -p "$RUNNER_TEMP/apple"
+          chmod 700 "$RUNNER_TEMP/apple"
+          printf '%s' "$APPLE_SIGNING_KEY" | base64 -d > "$RUNNER_TEMP/apple/developerid.p12"
+          printf '%s\n' "$APPSTORE_API_PRIVATE_KEY" > "$RUNNER_TEMP/apple/AuthKey_$APPSTORE_API_KEY_ID.p8"
+          chmod 600 "$RUNNER_TEMP/apple"/*
+          echo "APPLE_P12_PATH=$RUNNER_TEMP/apple/developerid.p12" >> "$GITHUB_ENV"
+          echo "APPLE_NOTARIZATION_KEY=$RUNNER_TEMP/apple/AuthKey_$APPSTORE_API_KEY_ID.p8" >> "$GITHUB_ENV"
+
+      - name: Build binaries
+        run: ./gradlew :desktopApp:createReleaseDistributable
+        env:
+          JDK_21: ${{ env.JAVA_HOME }}
+
+      # Deliberately after the build: the token is short-lived.
+      - name: Fetch Azure code-signing access token
+        run: |
+          TOKEN=$(az account get-access-token --resource https://codesigning.azure.net --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "AZURE_ACCESS_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Run Conveyor
+        working-directory: ./desktopApp
+        env:
+          CONVEYOR_GITHUB_TOKEN: ${{ secrets.CONVEYOR_DESKTOP_GITHUB_TOKEN }}
+          SIGNING_KEY: ${{ secrets.CONVEYOR_SIGNING_KEY }}
+          APPLE_SIGNING_KEY_PASS: ${{ secrets.APPLE_SIGNING_KEY_PASS }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          CONVEYOR_AGREE_TO_LICENSE: 1
+          JDK_21: ${{ env.JAVA_HOME }}
+        run: |
+          PATH="$PATH:../.conveyor/install/conveyor-22.0/bin"
+          conveyor --cache-dir="../.conveyor/cache" "-Kapp.signing-key=$SIGNING_KEY" -f ci.conveyor_production.conf make site
+
+      - name: Publish to soundhouse-desktop-release-production
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CONVEYOR_DESKTOP_GITHUB_TOKEN }}
+          script: |
+            await require('./.github/scripts/publish-desktop-release.js')({
+              github, context,
+              repo: 'soundhouse-desktop-release-production',
+              version: '${{ steps.version.outputs.VERSION_NAME }}',
+              label: 'production',
+              keep: 6,
+            });

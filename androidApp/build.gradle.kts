@@ -4,10 +4,16 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.baselineprofile)
+    alias(libs.plugins.playPublisherPlugin)
 }
 
 val versionProps = Properties()
 versionProps.load(rootProject.file("gradle/version.properties").inputStream())
+
+play {
+    track.set("internal")
+    serviceAccountCredentials.set(file("../google-play-key.json"))
+}
 
 android {
     namespace = "id.homebase.audio"
@@ -20,8 +26,10 @@ android {
         applicationId = "id.homebase.audio"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = versionProps.getProperty("version.code.base").toInt()
-        versionName = versionProps.getProperty("version.name")
+        versionCode = (project.findProperty("VERSION_CODE") as String?)?.toInt()
+            ?: versionProps.getProperty("version.code.base").toInt()
+        versionName = project.findProperty("VERSION_NAME") as String?
+            ?: versionProps.getProperty("version.name")
     }
 
     packaging {
@@ -39,6 +47,19 @@ android {
             storeFile = file("../buildsystem/debug.keystore")
             storePassword = "android"
         }
+        // CI decodes the upload keystore from a secret; without one (local builds) release and dev
+        // fall back to the debug key, so a sideloaded build still installs over the last one.
+        val keystorePath = System.getenv("SIGNING_KEYSTORE_FILE_PATH")
+        create("upload") {
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            } else {
+                initWith(getByName("debug"))
+            }
+        }
     }
 
     buildTypes {
@@ -46,7 +67,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("upload")
+        }
+        create("dev") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".dev"
+            matchingFallbacks += "release"
         }
         debug {
             applicationIdSuffix = ".debug"

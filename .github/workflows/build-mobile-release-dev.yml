@@ -1,0 +1,110 @@
+name: Build Mobile Release Dev
+
+# Nightly build of the dev app (id.homebase.audio.dev) to the Play internal track.
+# Android only: the iOS framework compiles in Build Check, but there's no iOS app to ship.
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      upload_to_play:
+        description: "Upload the bundle to the Play internal track (untick for experiment/CI-debug runs)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: mobile-release-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Lets the nightly schedule live in the repo before the secrets do: without them the run is a
+  # skipped no-op instead of a nightly failure email.
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_FILE_BASE64_ENCODED }}
+          PLAY: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$KEYSTORE" ] && [ -n "$PLAY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice ::Android release secrets aren't configured; skipping. See .github/RELEASING.md."
+          fi
+
+  build-android:
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Set Android version
+        id: version
+        run: .github/scripts/ci-version.sh ${{ github.run_number }}
+
+      - name: Decode upload keystore
+        id: keystore
+        env:
+          ENCODED: ${{ secrets.ANDROID_KEYSTORE_FILE_BASE64_ENCODED }}
+        run: |
+          path="$RUNNER_TEMP/keystore/upload.keystore"
+          mkdir -p "$(dirname "$path")"
+          printf '%s' "$ENCODED" | base64 -d > "$path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      - name: Build Android bundle
+        run: |
+          ./gradlew --no-daemon :androidApp:bundleDev \
+            -PVERSION_CODE=${{ steps.version.outputs.VERSION_CODE }} \
+            -PVERSION_NAME="${{ steps.version.outputs.VERSION_NAME }}"
+        env:
+          SIGNING_KEYSTORE_FILE_PATH: ${{ steps.keystore.outputs.path }}
+          SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_STORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_KEY_PASSWORD }}
+          JDK_21: ${{ env.JAVA_HOME }}
+
+      - name: Rename output
+        run: |
+          mv androidApp/build/outputs/bundle/dev/androidApp-dev.aab \
+             androidApp/build/outputs/bundle/dev/soundhouse-dev.aab
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: soundhouse-android-dev
+          path: androidApp/build/outputs/bundle/dev/soundhouse-dev.aab
+
+      - name: Upload R8 mapping
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-mapping-dev-${{ steps.version.outputs.VERSION_CODE }}
+          path: androidApp/build/outputs/mapping/dev/mapping.txt
+          retention-days: 90
+
+      - name: Write Google Play service account key
+        if: github.event_name == 'schedule' || inputs.upload_to_play == true
+        env:
+          PLAY_KEY: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: printf '%s' "$PLAY_KEY" > google-play-key.json
+
+      - name: Publish to Google Play internal track
+        if: github.event_name == 'schedule' || inputs.upload_to_play == true
+        run: ./gradlew :androidApp:publishDevBundle --artifact-dir androidApp/build/outputs/bundle/dev

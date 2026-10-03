@@ -1,5 +1,7 @@
 [versions]
 agp = "9.4.0"
+playPublisher = "4.0.0"
+conveyor = "2.0"
 androidx-benchmark = "1.5.0"
 androidx-profileinstaller = "1.4.1"
 androidx-uiautomator = "2.4.0"
@@ -142,3 +144,5 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 buildConfigPlugin = { id = "com.github.gmazzo.buildconfig", version.ref = "buildconfig" }
+playPublisherPlugin = { id = "com.github.triplet.play", version.ref = "playPublisher" }
+conveyorPlugin = { id = "dev.hydraulic.conveyor", version.ref = "conveyor" }

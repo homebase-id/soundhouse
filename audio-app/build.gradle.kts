@@ -15,7 +15,9 @@ compose.resources {
 
 // Desktop decodes and probes audio with ffmpeg/ffprobe (JvmAudioPlayer, FFmpegBinaryManager). All
 // platforms' binaries live in desktop-ffmpeg/; only the build host's pair goes on the classpath, so
-// a distributable built on a Mac doesn't carry the Linux and Windows copies.
+// a distributable built on a Mac doesn't carry the Linux and Windows copies. Conveyor packages every
+// platform from one host and adds each one's pair itself, so CI turns this off.
+val bundleHostFfmpeg = providers.gradleProperty("soundhouse.bundleHostFfmpeg").map(String::toBoolean).getOrElse(true)
 val hostFfmpegKey: String = run {
     val os = System.getProperty("os.name").lowercase()
     val arch = System.getProperty("os.arch").lowercase()
@@ -108,7 +110,9 @@ kotlin {
             implementation(libs.kotlinx.coroutinesSwing)
         }
         jvmMain {
-            resources.srcDir(hostFfmpegResources.map { layout.buildDirectory.dir("generated/ffmpegResources").get() })
+            if (bundleHostFfmpeg) {
+                resources.srcDir(hostFfmpegResources.map { layout.buildDirectory.dir("generated/ffmpegResources").get() })
+            }
         }
         jvmTest.dependencies {
             implementation(compose.desktop.currentOs)
