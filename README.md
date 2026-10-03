@@ -9,7 +9,7 @@ framework compiles.
 ## Build and run
 
 ```bash
-./gradlew androidApp:installDebug     # Android (debug build, id.homebase.audio.debug)
+./gradlew androidApp:installDebug     # Android (debug build, id.homebase.soundhouse.debug)
 ./gradlew desktopApp:run              # Desktop
 ./scripts/gate.sh --apps              # compile every target and run the JVM tests
 ```

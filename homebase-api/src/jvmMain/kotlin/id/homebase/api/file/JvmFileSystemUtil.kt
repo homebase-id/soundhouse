@@ -44,7 +44,7 @@ object JvmFileSystemUtil {
     }
 
     fun isProductionVersion(): Boolean {
-        return System.getProperty("app.rdns.name") == "id.homebase.audio"
+        return System.getProperty("app.rdns.name") == "id.homebase.soundhouse"
     }
 }
 

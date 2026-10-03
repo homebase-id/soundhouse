@@ -25,7 +25,7 @@ androidApp / desktopApp  — platform entry points
 ## Build & Run Commands
 
 ```bash
-./gradlew androidApp:installDebug     # applicationId id.homebase.audio.debug
+./gradlew androidApp:installDebug     # applicationId id.homebase.soundhouse.debug
 ./gradlew desktopApp:run              # data dir ~/Library/Application Support/SimplyAudioDev
 ./scripts/gate.sh                     # commit gate: compile JVM/Android/iOS-sim (main+test) + all jvmTests
 ./scripts/gate.sh --apps              # + androidApp:assembleDebug + desktopApp:createDistributable
@@ -133,7 +133,7 @@ screen/composable, verify:
   build if it sees a `Text("…")` / `Text(text = "…")` literal. Build the string outside the
   composable (e.g. `stringResource(AR.string.track_count, n)`) or pass a variable in.
   The audio app's strings live in `audio-app/src/commonMain/composeResources/values/strings.xml`
-  (class `id.homebase.audio.resources.AR`).
+  (class `id.homebase.soundhouse.resources.AR`).
 - Use `start`/`end` padding, not `left`/`right` (RTL support)
 - Use Material 3 color roles from `MaterialTheme.colorScheme` — never hardcode colors
 - Use Material 3 typography from `MaterialTheme.typography` — never hardcode text styles

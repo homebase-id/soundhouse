@@ -1,6 +1,6 @@
 name: Build Mobile Release Production
 
-# Builds id.homebase.audio for the Play internal track; promote it with
+# Builds id.homebase.soundhouse for the Play internal track; promote it with
 # "Promote Android Release to public". A tag push also attaches the bundle to a GitHub release.
 
 on:

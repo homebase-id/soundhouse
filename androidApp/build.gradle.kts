@@ -16,14 +16,14 @@ play {
 }
 
 android {
-    namespace = "id.homebase.audio"
+    namespace = "id.homebase.soundhouse"
     compileSdk {
         version = release(libs.versions.android.targetSdk.get().toInt())
     }
     compileSdkExtension = 19
 
     defaultConfig {
-        applicationId = "id.homebase.audio"
+        applicationId = "id.homebase.soundhouse"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = (project.findProperty("VERSION_CODE") as String?)?.toInt()
