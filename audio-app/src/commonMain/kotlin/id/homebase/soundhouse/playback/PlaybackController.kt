@@ -85,7 +85,7 @@ class PlaybackController(
                     val stall = stallStarted
                     when {
                         seek != null -> Logger.i(tag = TRACE) {
-                            "seek to ${seek.first / 1000} s: playing again after ${seek.second.elapsedNow().inWholeMilliseconds} ms"
+                            "seek to ${seek.first / 1000} s: audio moving again after ${seek.second.elapsedNow().inWholeMilliseconds} ms"
                         }
                         stall != null -> Logger.i(tag = TRACE) { "stalled for ${stall.elapsedNow().inWholeMilliseconds} ms" }
                     }

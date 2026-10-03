@@ -16,8 +16,10 @@ class AndroidAudioPlayer: AudioPlayer {
     private var positionJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO)
     private var speed = 1f
-    // A seek waits for its data before onSeekComplete; a running stream can also stall on its own.
+    // onSeekComplete fires before a streamed seek has data, so a seek while playing lasts until the
+    // position actually moves past where it landed. A running stream can also stall on its own.
     private var seeking = false
+    private var seekLandedAt: Int? = null
     private var stalled = false
     private var reportedBuffering = false
 
@@ -32,9 +34,13 @@ class AndroidAudioPlayer: AudioPlayer {
             )
             setDataSource(filePath)
             setOnCompletionListener { observer?.onComplete() }
-            setOnSeekCompleteListener {
-                seeking = false
-                reportBuffering()
+            setOnSeekCompleteListener { player ->
+                if (player.isPlaying) {
+                    seekLandedAt = player.currentPosition
+                } else {
+                    seeking = false
+                    reportBuffering()
+                }
             }
             setOnInfoListener { _, what, _ ->
                 when (what) {
@@ -55,6 +61,7 @@ class AndroidAudioPlayer: AudioPlayer {
     override fun jumpTo(positionMs: Long) {
         mediaPlayer?.let {
             seeking = true
+            seekLandedAt = null
             reportBuffering()
             it.seekTo(positionMs.toInt().coerceIn(0, it.duration))
         }
@@ -72,6 +79,10 @@ class AndroidAudioPlayer: AudioPlayer {
 
     override fun pause() {
         mediaPlayer?.pause()
+        // Paused, nothing is waiting to be heard; a pending seek settles on its own.
+        seeking = false
+        seekLandedAt = null
+        reportBuffering()
     }
 
     override fun stop() {
@@ -81,6 +92,7 @@ class AndroidAudioPlayer: AudioPlayer {
 
     override fun release() {
         seeking = false
+        seekLandedAt = null
         stalled = false
         reportBuffering()
         positionJob?.cancel()
@@ -114,6 +126,13 @@ class AndroidAudioPlayer: AudioPlayer {
             while (isActive) {
                 val position = mediaPlayer?.currentPosition ?: 0
                 val duration = mediaPlayer?.duration ?: 0
+                seekLandedAt?.let { landed ->
+                    if (position > landed + SEEK_SETTLED_MS) {
+                        seeking = false
+                        seekLandedAt = null
+                        reportBuffering()
+                    }
+                }
                 observer?.onProgressUpdate(position.toLong(), duration.toLong())
                 delay(PROGRESS_INTERVAL_MS)
             }
@@ -122,5 +141,6 @@ class AndroidAudioPlayer: AudioPlayer {
 
     private companion object {
         const val PROGRESS_INTERVAL_MS = 80L
+        const val SEEK_SETTLED_MS = 150
     }
 }
