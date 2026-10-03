@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -83,6 +84,7 @@ import id.homebase.audio.resources.delete_action
 import id.homebase.audio.resources.delete_confirm
 import id.homebase.audio.resources.delete_message
 import id.homebase.audio.resources.delete_title
+import id.homebase.audio.resources.details_action
 import id.homebase.audio.resources.download_action
 import id.homebase.audio.resources.download_done
 import id.homebase.audio.resources.download_failed
@@ -132,6 +134,7 @@ class TrackActions(
     val rename: (AudioTrack) -> Unit,
     val delete: (AudioTrack) -> Unit,
     val collections: (AudioTrack) -> Unit,
+    val details: (AudioTrack) -> Unit,
     val removeFromCollection: ((AudioTrack) -> Unit)? = null,
 )
 
@@ -397,6 +400,14 @@ internal fun TrackMenu(track: AudioTrack, downloaded: Boolean, downloading: Bool
                     },
                 )
             }
+            DropdownMenuItem(
+                text = { Text(stringResource(AR.string.details_action)) },
+                leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+                onClick = {
+                    expanded = false
+                    actions.details(track)
+                },
+            )
             DropdownMenuItem(
                 text = { Text(stringResource(AR.string.rename_action)) },
                 leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },

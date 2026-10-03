@@ -4,6 +4,8 @@ import id.homebase.api.client.KeyHeader
 import id.homebase.api.client.drives.HomebaseFile
 import id.homebase.api.client.drives.upload.EmbeddedThumb
 import id.homebase.api.serialization.OdinSystemSerializer
+import id.homebase.audio.importing.AudioQuality
+import id.homebase.audio.importing.qualityFromMimeType
 import id.homebase.core.config.audioLabeledDrive
 import kotlinx.serialization.Serializable
 import kotlin.io.encoding.Base64
@@ -28,6 +30,7 @@ data class AudioTrackContent(
     val durationMs: Long? = null,
     val fileName: String? = null,
     val origin: TrackOrigin = TrackOrigin.Imported,
+    val quality: AudioQuality? = null,
 )
 
 /** A cover thumbnail stored with the payload; [lastModified] versions the thumbnail cache key. */
@@ -52,6 +55,10 @@ class AudioTrack(
     val durationMs: Long? get() = content.durationMs
     val sizeBytes: Long get() = content.sizeBytes
     val mimeType: String get() = content.mimeType
+    val quality: AudioQuality? get() = content.quality
+
+    /** The probed format, or the little the MIME type implies before a probe. */
+    val displayQuality: AudioQuality? get() = content.quality ?: qualityFromMimeType(content.mimeType)
 
     override fun equals(other: Any?): Boolean =
         other is AudioTrack && fileId == other.fileId && versionTag == other.versionTag && content == other.content

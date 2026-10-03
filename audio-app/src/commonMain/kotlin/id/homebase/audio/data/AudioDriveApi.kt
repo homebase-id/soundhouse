@@ -1,5 +1,6 @@
 package id.homebase.audio.data
 
+import id.homebase.audio.importing.AudioQuality
 import id.homebase.api.client.KeyHeader
 import id.homebase.api.client.drives.HomebaseFile
 import id.homebase.api.client.drives.QueryBatchRequest
@@ -47,6 +48,7 @@ interface TrackUploadTarget {
 
 interface TrackEditor {
     suspend fun renameTrack(track: AudioTrack, newTitle: String): Uuid
+    suspend fun setTrackQuality(track: AudioTrack, quality: AudioQuality): Uuid
     suspend fun deleteTrack(fileId: Uuid)
     suspend fun getTrackFile(fileId: Uuid): HomebaseFile?
 }
@@ -150,6 +152,9 @@ class AudioDriveApi(
 
     override suspend fun renameTrack(track: AudioTrack, newTitle: String): Uuid =
         updateTrackHeader(track, track.content.copy(title = newTitle), track.tags)
+
+    override suspend fun setTrackQuality(track: AudioTrack, quality: AudioQuality): Uuid =
+        updateTrackHeader(track, track.content.copy(quality = quality), track.tags)
 
     override suspend fun setTrackTags(track: AudioTrack, tags: List<Uuid>) {
         updateTrackHeader(track, track.content, tags)

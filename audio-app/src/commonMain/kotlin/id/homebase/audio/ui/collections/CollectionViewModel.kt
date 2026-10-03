@@ -1,5 +1,6 @@
 package id.homebase.audio.ui.collections
 
+import id.homebase.audio.playback.QualityBackfill
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -35,6 +36,7 @@ class CollectionViewModel(
     downloads: DownloadStore,
     private val offline: OfflineKeeper,
     private val trackManager: TrackManager,
+    private val backfill: QualityBackfill,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CollectionUiState())
     val uiState: StateFlow<CollectionUiState> = _uiState.asStateFlow()
@@ -83,6 +85,8 @@ class CollectionViewModel(
         manager.delete(collection)
         _events.emit(CollectionEvent.Deleted)
     }
+
+    fun readQuality(track: AudioTrack) = backfill.request(track)
 
     fun renameTrack(track: AudioTrack, title: String) = edit { trackManager.rename(track, title) }
     fun deleteTrack(track: AudioTrack) = edit { trackManager.delete(track) }

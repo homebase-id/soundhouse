@@ -1,6 +1,7 @@
 package id.homebase.audio.data
 
 import id.homebase.api.client.drives.HomebaseFile
+import id.homebase.audio.importing.AudioQuality
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,6 +23,11 @@ class TrackManagerTest {
             content = content.copy(title = newTitle)
             return Uuid.random()
         }
+        override suspend fun setTrackQuality(track: AudioTrack, quality: AudioQuality): Uuid {
+            calls += "quality ${quality.codec}"
+            content = content.copy(quality = quality)
+            return Uuid.random()
+        }
         override suspend fun deleteTrack(fileId: Uuid) {
             calls += "delete"
             deleted = true
@@ -34,7 +40,7 @@ class TrackManagerTest {
         editor = editor,
         writeLocal = { log += "local ${it.fileState.name.lowercase()} ${it.toAudioTrackOrNull()?.title}" },
         removeDownload = { log += "undownload $it" },
-        onRenamed = { log += "queue ${it.title}" },
+        onChanged = { log += "queue ${it.title}" },
         onDeleted = { log += "dequeue $it" },
     )
 
@@ -61,6 +67,17 @@ class TrackManagerTest {
         val log = mutableListOf<String>()
         assertFailsWith<IllegalStateException> { manager(FakeEditor(track.fileId, content, failRename = true), log).rename(track, "x") }
         assertTrue(log.isEmpty())
+    }
+
+    @Test
+    fun `a probed format is written to the server then the index and queue`() = runBlocking {
+        val log = mutableListOf<String>()
+        val editor = FakeEditor(track.fileId, content)
+        val quality = AudioQuality(codec = "flac", sampleRateHz = 96_000, bitDepth = 24)
+        manager(editor, log).setQuality(track, quality)
+        assertEquals(listOf("quality flac"), editor.calls)
+        assertEquals(listOf("local active Old", "queue Old"), log)
+        assertEquals(quality, editor.getTrackFile(track.fileId).toAudioTrackOrNull()?.quality)
     }
 
     @Test

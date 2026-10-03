@@ -1,8 +1,8 @@
 package id.homebase.audio.importing
 
-data class AudioFileMetadata(val title: String?, val durationMs: Long?)
+data class AudioFileMetadata(val title: String?, val durationMs: Long?, val quality: AudioQuality? = null)
 
-/** Title and duration straight from the container; either may be null when the format doesn't say. */
+/** Title, duration and stream format straight from the container; any may be null when the format doesn't say. */
 expect suspend fun readAudioMetadata(path: String): AudioFileMetadata
 
 /** The embedded cover image (JPEG/PNG bytes) if the file carries one. */

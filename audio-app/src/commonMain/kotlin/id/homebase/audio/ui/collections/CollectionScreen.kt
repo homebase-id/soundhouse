@@ -64,6 +64,7 @@ import id.homebase.audio.resources.rename_confirm
 import id.homebase.audio.ui.library.DeleteDialog
 import id.homebase.audio.ui.library.RenameDialog
 import id.homebase.audio.ui.library.TrackActions
+import id.homebase.audio.ui.library.TrackDetailsSheet
 import id.homebase.audio.ui.library.TrackRow
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
@@ -87,7 +88,15 @@ fun CollectionScreen(viewModel: CollectionViewModel, onBack: () -> Unit, onOpenP
     var renamingTrack by remember { mutableStateOf<AudioTrack?>(null) }
     var deletingTrack by remember { mutableStateOf<AudioTrack?>(null) }
     var choosingCollections by remember { mutableStateOf<AudioTrack?>(null) }
+    var showingDetails by remember { mutableStateOf<AudioTrack?>(null) }
     val collection = uiState.collection
+    showingDetails?.let { shown ->
+        TrackDetailsSheet(
+            track = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown,
+            onOpen = viewModel::readQuality,
+            onDismiss = { showingDetails = null },
+        )
+    }
 
     if (renamingCollection && collection != null) {
         CollectionNameDialog(
@@ -138,6 +147,7 @@ fun CollectionScreen(viewModel: CollectionViewModel, onBack: () -> Unit, onOpenP
             rename = { renamingTrack = it },
             delete = { deletingTrack = it },
             collections = { choosingCollections = it },
+            details = { showingDetails = it },
             removeFromCollection = viewModel::remove,
         )
     }

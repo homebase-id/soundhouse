@@ -83,7 +83,11 @@ import id.homebase.audio.resources.player_pause
 import id.homebase.audio.resources.player_play
 import id.homebase.audio.resources.player_position
 import id.homebase.audio.resources.player_previous
+import id.homebase.audio.importing.AudioQuality
+import id.homebase.audio.importing.tier
+import id.homebase.audio.ui.common.QualityBadge
 import id.homebase.audio.ui.common.TrackCover
+import id.homebase.audio.ui.common.qualitySummary
 import id.homebase.audio.ui.common.artworkPalette
 import id.homebase.audio.ui.common.formatDate
 import id.homebase.audio.ui.common.formatDuration
@@ -191,10 +195,26 @@ private fun TrackHeading(uiState: PlayerUiState, title: String) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        uiState.quality?.let { quality ->
+            Spacer(Modifier.height(8.dp))
+            QualityLine(quality)
+        }
         if (uiState.failed) {
             Spacer(Modifier.height(8.dp))
             Text(stringResource(AR.string.player_failed), color = MaterialTheme.colorScheme.error)
         }
+    }
+}
+
+@Composable
+private fun QualityLine(quality: AudioQuality) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        quality.tier?.let { QualityBadge(it) }
+        Text(
+            qualitySummary(quality),
+            style = MaterialTheme.typography.labelLarge.tabular(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

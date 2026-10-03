@@ -1,5 +1,6 @@
 package id.homebase.audio.importing
 
+import id.homebase.api.video.FFmpegBinaryManager
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.nio.file.Files
@@ -21,6 +22,47 @@ class JvmAudioMetadataTest {
         } finally {
             file.delete()
         }
+    }
+
+    @Test
+    fun `ffprobe reads the stream format of a lossy file`() = runBlocking {
+        val file = fixture("tone.mp3")
+        try {
+            val quality = assertNotNull(readAudioMetadata(file.absolutePath).quality)
+            assertEquals(Codecs.MP3, quality.codec)
+            assertEquals(QualityTier.Lossy, quality.tier)
+            assertTrue((quality.sampleRateHz ?: 0) > 0 && (quality.bitrateBps ?: 0) > 0, "$quality")
+            assertEquals(null, quality.bitDepth)
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `ffprobe reads a 24-bit 96 kHz FLAC as hi-res`() = runBlocking {
+        val file = Files.createTempFile("hires", ".flac").toFile()
+        try {
+            val encode = ProcessBuilder(
+                FFmpegBinaryManager.ffmpegPath(), "-v", "error", "-y",
+                "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=96000:duration=1",
+                "-ac", "2", "-sample_fmt", "s32", "-bits_per_raw_sample", "24", file.absolutePath,
+            ).redirectErrorStream(true).start()
+            assertEquals(0, encode.waitFor(), encode.inputStream.bufferedReader().readText())
+            val quality = assertNotNull(readAudioMetadata(file.absolutePath).quality)
+            assertEquals(AudioQuality(Codecs.FLAC, 96_000, 24, 2, quality.bitrateBps), quality)
+            assertEquals(QualityTier.HiRes, quality.tier)
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `parses the first audio stream and falls back to the container bitrate`() {
+        val parsed = parseFfprobeFormat(
+            """{"streams":[{"codec_name":"pcm_s16le","sample_rate":"44100","channels":2,"bits_per_sample":16,"bits_per_raw_sample":"N/A"}],
+               "format":{"duration":"1.0","bit_rate":"1411200"}}"""
+        )
+        assertEquals(AudioQuality(Codecs.PCM, 44_100, 16, 2, 1_411_200), parsed.quality)
     }
 
     @Test
