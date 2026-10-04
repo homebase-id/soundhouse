@@ -22,6 +22,7 @@ actual suspend fun readAudioMetadata(path: String): AudioFileMetadata = withCont
             title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE),
             durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull(),
             quality = readQuality(path, retriever),
+            details = readDetails(retriever),
         )
     } catch (_: RuntimeException) {
         // setDataSource throws for containers the platform can't parse; the filename is the fallback.
@@ -29,6 +30,25 @@ actual suspend fun readAudioMetadata(path: String): AudioFileMetadata = withCont
     } finally {
         retriever.release()
     }
+}
+
+// Android has no key for comments; everything else maps onto the shared tag names.
+private val detailKeys = mapOf(
+    "artist" to MediaMetadataRetriever.METADATA_KEY_ARTIST,
+    "album" to MediaMetadataRetriever.METADATA_KEY_ALBUM,
+    "album_artist" to MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST,
+    "track" to MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER,
+    "disc" to MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER,
+    "year" to MediaMetadataRetriever.METADATA_KEY_YEAR,
+    "date" to MediaMetadataRetriever.METADATA_KEY_DATE,
+    "genre" to MediaMetadataRetriever.METADATA_KEY_GENRE,
+    "composer" to MediaMetadataRetriever.METADATA_KEY_COMPOSER,
+)
+
+// METADATA_KEY_DATE is an ISO timestamp ("20030512T000000.000Z"); the year key reads better when present.
+private fun readDetails(retriever: MediaMetadataRetriever): TrackDetails {
+    val tags = detailKeys.mapNotNull { (name, key) -> retriever.extractMetadata(key)?.let { name to it } }.toMap()
+    return trackDetailsFromTags(if ("year" in tags) tags - "date" else tags)
 }
 
 private fun readQuality(path: String, retriever: MediaMetadataRetriever): AudioQuality? {

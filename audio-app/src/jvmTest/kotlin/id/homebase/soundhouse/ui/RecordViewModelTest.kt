@@ -79,7 +79,7 @@ class RecordViewModelTest {
         val uploaded = mutableListOf<AudioTrackContent>()
         override suspend fun uploadTrack(
             sourcePath: String, content: AudioTrackContent, tags: List<Uuid>, uniqueId: Uuid, coverArt: ByteArray?,
-            onProgress: (Float) -> Unit,
+            notes: String?, onProgress: (Float) -> Unit,
         ): UploadedTrack {
             uploaded += content
             return UploadedTrack(Uuid.random(), uniqueId, Uuid.random())

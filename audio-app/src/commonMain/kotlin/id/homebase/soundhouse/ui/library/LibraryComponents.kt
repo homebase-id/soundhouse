@@ -1,5 +1,6 @@
 package id.homebase.soundhouse.ui.library
 
+import id.homebase.soundhouse.resources.edit_details_action
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -112,10 +113,6 @@ import id.homebase.soundhouse.resources.library_sort_newest
 import id.homebase.soundhouse.resources.library_sort_title_ascending
 import id.homebase.soundhouse.resources.library_sort_title_descending
 import id.homebase.soundhouse.resources.record_action
-import id.homebase.soundhouse.resources.record_name_label
-import id.homebase.soundhouse.resources.rename_action
-import id.homebase.soundhouse.resources.rename_confirm
-import id.homebase.soundhouse.resources.rename_title
 import id.homebase.soundhouse.resources.track_actions
 import id.homebase.soundhouse.resources.track_duration_unknown
 import id.homebase.soundhouse.resources.track_added_on
@@ -131,7 +128,7 @@ import kotlin.uuid.Uuid
 class TrackActions(
     val download: (AudioTrack) -> Unit,
     val removeDownload: (AudioTrack) -> Unit,
-    val rename: (AudioTrack) -> Unit,
+    val editDetails: (AudioTrack) -> Unit,
     val delete: (AudioTrack) -> Unit,
     val collections: (AudioTrack) -> Unit,
     val details: (AudioTrack) -> Unit,
@@ -250,9 +247,11 @@ internal fun TrackRow(
                     Spacer(Modifier.size(4.dp))
                 }
                 Text(
-                    trackOriginLine(track),
+                    track.details?.creditLine ?: trackOriginLine(track),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         },
@@ -409,11 +408,11 @@ internal fun TrackMenu(track: AudioTrack, downloaded: Boolean, downloading: Bool
                 },
             )
             DropdownMenuItem(
-                text = { Text(stringResource(AR.string.rename_action)) },
+                text = { Text(stringResource(AR.string.edit_details_action)) },
                 leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                 onClick = {
                     expanded = false
-                    actions.rename(track)
+                    actions.editDetails(track)
                 },
             )
             DropdownMenuItem(
@@ -426,29 +425,6 @@ internal fun TrackMenu(track: AudioTrack, downloaded: Boolean, downloading: Bool
             )
         }
     }
-}
-
-@Composable
-internal fun RenameDialog(track: AudioTrack, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
-    var title by remember(track.fileId) { mutableStateOf(track.title) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(AR.string.rename_title)) },
-        text = {
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                singleLine = true,
-                label = { Text(stringResource(AR.string.record_name_label)) },
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(title) }, enabled = title.isNotBlank()) {
-                Text(stringResource(AR.string.rename_confirm))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(AR.string.cancel)) } },
-    )
 }
 
 @Composable

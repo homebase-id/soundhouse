@@ -19,7 +19,7 @@ import id.homebase.soundhouse.data.LibraryReconciler
 import id.homebase.soundhouse.data.TrackManager
 import id.homebase.soundhouse.data.TrackStore
 import id.homebase.soundhouse.importing.TrackImporter
-import id.homebase.soundhouse.playback.QualityBackfill
+import id.homebase.soundhouse.playback.MetadataBackfill
 import id.homebase.api.file.systemFileSystem
 import id.homebase.soundhouse.download.DownloadStore
 import id.homebase.soundhouse.download.downloadsDirectory
@@ -203,7 +203,7 @@ val audioAppModule = module {
         )
     }
 
-    single { QualityBackfill(get(), get(), get(), get()) }
+    single { MetadataBackfill(get(), get(), get(), get()) }
 
     viewModelOf(::AppLoadingViewModel)
     viewModel { PlayerViewModel(get(), get()) }
@@ -223,7 +223,7 @@ fun Koin.startAudioServices() {
     get<ListeningRecorder>()
     get<LibraryReconciler>()
     get<OfflineKeeper>()
-    get<QualityBackfill>()
+    get<MetadataBackfill>()
 }
 
 fun allAudioModules(): List<Module> = listOf(audioPlatformModule(), apiModule, audioAppModule)

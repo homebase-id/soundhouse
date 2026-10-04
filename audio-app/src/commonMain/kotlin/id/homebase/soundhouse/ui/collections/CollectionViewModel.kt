@@ -1,6 +1,7 @@
 package id.homebase.soundhouse.ui.collections
 
-import id.homebase.soundhouse.playback.QualityBackfill
+import id.homebase.soundhouse.importing.TrackDetails
+import id.homebase.soundhouse.playback.MetadataBackfill
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -36,7 +37,7 @@ class CollectionViewModel(
     downloads: DownloadStore,
     private val offline: OfflineKeeper,
     private val trackManager: TrackManager,
-    private val backfill: QualityBackfill,
+    private val backfill: MetadataBackfill,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CollectionUiState())
     val uiState: StateFlow<CollectionUiState> = _uiState.asStateFlow()
@@ -86,9 +87,12 @@ class CollectionViewModel(
         _events.emit(CollectionEvent.Deleted)
     }
 
-    fun readQuality(track: AudioTrack) = backfill.request(track)
+    fun readMetadata(track: AudioTrack) = backfill.request(track)
 
-    fun renameTrack(track: AudioTrack, title: String) = edit { trackManager.rename(track, title) }
+    suspend fun loadNotes(track: AudioTrack): String? = trackManager.readNotes(track)
+
+    fun editTrackDetails(track: AudioTrack, title: String, details: TrackDetails, notes: String?) =
+        edit { trackManager.editDetails(track, title, details, notes) }
     fun deleteTrack(track: AudioTrack) = edit { trackManager.delete(track) }
 
     fun remove(track: AudioTrack) = edit { _uiState.value.collection?.let { manager.remove(track, it) } }

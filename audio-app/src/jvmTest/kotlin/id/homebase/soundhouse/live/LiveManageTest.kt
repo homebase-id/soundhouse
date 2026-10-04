@@ -1,5 +1,6 @@
 package id.homebase.soundhouse.live
 
+import id.homebase.soundhouse.importing.TrackDetails
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import id.homebase.api.client.eventbus.EventBus
 import id.homebase.api.sync.database.DatabaseManager
@@ -76,7 +77,7 @@ class LiveManageTest {
             downloads.download(track)
             withTimeout(60_000) { downloads.downloaded.first { track.fileId in it } }
 
-            manager.rename(track, "$title renamed")
+            manager.editDetails(track, "$title renamed", track.details ?: TrackDetails(), null)
             val renamed = withTimeout(10_000) { store.tracks.first { list -> list.any { it.title == "$title renamed" } } }
                 .single { it.fileId == track.fileId }
             assertEquals(listOf("$title renamed"), renamedInQueue)

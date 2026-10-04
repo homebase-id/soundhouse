@@ -15,10 +15,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.uuid.Uuid
 
 /**
- * Tracks imported before the stream format was recorded get it the first time they play or their
- * details open: probed from the same source the player uses, then written back to the drive.
+ * Tracks imported before the stream format or tags were recorded get them the first time they play
+ * or their details open: read from the same source the player uses, then written back to the drive.
+ * Only missing parts are filled, so a user's edits are never replaced.
  */
-class QualityBackfill(
+class MetadataBackfill(
     controller: PlaybackController,
     private val locator: TrackLocator,
     private val manager: TrackManager,
@@ -39,20 +40,21 @@ class QualityBackfill(
     }
 
     suspend fun fill(track: AudioTrack) {
-        if (track.quality != null) return
+        if (track.quality != null && track.details != null) return
         // Once per track per run: a file the platform can't parse would otherwise be re-probed on every play.
         if (!lock.withLock { attempted.add(track.fileId) }) return
         try {
-            val quality = readMetadata(locator.locate(track)).quality ?: return
-            manager.setQuality(track, quality)
+            val read = readMetadata(locator.locate(track))
+            if (read.quality == null && read.details == null) return
+            manager.fillMissing(track, read.quality, read.details, read.notes)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Logger.w(e, TAG) { "Could not backfill the format of ${track.fileId}" }
+            Logger.w(e, TAG) { "Could not backfill the metadata of ${track.fileId}" }
         }
     }
 
     private companion object {
-        const val TAG = "QualityBackfill"
+        const val TAG = "MetadataBackfill"
     }
 }

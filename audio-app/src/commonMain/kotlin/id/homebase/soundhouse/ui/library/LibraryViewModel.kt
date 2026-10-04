@@ -1,6 +1,7 @@
 package id.homebase.soundhouse.ui.library
 
-import id.homebase.soundhouse.playback.QualityBackfill
+import id.homebase.soundhouse.importing.TrackDetails
+import id.homebase.soundhouse.playback.MetadataBackfill
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -42,7 +43,7 @@ class LibraryViewModel(
     private val fileOps: FileOperationsProvider,
     private val collectionStore: CollectionStore,
     private val collectionManager: CollectionManager,
-    private val backfill: QualityBackfill,
+    private val backfill: MetadataBackfill,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
@@ -95,15 +96,17 @@ class LibraryViewModel(
 
     fun removeDownload(track: AudioTrack) = offline.release(track)
 
-    fun readQuality(track: AudioTrack) = backfill.request(track)
+    fun readMetadata(track: AudioTrack) = backfill.request(track)
 
-    fun rename(track: AudioTrack, newTitle: String) {
+    suspend fun loadNotes(track: AudioTrack): String? = manager.readNotes(track)
+
+    fun editDetails(track: AudioTrack, title: String, details: TrackDetails, notes: String?) {
         viewModelScope.launch {
-            runCatching { manager.rename(track, newTitle) }
+            runCatching { manager.editDetails(track, title, details, notes) }
                 .onFailure {
                     if (it is CancellationException) throw it
-                    Logger.e(it, TAG) { "Rename of ${track.fileId} failed" }
-                    _events.emit(LibraryEvent.RenameFailed)
+                    Logger.e(it, TAG) { "Editing ${track.fileId} failed" }
+                    _events.emit(LibraryEvent.EditFailed)
                 }
         }
     }
@@ -163,7 +166,7 @@ class LibraryViewModel(
 }
 
 sealed interface LibraryEvent {
-    data object RenameFailed : LibraryEvent
+    data object EditFailed : LibraryEvent
     data object DeleteFailed : LibraryEvent
     data object CollectionFailed : LibraryEvent
 }
