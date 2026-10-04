@@ -8,7 +8,7 @@ private const val TAG = "ReturnUrl.jvm"
 /**
  * Desktop return URL: localhost loopback served by [LocalCallbackServer].
  *
- * Custom URL schemes (`homebase-audio://`) are not registered on desktop OSes, so the
+ * Custom URL schemes (`homebase-soundhouse://`) are not registered on desktop OSes, so the
  * owner-console redirect needs to land somewhere the desktop process is actually
  * listening. The OAuth login flow uses the same server and the same trick.
  *
