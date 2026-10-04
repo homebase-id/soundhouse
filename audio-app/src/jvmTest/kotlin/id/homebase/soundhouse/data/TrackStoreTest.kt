@@ -9,7 +9,9 @@ import id.homebase.api.common.OdinId
 import id.homebase.api.common.SecureByteArray
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.api.sync.database.MainIndexMetaHelpers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -110,6 +112,27 @@ class TrackStoreTest {
         store.awaitTitles(listOf("mine"))
         eventBus.emit(BackendEvent.SessionEnded)
         store.awaitTitles(emptyList())
+        assertEquals(false, store.isLoaded.value)
+    }
+
+    @Test
+    fun `a reload still reading when the session ends doesn't bring the old library back`() = runBlocking {
+        signIn()
+        val reading = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val old = listOf(track("previous account", 1_000))
+        val store = TrackStore(db, credentials, eventBus, scope, query = {
+            reading.complete(Unit)
+            release.await()
+            old
+        })
+        withTimeout(5_000) { reading.await() }
+        eventBus.emit(BackendEvent.SessionEnded)
+        withTimeout(5_000) { store.isLoaded.first { !it } }
+        release.complete(Unit)
+        // Give the released reload time to write, if it's going to.
+        delay(200)
+        assertEquals(emptyList(), store.tracks.value)
         assertEquals(false, store.isLoaded.value)
     }
 
