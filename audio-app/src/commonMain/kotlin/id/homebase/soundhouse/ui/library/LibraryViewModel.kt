@@ -98,9 +98,11 @@ class LibraryViewModel(
 
     fun readMetadata(track: AudioTrack) = backfill.request(track)
 
-    fun editDetails(track: AudioTrack, title: String, details: TrackDetails) {
+    suspend fun loadNotes(track: AudioTrack): String? = manager.readNotes(track)
+
+    fun editDetails(track: AudioTrack, title: String, details: TrackDetails, notes: String?) {
         viewModelScope.launch {
-            runCatching { manager.editDetails(track, title, details) }
+            runCatching { manager.editDetails(track, title, details, notes) }
                 .onFailure {
                     if (it is CancellationException) throw it
                     Logger.e(it, TAG) { "Editing ${track.fileId} failed" }

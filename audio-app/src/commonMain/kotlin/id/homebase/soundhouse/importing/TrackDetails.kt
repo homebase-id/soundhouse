@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * Descriptive tags for a track. Stored with the track's encrypted metadata, never written back into
- * the file. A track that has been read (or edited) has a non-null [TrackDetails] even when every
+ * the file. Long free text lives in the notes payload, not here; [comment] is only read, from
+ * headers written before notes existed. A track that has been read (or edited) has a non-null [TrackDetails] even when every
  * field is empty; null means it hasn't been read yet.
  */
 @Serializable
@@ -74,8 +75,13 @@ fun trackDetailsFromTags(tags: Map<String, String>): TrackDetails {
         date = first("date", "year", "tdrc", "tyer", "originaldate"),
         genre = first("genre", "tcon"),
         composer = first("composer", "tcom"),
-        comment = first("comment", "description", "comm"),
     ).normalized()
+}
+
+/** A comment or description tag: becomes the track's notes, not a header field. */
+fun notesFromTags(tags: Map<String, String>): String? {
+    val byKey = tags.entries.associate { it.key.lowercase() to it.value }
+    return listOf("comment", "description", "comm").firstNotNullOfOrNull { byKey[it]?.trim()?.takeIf(String::isNotEmpty) }
 }
 
 /** "3/12" → (3, 12); "3" → (3, null); anything else → (null, null). */

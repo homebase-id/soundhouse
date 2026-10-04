@@ -4,6 +4,7 @@ import id.homebase.api.client.KeyHeader
 import id.homebase.soundhouse.data.AudioTrack
 import id.homebase.soundhouse.data.AudioTrackContent
 import id.homebase.soundhouse.importing.TrackDetails
+import id.homebase.soundhouse.importing.notesFromTags
 import id.homebase.soundhouse.importing.numberPair
 import id.homebase.soundhouse.importing.trackDetailsFromTags
 import id.homebase.soundhouse.ui.library.LibrarySort
@@ -21,9 +22,11 @@ class TrackDetailsTest {
                 "disc" to "1/1", "date" to "1965", "genre" to "Jazz", "composer" to "Trad.", "comment" to "Remaster")
         )
         assertEquals(
-            TrackDetails("Nina Simone", "Pastel Blues", "Nina", 3, 9, 1, 1, "1965", "Jazz", "Trad.", "Remaster"),
+            TrackDetails("Nina Simone", "Pastel Blues", "Nina", 3, 9, 1, 1, "1965", "Jazz", "Trad."),
             id3,
         )
+        assertEquals("Remaster", notesFromTags(mapOf("COMMENT" to " Remaster ")))
+        assertEquals(null, notesFromTags(mapOf("artist" to "x")))
         val vorbis = trackDetailsFromTags(mapOf("ALBUMARTIST" to "V", "TRACKNUMBER" to "4", "TRACKTOTAL" to "10", "DISCNUMBER" to "2"))
         assertEquals(TrackDetails(albumArtist = "V", trackNumber = 4, trackTotal = 10, discNumber = 2), vorbis)
     }

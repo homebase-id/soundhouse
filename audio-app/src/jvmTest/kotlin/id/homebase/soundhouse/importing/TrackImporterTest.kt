@@ -46,15 +46,18 @@ class TrackImporterTest {
     ) : TrackUploadTarget {
         val uploaded = mutableListOf<AudioTrackContent>()
         val covers = mutableListOf<ByteArray?>()
+        val notes = mutableListOf<String?>()
         override suspend fun uploadTrack(
             sourcePath: String,
             content: AudioTrackContent,
             tags: List<Uuid>,
             uniqueId: Uuid,
             coverArt: ByteArray?,
+            notes: String?,
             onProgress: (Float) -> Unit,
         ): UploadedTrack {
             covers += coverArt
+            this.notes += notes
             if (hang) awaitCancellation()
             if (content.fileName == failFor) error("server said no")
             if (connectionFailures > 0) {
@@ -255,7 +258,7 @@ class TrackImporterTest {
         val starts = java.util.Collections.synchronizedList(mutableListOf<String>())
         override suspend fun uploadTrack(
             sourcePath: String, content: AudioTrackContent, tags: List<Uuid>, uniqueId: Uuid,
-            coverArt: ByteArray?, onProgress: (Float) -> Unit,
+            coverArt: ByteArray?, notes: String?, onProgress: (Float) -> Unit,
         ): UploadedTrack {
             starts += content.fileName ?: ""
             val now = running.incrementAndGet()

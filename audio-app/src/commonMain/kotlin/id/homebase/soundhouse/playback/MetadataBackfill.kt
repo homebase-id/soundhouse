@@ -46,7 +46,7 @@ class MetadataBackfill(
         try {
             val read = readMetadata(locator.locate(track))
             if (read.quality == null && read.details == null) return
-            manager.fillMissing(track, read.quality, read.details)
+            manager.fillMissing(track, read.quality, read.details, read.notes)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

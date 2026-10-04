@@ -209,6 +209,7 @@
     <string name="field_year">Year</string>
     <string name="field_genre">Genre</string>
     <string name="field_composer">Composer</string>
-    <string name="field_comment">Comment</string>
+    <string name="field_notes">Notes</string>
+    <string name="notes_loading">Loading notes…</string>
     <string name="number_of_total">%1$d of %2$d</string>
 </resources>

@@ -40,7 +40,7 @@ internal fun parseFfprobeFormat(json: String): AudioFileMetadata {
     // Ogg/Opus keep their comments on the stream, MP3/MP4/FLAC on the container; the container wins.
     val tags = stream.tagMap() + format.tagMap()
     val title = tags.entries.firstOrNull { it.key.equals("title", ignoreCase = true) }?.value
-    return AudioFileMetadata(title, durationMs, stream?.let { qualityOf(it, format) }, trackDetailsFromTags(tags))
+    return AudioFileMetadata(title, durationMs, stream?.let { qualityOf(it, format) }, trackDetailsFromTags(tags), notesFromTags(tags))
 }
 
 private fun JsonObject?.tagMap(): Map<String, String> =

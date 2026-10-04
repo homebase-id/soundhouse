@@ -89,8 +89,10 @@ class CollectionViewModel(
 
     fun readMetadata(track: AudioTrack) = backfill.request(track)
 
-    fun editTrackDetails(track: AudioTrack, title: String, details: TrackDetails) =
-        edit { trackManager.editDetails(track, title, details) }
+    suspend fun loadNotes(track: AudioTrack): String? = trackManager.readNotes(track)
+
+    fun editTrackDetails(track: AudioTrack, title: String, details: TrackDetails, notes: String?) =
+        edit { trackManager.editDetails(track, title, details, notes) }
     fun deleteTrack(track: AudioTrack) = edit { trackManager.delete(track) }
 
     fun remove(track: AudioTrack) = edit { _uiState.value.collection?.let { manager.remove(track, it) } }

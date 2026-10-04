@@ -1,5 +1,9 @@
 package id.homebase.soundhouse.ui.library
 
+import kotlinx.coroutines.CancellationException
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,7 +38,8 @@ import id.homebase.soundhouse.resources.edit_details_title
 import id.homebase.soundhouse.resources.field_album
 import id.homebase.soundhouse.resources.field_album_artist
 import id.homebase.soundhouse.resources.field_artist
-import id.homebase.soundhouse.resources.field_comment
+import id.homebase.soundhouse.resources.field_notes
+import id.homebase.soundhouse.resources.notes_loading
 import id.homebase.soundhouse.resources.field_composer
 import id.homebase.soundhouse.resources.field_disc
 import id.homebase.soundhouse.resources.field_genre
@@ -45,10 +50,18 @@ import id.homebase.soundhouse.resources.field_year
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
-/** Title plus the descriptive tags; numbers that don't parse are dropped rather than refused. */
+/**
+ * Title plus the descriptive tags; numbers that don't parse are dropped rather than refused. Notes
+ * load when the sheet opens; until they have (or if they can't), saving leaves them as they are.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun EditDetailsSheet(track: AudioTrack, onSave: (String, TrackDetails) -> Unit, onDismiss: () -> Unit) {
+internal fun EditDetailsSheet(
+    track: AudioTrack,
+    loadNotes: suspend () -> String?,
+    onSave: (title: String, details: TrackDetails, notes: String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
     val details = track.details ?: TrackDetails()
     val title = remember(track.fileId) { mutableStateOf(track.title) }
     val artist = remember(track.fileId) { mutableStateOf(details.artist.orEmpty()) }
@@ -61,7 +74,16 @@ internal fun EditDetailsSheet(track: AudioTrack, onSave: (String, TrackDetails) 
     val date = remember(track.fileId) { mutableStateOf(details.date.orEmpty()) }
     val genre = remember(track.fileId) { mutableStateOf(details.genre.orEmpty()) }
     val composer = remember(track.fileId) { mutableStateOf(details.composer.orEmpty()) }
-    val comment = remember(track.fileId) { mutableStateOf(details.comment.orEmpty()) }
+    val notes = remember(track.fileId) { mutableStateOf("") }
+    var notesLoaded by remember(track.fileId) { mutableStateOf(false) }
+    LaunchedEffect(track.fileId) {
+        runCatching { loadNotes() }
+            .onSuccess {
+                notes.value = it.orEmpty()
+                notesLoaded = true
+            }
+            .onFailure { if (it is CancellationException) throw it }
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
@@ -89,7 +111,12 @@ internal fun EditDetailsSheet(track: AudioTrack, onSave: (String, TrackDetails) 
                 Field(AR.string.field_genre, genre, Modifier.weight(2f))
             }
             Field(AR.string.field_composer, composer)
-            Field(AR.string.field_comment, comment, singleLine = false)
+            Field(
+                if (notesLoaded) AR.string.field_notes else AR.string.notes_loading,
+                notes,
+                singleLine = false,
+                enabled = notesLoaded,
+            )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End)) {
                 TextButton(onClick = onDismiss) { Text(stringResource(AR.string.cancel)) }
                 Button(
@@ -108,8 +135,8 @@ internal fun EditDetailsSheet(track: AudioTrack, onSave: (String, TrackDetails) 
                                 date = date.value,
                                 genre = genre.value,
                                 composer = composer.value,
-                                comment = comment.value,
                             ),
+                            notes.value.takeIf { notesLoaded },
                         )
                     },
                 ) { Text(stringResource(AR.string.edit_details_save)) }
@@ -125,8 +152,10 @@ private fun Field(
     modifier: Modifier = Modifier.fillMaxWidth(),
     number: Boolean = false,
     singleLine: Boolean = true,
+    enabled: Boolean = true,
 ) {
     OutlinedTextField(
+        enabled = enabled,
         value = state.value,
         onValueChange = { state.value = if (number) it.filter(Char::isDigit).take(4) else it },
         label = { Text(stringResource(label)) },

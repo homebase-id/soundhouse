@@ -1,5 +1,6 @@
 package id.homebase.soundhouse.data
 
+import id.homebase.api.client.drives.upload.PayloadDeleteKey
 import id.homebase.api.util.truncateToCodePoints
 import id.homebase.api.client.KeyHeader
 import id.homebase.api.client.drives.HomebaseFile
@@ -40,6 +41,7 @@ interface TrackUploadTarget {
         tags: List<Uuid> = emptyList(),
         uniqueId: Uuid = Uuid.random(),
         coverArt: ByteArray? = null,
+        notes: String? = null,
         onProgress: (Float) -> Unit = {},
     ): UploadedTrack
 
@@ -47,8 +49,11 @@ interface TrackUploadTarget {
 }
 
 interface TrackEditor {
-    /** Replaces the track's encrypted content (title, format, details); the payload is untouched. */
-    suspend fun updateTrackContent(track: AudioTrack, content: AudioTrackContent): Uuid
+    /** Replaces the track's encrypted content (title, format, details); the audio payload is untouched. */
+    suspend fun updateTrackContent(track: AudioTrack, content: AudioTrackContent, notes: NotesChange = NotesChange.Keep): Uuid
+
+    /** The track's notes: its notes payload, or a comment left in the header by an older version. */
+    suspend fun readNotes(track: AudioTrack): String?
     suspend fun deleteTrack(fileId: Uuid)
     suspend fun getTrackFile(fileId: Uuid): HomebaseFile?
 }
@@ -110,9 +115,11 @@ class AudioDriveApi(
         tags: List<Uuid>,
         uniqueId: Uuid,
         coverArt: ByteArray?,
+        notes: String?,
         onProgress: (Float) -> Unit,
     ): UploadedTrack {
         val keyHeader = KeyHeader.newRandom16()
+        val notesPayload = cleanNotes(notes)?.let { notesPayload(it, keyHeader) }
         val art = coverArt?.let { coverThumbnails(it, keyHeader) }
         val encryptedPath = fileOps.createUploadTempPath("audio-", ".bin")
         try {
@@ -136,7 +143,7 @@ class AudioDriveApi(
                             iv = keyHeader.iv,
                             previewThumbnail = art?.preview,
                         )
-                    ),
+                    ) + listOfNotNull(notesPayload),
                     thumbnails = art?.thumbnails.orEmpty(),
                 ),
                 onProgress = { sent, total ->
@@ -147,11 +154,37 @@ class AudioDriveApi(
             return UploadedTrack(result.fileId, uniqueId, result.newVersionTag)
         } finally {
             fileOps.deleteTempFile(encryptedPath)
+            notesPayload?.let { fileOps.deleteTempFile(it.filePath) }
         }
     }
 
-    override suspend fun updateTrackContent(track: AudioTrack, content: AudioTrackContent): Uuid =
-        updateTrackHeader(track, content, track.tags)
+    // The upload provider sends payload files as they are, so notes are encrypted here like the
+    // audio: the file's key with an IV of their own.
+    private suspend fun notesPayload(text: String, keyHeader: KeyHeader): PayloadFile {
+        val iv = ByteArrayUtil.getRndByteArray(16)
+        val encrypted = AesCbc.encrypt(text.encodeToByteArray(), keyHeader.aesKey, iv)
+        return PayloadFile(
+            key = NOTES_PAYLOAD_KEY,
+            filePath = fileOps.writeBytesToTempFile(encrypted, "notes-", ".bin"),
+            contentType = NOTES_CONTENT_TYPE,
+            isPreEncrypted = true,
+            iv = iv,
+        )
+    }
+
+    override suspend fun readNotes(track: AudioTrack): String? {
+        val notesKey = track.notesKeyHeader ?: return track.details?.comment
+        return fileProvider.getPayloadBytesDecrypted(
+            driveId = driveId,
+            fileId = track.fileId,
+            key = NOTES_PAYLOAD_KEY,
+            keyHeader = notesKey,
+            lastModified = track.notesLastModified,
+        )?.bytes?.decodeToString()
+    }
+
+    override suspend fun updateTrackContent(track: AudioTrack, content: AudioTrackContent, notes: NotesChange): Uuid =
+        updateTrackHeader(track, content, track.tags, notes)
 
     override suspend fun setTrackTags(track: AudioTrack, tags: List<Uuid>) {
         updateTrackHeader(track, track.content, tags)
@@ -175,10 +208,37 @@ class AudioDriveApi(
         fileProvider.softDeleteFile(driveId, fileId)
     }
 
-    private suspend fun updateTrackHeader(track: AudioTrack, content: AudioTrackContent, tags: List<Uuid>): Uuid =
-        updateHeader(track.fileId, track.keyHeader, trackMetadata(content, track.uniqueId, tags, track.versionTag, track.coverPreview))
+    private suspend fun updateTrackHeader(
+        track: AudioTrack,
+        content: AudioTrackContent,
+        tags: List<Uuid>,
+        notes: NotesChange = NotesChange.Keep,
+    ): Uuid {
+        val metadata = trackMetadata(content, track.uniqueId, tags, track.versionTag, track.coverPreview)
+        return when (notes) {
+            NotesChange.Keep -> updateHeader(track.fileId, track.keyHeader, metadata)
+            NotesChange.Remove -> updateHeader(
+                track.fileId, track.keyHeader, metadata,
+                deletePayloads = if (track.hasNotesPayload) listOf(NOTES_PAYLOAD_KEY) else emptyList(),
+            )
+            is NotesChange.Set -> {
+                val payload = notesPayload(notes.text, track.keyHeader)
+                try {
+                    updateHeader(track.fileId, track.keyHeader, metadata, payloads = listOf(payload))
+                } finally {
+                    fileOps.deleteTempFile(payload.filePath)
+                }
+            }
+        }
+    }
 
-    private suspend fun updateHeader(fileId: Uuid, current: KeyHeader, metadata: UploadFileMetadata): Uuid {
+    private suspend fun updateHeader(
+        fileId: Uuid,
+        current: KeyHeader,
+        metadata: UploadFileMetadata,
+        payloads: List<PayloadFile> = emptyList(),
+        deletePayloads: List<String> = emptyList(),
+    ): Uuid {
         // The server rejects an update that reuses the header IV (mustRotateKeyHeaderIvWhenUpdating).
         val keyHeader = KeyHeader(iv = ByteArrayUtil.getRndByteArray(16), aesKey = current.aesKey)
         val result = uploadProvider.updateFileByFileId(
@@ -190,10 +250,14 @@ class AudioDriveApi(
                     transferIv = ByteArrayUtil.getRndByteArray(16),
                     locale = UpdateLocale.Local,
                     recipients = emptyList(),
-                    manifest = UpdateManifest.build(payloads = emptyList(), thumbnails = emptyList()),
+                    manifest = UpdateManifest.build(
+                        payloads = payloads,
+                        toDeletePayloads = deletePayloads.map(::PayloadDeleteKey),
+                        thumbnails = emptyList(),
+                    ),
                 ),
                 metadata = metadata.encryptContent(keyHeader),
-                payloads = emptyList(),
+                payloads = payloads,
                 thumbnails = emptyList(),
             )
         ) ?: error("Update of $fileId returned no result")

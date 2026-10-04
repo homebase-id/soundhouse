@@ -3,6 +3,7 @@ package id.homebase.soundhouse.playback
 import id.homebase.api.client.drives.HomebaseFile
 import id.homebase.soundhouse.data.AudioTrack
 import id.homebase.soundhouse.data.AudioTrackContent
+import id.homebase.soundhouse.data.NotesChange
 import id.homebase.soundhouse.data.TrackEditor
 import id.homebase.soundhouse.data.TrackManager
 import id.homebase.soundhouse.data.buildTrackFile
@@ -45,11 +46,14 @@ class MetadataBackfillTest {
 
     private class Editor(private val fileId: Uuid, var content: AudioTrackContent) : TrackEditor {
         val writes: MutableList<AudioTrackContent> = Collections.synchronizedList(mutableListOf())
-        override suspend fun updateTrackContent(track: AudioTrack, content: AudioTrackContent): Uuid {
+        val noteChanges: MutableList<NotesChange> = Collections.synchronizedList(mutableListOf())
+        override suspend fun updateTrackContent(track: AudioTrack, content: AudioTrackContent, notes: NotesChange): Uuid {
             writes += content
+            noteChanges += notes
             this.content = content
             return Uuid.random()
         }
+        override suspend fun readNotes(track: AudioTrack): String? = null
         override suspend fun deleteTrack(fileId: Uuid) = error("unused")
         override suspend fun getTrackFile(fileId: Uuid): HomebaseFile = buildTrackFile(trackContentJson(content), fileId = this.fileId)
     }

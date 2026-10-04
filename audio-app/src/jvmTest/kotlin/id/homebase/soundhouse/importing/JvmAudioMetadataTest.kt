@@ -80,9 +80,10 @@ class JvmAudioMetadataTest {
             val metadata = readAudioMetadata(file.absolutePath)
             assertEquals("Sinnerman", metadata.title)
             assertEquals(
-                TrackDetails("Nina Simone", "Pastel Blues", "Nina Simone", 3, 9, 1, 1, "1965", "Jazz", "Traditional", "Live take"),
+                TrackDetails("Nina Simone", "Pastel Blues", "Nina Simone", 3, 9, 1, 1, "1965", "Jazz", "Traditional"),
                 metadata.details,
             )
+            assertEquals("Live take", metadata.notes)
         } finally {
             file.delete()
         }

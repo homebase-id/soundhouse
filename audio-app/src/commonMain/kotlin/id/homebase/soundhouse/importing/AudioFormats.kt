@@ -5,6 +5,7 @@ data class AudioFileMetadata(
     val durationMs: Long?,
     val quality: AudioQuality? = null,
     val details: TrackDetails? = null,
+    val notes: String? = null,
 )
 
 /** Title, duration, stream format and tags straight from the container; any may be null when the format doesn't say. */

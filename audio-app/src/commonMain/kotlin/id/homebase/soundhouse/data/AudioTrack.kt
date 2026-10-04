@@ -50,7 +50,13 @@ class AudioTrack(
     val payloadKeyHeader: KeyHeader,
     val covers: List<CoverThumb> = emptyList(),
     val coverPreview: EmbeddedThumb? = null,
+    /** File key with the notes payload's IV, when the track has notes. */
+    val notesKeyHeader: KeyHeader? = null,
+    /** Versions the notes in the payload cache: a replaced payload keeps its key but not its bytes. */
+    val notesLastModified: Long? = null,
 ) {
+    val hasNotesPayload: Boolean get() = notesKeyHeader != null
+
     val hasCover: Boolean get() = covers.isNotEmpty()
 
     val title: String get() = content.title
@@ -76,6 +82,7 @@ fun HomebaseFile.toAudioTrackOrNull(): AudioTrack? {
     val appData = fileMetadata.appData
     if (appData.fileType != AUDIO_TRACK_FILE_TYPE) return null
     val payload = fileMetadata.payloads.orEmpty().firstOrNull { it.key == AUDIO_PAYLOAD_KEY } ?: return null
+    val notesPayload = fileMetadata.payloads.orEmpty().firstOrNull { it.key == NOTES_PAYLOAD_KEY }
     val payloadIv = payload.iv?.let { runCatching { Base64.decode(it) }.getOrNull() } ?: keyHeader.iv
     val json = appData.content ?: return null
     val content = runCatching { OdinSystemSerializer.deserialize<AudioTrackContent>(json) }.getOrNull() ?: return null
@@ -94,5 +101,9 @@ fun HomebaseFile.toAudioTrackOrNull(): AudioTrack? {
             CoverThumb(width, height, payload.lastModified)
         }.sortedBy { it.width },
         coverPreview = appData.previewThumbnail,
+        notesKeyHeader = notesPayload?.let { notes ->
+            KeyHeader(iv = notes.iv?.let { runCatching { Base64.decode(it) }.getOrNull() } ?: keyHeader.iv, aesKey = keyHeader.aesKey)
+        },
+        notesLastModified = notesPayload?.lastModified,
     )
 }

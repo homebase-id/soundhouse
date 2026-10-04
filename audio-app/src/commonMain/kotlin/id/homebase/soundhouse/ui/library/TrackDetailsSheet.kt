@@ -1,7 +1,9 @@
 package id.homebase.soundhouse.ui.library
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import id.homebase.soundhouse.resources.number_of_total
-import id.homebase.soundhouse.resources.field_comment
+import id.homebase.soundhouse.resources.field_notes
 import id.homebase.soundhouse.resources.field_composer
 import id.homebase.soundhouse.resources.field_genre
 import id.homebase.soundhouse.resources.field_year
@@ -63,8 +65,17 @@ import org.jetbrains.compose.resources.stringResource
 /** [onOpen] asks for a format probe when the track has none; the sheet follows [track] as it updates. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun TrackDetailsSheet(track: AudioTrack, onOpen: (AudioTrack) -> Unit, onDismiss: () -> Unit) {
+internal fun TrackDetailsSheet(
+    track: AudioTrack,
+    onOpen: (AudioTrack) -> Unit,
+    loadNotes: suspend () -> String?,
+    onDismiss: () -> Unit,
+) {
     LaunchedEffect(track.fileId) { onOpen(track) }
+    // Keyed on the version too, so notes saved while the sheet is open show up.
+    val notes by produceState<String?>(null, track.fileId, track.versionTag) {
+        value = runCatching { loadNotes() }.getOrNull()
+    }
     val quality = track.displayQuality
     val tier = quality?.tier
     val lossy = tier == QualityTier.Lossy
@@ -94,8 +105,8 @@ internal fun TrackDetailsSheet(track: AudioTrack, onOpen: (AudioTrack) -> Unit, 
                 details.date?.let { DetailRow(stringResource(AR.string.field_year), it) }
                 details.genre?.let { DetailRow(stringResource(AR.string.field_genre), it) }
                 details.composer?.let { DetailRow(stringResource(AR.string.field_composer), it) }
-                details.comment?.let { DetailRow(stringResource(AR.string.field_comment), it) }
             }
+            notes?.let { DetailRow(stringResource(AR.string.field_notes), it) }
             track.durationMs?.let { DetailRow(stringResource(AR.string.details_duration), formatDuration(it)) }
             DetailRow(stringResource(AR.string.details_size), stringResource(AR.string.details_size_value, formatMegabytes(track.sizeBytes)))
             track.content.fileName?.let { DetailRow(stringResource(AR.string.details_file_name), it) }

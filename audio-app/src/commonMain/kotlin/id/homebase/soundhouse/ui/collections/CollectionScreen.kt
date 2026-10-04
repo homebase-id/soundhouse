@@ -91,9 +91,11 @@ fun CollectionScreen(viewModel: CollectionViewModel, onBack: () -> Unit, onOpenP
     var showingDetails by remember { mutableStateOf<AudioTrack?>(null) }
     val collection = uiState.collection
     showingDetails?.let { shown ->
+        val live = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown
         TrackDetailsSheet(
-            track = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown,
+            track = live,
             onOpen = viewModel::readMetadata,
+            loadNotes = { viewModel.loadNotes(live) },
             onDismiss = { showingDetails = null },
         )
     }
@@ -128,7 +130,8 @@ fun CollectionScreen(viewModel: CollectionViewModel, onBack: () -> Unit, onOpenP
     renamingTrack?.let { track ->
         EditDetailsSheet(
             track,
-            onSave = { title, details -> viewModel.editTrackDetails(track, title, details); renamingTrack = null },
+            loadNotes = { viewModel.loadNotes(track) },
+            onSave = { title, details, notes -> viewModel.editTrackDetails(track, title, details, notes); renamingTrack = null },
             onDismiss = { renamingTrack = null },
         )
     }

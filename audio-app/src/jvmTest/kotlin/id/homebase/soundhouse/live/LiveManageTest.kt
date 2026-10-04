@@ -77,7 +77,7 @@ class LiveManageTest {
             downloads.download(track)
             withTimeout(60_000) { downloads.downloaded.first { track.fileId in it } }
 
-            manager.editDetails(track, "$title renamed", track.details ?: TrackDetails())
+            manager.editDetails(track, "$title renamed", track.details ?: TrackDetails(), null)
             val renamed = withTimeout(10_000) { store.tracks.first { list -> list.any { it.title == "$title renamed" } } }
                 .single { it.fileId == track.fileId }
             assertEquals(listOf("$title renamed"), renamedInQueue)

@@ -94,9 +94,11 @@ fun LibraryScreen(
     var renaming by remember { mutableStateOf<AudioTrack?>(null) }
     var showingDetails by remember { mutableStateOf<AudioTrack?>(null) }
     showingDetails?.let { shown ->
+        val live = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown
         TrackDetailsSheet(
-            track = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown,
+            track = live,
             onOpen = viewModel::readMetadata,
+            loadNotes = { viewModel.loadNotes(live) },
             onDismiss = { showingDetails = null },
         )
     }
@@ -133,8 +135,9 @@ fun LibraryScreen(
     renaming?.let { track ->
         EditDetailsSheet(
             track = track,
-            onSave = { title, details ->
-                viewModel.editDetails(track, title, details)
+            loadNotes = { viewModel.loadNotes(track) },
+            onSave = { title, details, notes ->
+                viewModel.editDetails(track, title, details, notes)
                 renaming = null
             },
             onDismiss = { renaming = null },
