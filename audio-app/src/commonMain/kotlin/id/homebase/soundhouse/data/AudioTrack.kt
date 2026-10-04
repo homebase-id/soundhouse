@@ -1,5 +1,6 @@
 package id.homebase.soundhouse.data
 
+import id.homebase.soundhouse.importing.TrackDetails
 import id.homebase.api.client.KeyHeader
 import id.homebase.api.client.drives.HomebaseFile
 import id.homebase.api.client.drives.upload.EmbeddedThumb
@@ -31,6 +32,7 @@ data class AudioTrackContent(
     val fileName: String? = null,
     val origin: TrackOrigin = TrackOrigin.Imported,
     val quality: AudioQuality? = null,
+    val details: TrackDetails? = null,
 )
 
 /** A cover thumbnail stored with the payload; [lastModified] versions the thumbnail cache key. */
@@ -56,6 +58,7 @@ class AudioTrack(
     val sizeBytes: Long get() = content.sizeBytes
     val mimeType: String get() = content.mimeType
     val quality: AudioQuality? get() = content.quality
+    val details: TrackDetails? get() = content.details
 
     /** The probed format, or the little the MIME type implies before a probe. */
     val displayQuality: AudioQuality? get() = content.quality ?: qualityFromMimeType(content.mimeType)

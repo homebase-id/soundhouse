@@ -1,8 +1,13 @@
 package id.homebase.soundhouse.importing
 
-data class AudioFileMetadata(val title: String?, val durationMs: Long?, val quality: AudioQuality? = null)
+data class AudioFileMetadata(
+    val title: String?,
+    val durationMs: Long?,
+    val quality: AudioQuality? = null,
+    val details: TrackDetails? = null,
+)
 
-/** Title, duration and stream format straight from the container; any may be null when the format doesn't say. */
+/** Title, duration, stream format and tags straight from the container; any may be null when the format doesn't say. */
 expect suspend fun readAudioMetadata(path: String): AudioFileMetadata
 
 /** The embedded cover image (JPEG/PNG bytes) if the file carries one. */

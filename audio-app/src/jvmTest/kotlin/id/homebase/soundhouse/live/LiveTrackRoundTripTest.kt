@@ -71,7 +71,7 @@ class LiveTrackRoundTripTest {
             assertTrue(api.downloadTo(track, downloaded.absolutePath), "download reported failure")
             assertContentEquals(original, downloaded.readBytes(), "downloaded bytes differ from the original")
 
-            val newVersion = api.renameTrack(track, "$title renamed")
+            val newVersion = api.updateTrackContent(track, track.content.copy(title = "$title renamed"))
             assertNotEquals(track.versionTag, newVersion)
             val renamed = assertNotNull(api.getTrackFile(track.fileId)?.toAudioTrackOrNull())
             assertEquals("$title renamed", renamed.title)

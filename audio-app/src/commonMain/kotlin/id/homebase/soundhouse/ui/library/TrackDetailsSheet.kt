@@ -1,5 +1,15 @@
 package id.homebase.soundhouse.ui.library
 
+import id.homebase.soundhouse.resources.number_of_total
+import id.homebase.soundhouse.resources.field_comment
+import id.homebase.soundhouse.resources.field_composer
+import id.homebase.soundhouse.resources.field_genre
+import id.homebase.soundhouse.resources.field_year
+import id.homebase.soundhouse.resources.field_disc
+import id.homebase.soundhouse.resources.field_track
+import id.homebase.soundhouse.resources.field_album_artist
+import id.homebase.soundhouse.resources.field_album
+import id.homebase.soundhouse.resources.field_artist
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -75,6 +85,17 @@ internal fun TrackDetailsSheet(track: AudioTrack, onOpen: (AudioTrack) -> Unit, 
             quality?.bitDepth?.takeUnless { lossy }?.let { DetailRow(stringResource(AR.string.details_bit_depth), bitDepthLabel(it)) }
             quality?.channels?.let { DetailRow(stringResource(AR.string.details_channels), channelsLabel(it)) }
             quality?.bitrateBps?.let { DetailRow(stringResource(AR.string.details_bitrate), bitrateLabel(it)) }
+            track.details?.let { details ->
+                details.artist?.let { DetailRow(stringResource(AR.string.field_artist), it) }
+                details.album?.let { DetailRow(stringResource(AR.string.field_album), it) }
+                details.albumArtist?.let { DetailRow(stringResource(AR.string.field_album_artist), it) }
+                details.trackNumber?.let { DetailRow(stringResource(AR.string.field_track), numberOf(it, details.trackTotal)) }
+                details.discNumber?.let { DetailRow(stringResource(AR.string.field_disc), numberOf(it, details.discTotal)) }
+                details.date?.let { DetailRow(stringResource(AR.string.field_year), it) }
+                details.genre?.let { DetailRow(stringResource(AR.string.field_genre), it) }
+                details.composer?.let { DetailRow(stringResource(AR.string.field_composer), it) }
+                details.comment?.let { DetailRow(stringResource(AR.string.field_comment), it) }
+            }
             track.durationMs?.let { DetailRow(stringResource(AR.string.details_duration), formatDuration(it)) }
             DetailRow(stringResource(AR.string.details_size), stringResource(AR.string.details_size_value, formatMegabytes(track.sizeBytes)))
             track.content.fileName?.let { DetailRow(stringResource(AR.string.details_file_name), it) }
@@ -93,6 +114,10 @@ internal fun TrackDetailsSheet(track: AudioTrack, onOpen: (AudioTrack) -> Unit, 
         }
     }
 }
+
+@Composable
+private fun numberOf(number: Int, total: Int?): String =
+    if (total != null) stringResource(AR.string.number_of_total, number, total) else number.toString()
 
 @Composable
 private fun DetailRow(label: String, value: String) {

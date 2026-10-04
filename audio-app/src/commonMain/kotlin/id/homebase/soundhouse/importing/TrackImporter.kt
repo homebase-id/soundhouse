@@ -231,6 +231,7 @@ class TrackImporter(
             fileName = request.fileName,
             origin = request.origin,
             quality = metadata.quality,
+            details = metadata.details,
         )
         val uploaded = target.uploadTrack(
             sourcePath = request.path,
