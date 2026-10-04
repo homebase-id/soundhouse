@@ -76,6 +76,10 @@ import id.homebase.soundhouse.resources.navigate_back
 import id.homebase.soundhouse.resources.track_added_on
 import id.homebase.soundhouse.resources.track_recorded_on
 import id.homebase.soundhouse.resources.player_failed
+import id.homebase.soundhouse.resources.player_buffering
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import id.homebase.soundhouse.resources.player_next
 import id.homebase.soundhouse.resources.player_nothing_playing
 import id.homebase.soundhouse.resources.player_now_playing
@@ -261,6 +265,16 @@ private fun DisplayPanel(uiState: PlayerUiState, title: String) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        uiState.credits?.let { credits ->
+            Text(
+                credits,
+                style = MaterialTheme.typography.titleSmall,
+                color = metal.onPanel,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         val date = uiState.dateAddedMs?.let(::formatDate)
         if (date != null) {
             Text(
@@ -297,7 +311,7 @@ private fun KnobControls(uiState: PlayerUiState, viewModel: PlayerViewModel) {
             Spacer(Modifier.height(8.dp))
             Knob(onClick = viewModel::togglePlayPause, enabled = !uiState.isLoading, size = 96.dp) {
                 when {
-                    uiState.isLoading -> LoadingIndicator(Modifier.size(48.dp))
+                    uiState.isLoading || uiState.isBuffering -> LoadingIndicator(Modifier.size(48.dp))
                     uiState.isPlaying -> Icon(Icons.Filled.Pause, contentDescription = stringResource(AR.string.player_pause), modifier = Modifier.size(40.dp))
                     else -> Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(AR.string.player_play), modifier = Modifier.size(40.dp))
                 }
@@ -359,6 +373,17 @@ private fun TrackHeading(uiState: PlayerUiState, title: String) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        uiState.credits?.let { credits ->
+            Spacer(Modifier.height(4.dp))
+            Text(
+                credits,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         val date = uiState.dateAddedMs?.let(::formatDate)
         if (date != null) {
             Spacer(Modifier.height(4.dp))
@@ -411,6 +436,14 @@ private fun SeekSection(uiState: PlayerUiState, viewModel: PlayerViewModel, mach
                 style = MaterialTheme.typography.labelMedium.tabular(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (uiState.isBuffering) {
+                Text(
+                    stringResource(AR.string.player_buffering),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
             Text(
                 formatDuration(uiState.durationMs),
                 style = MaterialTheme.typography.labelMedium.tabular(),
@@ -436,7 +469,7 @@ private fun Controls(uiState: PlayerUiState, viewModel: PlayerViewModel) {
             modifier = Modifier.size(96.dp),
         ) {
             when {
-                uiState.isLoading -> LoadingIndicator(Modifier.size(48.dp))
+                uiState.isLoading || uiState.isBuffering -> LoadingIndicator(Modifier.size(48.dp))
                 uiState.isPlaying -> Icon(Icons.Filled.Pause, contentDescription = stringResource(AR.string.player_pause), modifier = Modifier.size(44.dp))
                 else -> Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(AR.string.player_play), modifier = Modifier.size(44.dp))
             }

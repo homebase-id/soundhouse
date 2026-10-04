@@ -487,6 +487,22 @@ class JvmAudioPlayerTest {
 
         player.release()
     }
+
+    @Test
+    fun bufferingIsReportedUntilTheFirstAudioReachesTheLine() {
+        val events = java.util.Collections.synchronizedList(mutableListOf<Boolean>())
+        val done = CountDownLatch(1)
+        val player = TestableAudioPlayer(fakeDurationMs = 1_000, fakeAudioBytes = ByteArray(1764))
+        player.setPlaybackObserver(object : AudioPlaybackObserver {
+            override fun onComplete() { done.countDown() }
+            override fun onProgressUpdate(positionMs: Long, durationMs: Long) {}
+            override fun onBufferingChanged(buffering: Boolean) { events += buffering }
+        })
+        player.play("/fake/a.wav")
+        assertTrue(done.await(3, TimeUnit.SECONDS))
+        assertEquals(listOf(true, false), events.toList())
+        player.release()
+    }
 }
 
 /**

@@ -12,6 +12,7 @@ import id.homebase.api.client.eventbus.EventBus
 import id.homebase.api.sync.database.DatabaseManager
 import id.homebase.api.sync.database.MainIndexMetaHelpers
 import id.homebase.api.sync.database.QueryBatch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,9 @@ class TrackStore(
     private val eventBus: EventBus,
     private val scope: CoroutineScope,
     private val driveId: Uuid = audioDriveId,
+    private val query: suspend (identityId: Uuid) -> List<HomebaseFile> = { identityId ->
+        queryLocalIndex(databaseManager, identityId, driveId, AUDIO_TRACK_FILE_TYPE)
+    },
 ) {
     private val _tracks = MutableStateFlow<List<AudioTrack>>(emptyList())
     val tracks: StateFlow<List<AudioTrack>> = _tracks.asStateFlow()
@@ -40,12 +44,20 @@ class TrackStore(
     val isLoaded: StateFlow<Boolean> = _isLoaded.asStateFlow()
 
     private val reloadMutex = Mutex()
+    // A reload that was still reading when the session ended must not publish what it read; the
+    // check and the write share stateLock with reset() so neither can land between the other's steps.
+    private val stateLock = Mutex()
+    private var session = 0
 
     init {
         scope.launch {
             eventBus.events.collect { event ->
                 when (event) {
-                    is BackendEvent.SessionEnded -> reset()
+                    is BackendEvent.SessionEnded -> stateLock.withLock {
+                        session++
+                        _tracks.value = emptyList()
+                        _isLoaded.value = false
+                    }
                     is BackendEvent.DataEvent.BatchReceived -> if (event.driveId == driveId) reload()
                     is BackendEvent.DriveEvent.Stopped ->
                         if (event.driveId == driveId && event.totalCount > 0) reload()
@@ -59,14 +71,21 @@ class TrackStore(
     }
 
     suspend fun reload() = reloadMutex.withLock {
+        val startedIn = stateLock.withLock { session }
         val creds = credentialsManager.getActiveCredentials() ?: return@withLock
-        try {
-            val records = queryLocalIndex(databaseManager, creds.getIdentityId(), driveId, AUDIO_TRACK_FILE_TYPE)
-            _tracks.value = records.mapNotNull { it.toAudioTrackOrNull() }
+        val loaded = try {
+            query(creds.getIdentityId()).mapNotNull { it.toAudioTrackOrNull() }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Logger.e(e, TAG) { "Failed to load tracks from the local index" }
+            null
         }
-        _isLoaded.value = true
+        stateLock.withLock {
+            if (session != startedIn) return@withLock
+            if (loaded != null) _tracks.value = loaded
+            _isLoaded.value = true
+        }
     }
 
     /** Writes a header this app just fetched from the server, so the list updates without waiting for sync. */
@@ -91,11 +110,6 @@ class TrackStore(
         Logger.i(tag = TAG) { "Removed ${stale.size} track(s) deleted on the server" }
         reload()
         return stale.size
-    }
-
-    private fun reset() {
-        _tracks.value = emptyList()
-        _isLoaded.value = false
     }
 
     private companion object {

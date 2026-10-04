@@ -52,12 +52,22 @@ AGP app-style `assembleDebug` / `compileDebugKotlinAndroid` tasks — those exis
 Backticked test names must not contain `,` `.` `:` `;` `/` `<` `>` `[` `]` — Kotlin/Native
 rejects them, so `compileTestKotlinIosSimulatorArm64` fails even though JVM is happy.
 
+## Homebase limits
+
+`appData.content` (the file header's content) is capped by the server at
+`MaxAppDataContentLength = 10 * 1024` characters **as sent**. Encrypted files send it as Base64 of
+AES-CBC ciphertext, so the plaintext JSON budget is only ~7.6 KB (16-byte padding, then 4/3 for
+Base64), and UTF-8 makes that as few as ~1,900 emoji. Never put unbounded user text in the header:
+`AudioDriveApi` fits every track header to the limit before upload or update (trimming the
+comment first) and caps collection names. Anything genuinely large belongs in a payload, not the
+header.
+
 ## Live testing
 
 `audio-app/src/jvmTest/.../live/` runs against a real identity using
 `~/.config/homebase-audio-test/session.json`. Never print, log or commit its contents. Never call
 the logout endpoint (`/api/apps/v1/auth/logout`) or anything that revokes the client — that kills the
-session. Only touch the Audio drive. The suite is its own Gradle task (`liveTest`) and is excluded
+session. Only touch the Soundhouse drive. The suite is its own Gradle task (`liveTest`) and is excluded
 from `jvmTest`.
 
 ## Debugging & root cause

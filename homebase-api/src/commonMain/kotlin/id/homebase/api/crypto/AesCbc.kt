@@ -4,6 +4,7 @@ import dev.whyoleg.cryptography.CryptographyProvider
 import dev.whyoleg.cryptography.algorithms.AES
 import id.homebase.api.common.SecureByteArray
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.channelFlow
 
 /** AES-CBC encryption/decryption utilities using cryptography-kotlin */
@@ -132,8 +133,8 @@ object AesCbc {
     ): Flow<ByteArray> = streamEncryptWithCbc(dataStream, key.toByteArray(), iv)
 
     /**
-     * Stream decrypt data with AES-CBC. Assumes each chunk (apart from last one) is a multiple of
-     * 16 bytes.
+     * Stream decrypt data with AES-CBC. Chunks may be any size: network reads arrive unaligned, so
+     * they are regrouped into whole blocks first.
      *
      * The algorithm:
      * 1. For each chunk, add artificial padding to enable decryption
@@ -162,7 +163,7 @@ object AesCbc {
         var previousIv: ByteArray = iv
         var bufferedChunk: ByteArray? = null
 
-        dataStream.collect { chunk ->
+        dataStream.alignedToBlocks().collect { chunk ->
             // Process the buffered chunk (if any) - this is NOT the last chunk
             bufferedChunk?.let { prevChunk ->
                 val cipher = aesKey.cipher()
@@ -196,6 +197,20 @@ object AesCbc {
             val decrypted = cipher.decryptWithIv(previousIv, lastChunk)
             send(decrypted)
         }
+    }
+
+    /** Regroups [this] into whole AES blocks, carrying any partial block into the next chunk. */
+    private fun Flow<ByteArray>.alignedToBlocks(): Flow<ByteArray> = flow {
+        var carry = ByteArray(0)
+        collect { incoming ->
+            if (incoming.isEmpty()) return@collect
+            val combined = if (carry.isEmpty()) incoming else ByteArrayUtil.combine(carry, incoming)
+            val aligned = combined.size / BLOCK_SIZE * BLOCK_SIZE
+            if (aligned > 0) emit(if (aligned == combined.size) combined else combined.copyOfRange(0, aligned))
+            carry = combined.copyOfRange(aligned, combined.size)
+        }
+        // A well-formed ciphertext leaves nothing; anything left is passed on for decrypt to reject.
+        if (carry.isNotEmpty()) emit(carry)
     }
 
     /** Stream decrypt data with AES-CBC using SecureByteArray key. */

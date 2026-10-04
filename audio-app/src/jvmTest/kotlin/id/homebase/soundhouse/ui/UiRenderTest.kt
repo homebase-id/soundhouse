@@ -45,6 +45,7 @@ import id.homebase.soundhouse.ui.record.RecordUiState
 import id.homebase.soundhouse.ui.player.PlayerScreen
 import id.homebase.soundhouse.settings.AudioPreferences
 import id.homebase.soundhouse.settings.Skin
+import id.homebase.soundhouse.importing.TrackDetails
 import id.homebase.soundhouse.ui.player.PlayerViewModel
 import id.homebase.core.audio.AudioPlaybackObserver
 import id.homebase.core.audio.AudioPlayer
@@ -81,10 +82,16 @@ class UiRenderTest {
     @AfterTest
     fun tearDown() = scope.cancel()
 
-    private fun track(title: String, durationMs: Long?, daysAgo: Int, origin: TrackOrigin = TrackOrigin.Imported) = AudioTrack(
+    private fun track(
+        title: String,
+        durationMs: Long?,
+        daysAgo: Int,
+        origin: TrackOrigin = TrackOrigin.Imported,
+        details: TrackDetails? = null,
+    ) = AudioTrack(
         fileId = Uuid.random(),
         uniqueId = null,
-        content = AudioTrackContent(title, 1, if (origin == TrackOrigin.Recorded) "audio/wav" else "audio/mpeg", durationMs, origin = origin),
+        content = AudioTrackContent(title, 1, if (origin == TrackOrigin.Recorded) "audio/wav" else "audio/mpeg", durationMs, origin = origin, details = details),
         dateAddedMs = 1_790_000_000_000 - daysAgo * 86_400_000L,
         versionTag = null,
         tags = emptyList(),
@@ -94,9 +101,9 @@ class UiRenderTest {
 
     private val tracks = listOf(
         track("Morning walk in the hills", 61_000, 0),
-        track("Bass practice — scales", 312_000, 1),
+        track("Bass practice — scales", 312_000, 1, details = TrackDetails(artist = "Todd", album = "Practice tapes")),
         track("Kitchen idea", 18_000, 2, TrackOrigin.Recorded),
-        track("Live at the Paradiso", 3_725_000, 5),
+        track("Live at the Paradiso", 3_725_000, 5, details = TrackDetails(artist = "Nina Simone", album = "Live in Amsterdam")),
         track("Rain on the window", null, 9),
         track("🎵 Lullaby", 194_000, 12),
     )

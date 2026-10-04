@@ -1,5 +1,6 @@
 package id.homebase.soundhouse.ui.collections
 
+import id.homebase.soundhouse.ui.library.EditDetailsSheet
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -62,7 +63,6 @@ import id.homebase.soundhouse.resources.library_track_count
 import id.homebase.soundhouse.resources.navigate_back
 import id.homebase.soundhouse.resources.rename_confirm
 import id.homebase.soundhouse.ui.library.DeleteDialog
-import id.homebase.soundhouse.ui.library.RenameDialog
 import id.homebase.soundhouse.ui.library.TrackActions
 import id.homebase.soundhouse.ui.library.TrackDetailsSheet
 import id.homebase.soundhouse.ui.library.TrackRow
@@ -91,9 +91,11 @@ fun CollectionScreen(viewModel: CollectionViewModel, onBack: () -> Unit, onOpenP
     var showingDetails by remember { mutableStateOf<AudioTrack?>(null) }
     val collection = uiState.collection
     showingDetails?.let { shown ->
+        val live = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown
         TrackDetailsSheet(
-            track = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown,
-            onOpen = viewModel::readQuality,
+            track = live,
+            onOpen = viewModel::readMetadata,
+            loadNotes = { viewModel.loadNotes(live) },
             onDismiss = { showingDetails = null },
         )
     }
@@ -126,7 +128,12 @@ fun CollectionScreen(viewModel: CollectionViewModel, onBack: () -> Unit, onOpenP
         )
     }
     renamingTrack?.let { track ->
-        RenameDialog(track, onConfirm = { viewModel.renameTrack(track, it); renamingTrack = null }, onDismiss = { renamingTrack = null })
+        EditDetailsSheet(
+            track,
+            loadNotes = { viewModel.loadNotes(track) },
+            onSave = { title, details, notes -> viewModel.editTrackDetails(track, title, details, notes); renamingTrack = null },
+            onDismiss = { renamingTrack = null },
+        )
     }
     deletingTrack?.let { track ->
         DeleteDialog(track, onConfirm = { viewModel.deleteTrack(track); deletingTrack = null }, onDismiss = { deletingTrack = null })
@@ -144,7 +151,7 @@ fun CollectionScreen(viewModel: CollectionViewModel, onBack: () -> Unit, onOpenP
         TrackActions(
             download = viewModel::download,
             removeDownload = viewModel::removeDownload,
-            rename = { renamingTrack = it },
+            editDetails = { renamingTrack = it },
             delete = { deletingTrack = it },
             collections = { choosingCollections = it },
             details = { showingDetails = it },
