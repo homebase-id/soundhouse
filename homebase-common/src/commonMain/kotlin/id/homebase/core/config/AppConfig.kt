@@ -38,7 +38,7 @@ object AppConfig {
     const val APP_SLUG = "soundhouse"
 
     // Deep link scheme for returning from permission extension
-    const val DEEP_LINK_SCHEME = "homebase-audio"
+    const val DEEP_LINK_SCHEME = "homebase-soundhouse"
 
     const val CREATE_ACCOUNT_CALLBACK_HOST = "create-account-callback"
 
@@ -50,7 +50,7 @@ object AppConfig {
  * extending app permissions. Platform-specific because the mechanism differs:
  *
  * - **Mobile (Android/iOS)**: a custom URL scheme deep link
- *   (`homebase-audio://permission-callback`) registered on the device.
+ *   (`homebase-soundhouse://permission-callback`) registered on the device.
  * - **Web**: `<base>permission-callback`, which index.html posts back to the opener tab.
  * - **Desktop (JVM)**: a localhost loopback URL handled by the in-process
  *   [id.homebase.api.browser.LocalCallbackServer] (the same server the OAuth login
