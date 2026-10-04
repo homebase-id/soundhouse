@@ -45,6 +45,11 @@ import id.homebase.soundhouse.resources.settings_wifi_only
 import id.homebase.soundhouse.resources.settings_uploads_at_once
 import id.homebase.soundhouse.resources.settings_uploads_detail
 import id.homebase.soundhouse.resources.settings_uploads_heading
+import id.homebase.soundhouse.resources.settings_appearance_heading
+import id.homebase.soundhouse.resources.settings_skin
+import id.homebase.soundhouse.resources.skin_aluminium
+import id.homebase.soundhouse.resources.skin_standard
+import id.homebase.soundhouse.settings.Skin
 import id.homebase.common.util.formatBytes
 import org.jetbrains.compose.resources.stringResource
 
@@ -58,6 +63,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
         onLimit = viewModel::setLimit,
         onWifiOnly = viewModel::setWifiOnly,
         onUploadsAtOnce = viewModel::setUploadsAtOnce,
+        onSkin = viewModel::setSkin,
     )
 }
 
@@ -70,6 +76,7 @@ fun SettingsContent(
     onLimit: (Long) -> Unit,
     onWifiOnly: (Boolean) -> Unit,
     onUploadsAtOnce: (Int) -> Unit = {},
+    onSkin: (Skin) -> Unit = {},
 ) {
     val prefs = uiState.preferences
     Scaffold(
@@ -151,6 +158,26 @@ fun SettingsContent(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            Text(
+                stringResource(AR.string.settings_appearance_heading),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 4.dp),
+            )
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(AR.string.settings_skin), style = MaterialTheme.typography.bodyLarge)
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    Skin.entries.forEachIndexed { index, skin ->
+                        SegmentedButton(
+                            selected = prefs.skin == skin,
+                            onClick = { onSkin(skin) },
+                            shape = SegmentedButtonDefaults.itemShape(index, Skin.entries.size),
+                        ) {
+                            Text(stringResource(if (skin == Skin.Aluminium) AR.string.skin_aluminium else AR.string.skin_standard))
+                        }
+                    }
+                }
             }
         }
     }
