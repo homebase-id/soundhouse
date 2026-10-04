@@ -1,5 +1,6 @@
 package id.homebase.soundhouse.data
 
+import id.homebase.api.util.truncateToCodePoints
 import id.homebase.api.client.KeyHeader
 import id.homebase.api.client.drives.HomebaseFile
 import id.homebase.api.client.drives.QueryBatchRequest
@@ -268,7 +269,7 @@ class AudioDriveApi(
             uniqueId = uniqueId,
             tags = tags.ifEmpty { null },
             fileType = AUDIO_TRACK_FILE_TYPE,
-            content = OdinSystemSerializer.serialize(content),
+            content = OdinSystemSerializer.serialize(content.fittedToHeader()),
             previewThumbnail = preview,
         ),
         versionTag = versionTag,
@@ -280,12 +281,14 @@ class AudioDriveApi(
         appData = UploadAppFileMetaData(
             uniqueId = id,
             fileType = AUDIO_COLLECTION_FILE_TYPE,
-            content = OdinSystemSerializer.serialize(AudioCollectionContent(name)),
+            content = OdinSystemSerializer.serialize(AudioCollectionContent(name.truncateToCodePoints(MAX_NAME_CODE_POINTS))),
         ),
         versionTag = versionTag,
     )
 
     private companion object {
+        // Far inside the header limit even in four-byte characters; see MAX_APP_DATA_CONTENT_LENGTH.
+        const val MAX_NAME_CODE_POINTS = 200
         const val TAG = "AudioDriveApi"
         const val PAGE_SIZE = 200
         val COVER_SIZES = listOf(

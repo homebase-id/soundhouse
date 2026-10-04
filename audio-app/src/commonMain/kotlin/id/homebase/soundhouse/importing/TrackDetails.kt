@@ -47,8 +47,9 @@ data class TrackDetails(
     )
 }
 
-private const val FIELD_LIMIT = 300
-private const val COMMENT_LIMIT = 4_000
+// Per-field caps keep ordinary tags well inside the header; AudioDriveApi still fits the total.
+private const val FIELD_LIMIT = 200
+private const val COMMENT_LIMIT = 1_000
 
 private fun String?.clean(limit: Int = FIELD_LIMIT): String? =
     this?.trim()?.takeIf { it.isNotEmpty() }?.truncateToCodePoints(limit)
