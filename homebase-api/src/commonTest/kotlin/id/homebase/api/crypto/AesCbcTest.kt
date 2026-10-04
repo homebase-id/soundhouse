@@ -397,4 +397,25 @@ class AesCbcTest {
         val b = ByteArray(16) { (it + 16).toByte() }
         assertStreamMatchesBulk(a + b, listOf(a, ByteArray(0), b))
     }
+
+    @Test
+    fun testStreamDecrypt_UnalignedNetworkChunks() = runTest {
+        val key = ByteArray(16) { it.toByte() }
+        val iv = ByteArray(16) { (it * 7).toByte() }
+        val plaintext = ByteArray(100_003) { (it % 251).toByte() }
+        val ciphertext = AesCbc.encrypt(plaintext, key, iv)
+        // Sizes a socket might hand over: odd, tiny, and larger than a block, none aligned.
+        val sizes = listOf(1, 7, 1448, 15, 33, 4093, 2, 65_537)
+        val chunks = mutableListOf<ByteArray>()
+        var offset = 0
+        var i = 0
+        while (offset < ciphertext.size) {
+            val end = minOf(offset + sizes[i++ % sizes.size], ciphertext.size)
+            chunks += ciphertext.copyOfRange(offset, end)
+            offset = end
+        }
+        val decrypted = AesCbc.streamDecryptWithCbc(flowOf(*chunks.toTypedArray()), key, iv)
+            .toList().fold(ByteArray(0)) { acc, part -> acc + part }
+        assertEquals(plaintext.toList(), decrypted.toList())
+    }
 }

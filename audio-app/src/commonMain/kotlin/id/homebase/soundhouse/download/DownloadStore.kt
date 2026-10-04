@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlin.time.TimeSource
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okio.FileSystem
@@ -58,9 +59,12 @@ class DownloadStore(
             startupScan.join()
             val finalPath = pathFor(track)
             val partPath = "$finalPath.part".toPath()
+            val started = TimeSource.Monotonic.markNow()
+            var firstBytesMs: Long? = null
             val stored = try {
                 fileSystem.createDirectories(dir)
                 val complete = downloader.download(track, partPath.toString()) { progress ->
+                    if (firstBytesMs == null && progress > 0f) firstBytesMs = started.elapsedNow().inWholeMilliseconds
                     _inProgress.update { if (track.fileId in it) it + (track.fileId to progress) else it }
                 } && fileSystem.metadataOrNull(partPath)?.size == track.sizeBytes
                 if (complete) {
@@ -75,6 +79,10 @@ class DownloadStore(
                 false
             } finally {
                 _inProgress.update { it - track.fileId }
+            }
+            Logger.i(tag = "DownloadTrace") {
+                "${track.fileId.toString().take(8)} (${track.sizeBytes / 1024} KB): first bytes " +
+                    "${firstBytesMs?.let { "$it ms" } ?: "never"}, ${if (stored) "done" else "failed"} after ${started.elapsedNow().inWholeMilliseconds} ms"
             }
             if (stored) {
                 _downloaded.update { it + track.fileId }

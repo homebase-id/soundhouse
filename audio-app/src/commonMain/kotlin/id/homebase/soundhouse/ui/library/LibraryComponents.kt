@@ -89,6 +89,7 @@ import id.homebase.soundhouse.resources.details_action
 import id.homebase.soundhouse.resources.download_action
 import id.homebase.soundhouse.resources.download_done
 import id.homebase.soundhouse.resources.download_failed
+import id.homebase.soundhouse.resources.download_in_progress
 import id.homebase.soundhouse.resources.download_remove
 import id.homebase.soundhouse.resources.import_clear_finished
 import id.homebase.soundhouse.resources.import_dismiss
@@ -247,9 +248,11 @@ internal fun TrackRow(
                     Spacer(Modifier.size(4.dp))
                 }
                 Text(
-                    track.details?.creditLine ?: trackOriginLine(track),
+                    downloadProgress?.let { stringResource(AR.string.download_in_progress, "${(it * 100).toInt()}%") }
+                        ?: track.details?.creditLine
+                        ?: trackOriginLine(track),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (downloadProgress != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -258,6 +261,8 @@ internal fun TrackRow(
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 when {
+                    // Spins until the first bytes arrive: a ring at 0% draws as almost nothing.
+                    downloadProgress == 0f -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     downloadProgress != null -> CircularProgressIndicator(
                         progress = { downloadProgress },
                         modifier = Modifier.size(20.dp),
