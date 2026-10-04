@@ -78,7 +78,7 @@ class LiveImportTest {
             val image = org.jetbrains.skia.Image.makeFromEncoded(cover)
             assertTrue(image.width in 200..320, "cover width ${image.width}")
 
-            api.renameTrack(track, "cover renamed")
+            api.updateTrackContent(track, track.content.copy(title = "cover renamed"))
             val renamed = assertNotNull(api.getTrackFile(track.fileId)?.toAudioTrackOrNull())
             assertTrue(renamed.hasCover)
             assertNotNull(renamed.coverPreview, "rename dropped the preview")

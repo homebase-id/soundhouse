@@ -3,7 +3,7 @@
     <string name="app_name">Soundhouse</string>
     <string name="sign_out">Sign out</string>
     <string name="library_no_matches">No tracks match your search</string>
-    <string name="library_search_hint">Search by title</string>
+    <string name="library_search_hint">Search titles, artists, albums</string>
     <string name="library_search_clear">Clear search</string>
     <string name="library_sort_newest">Newest</string>
     <string name="library_sort_title_ascending">A–Z</string>
@@ -86,10 +86,7 @@
     <string name="download_done">Downloaded</string>
     <string name="download_failed">Download failed</string>
     <string name="cancel">Cancel</string>
-    <string name="rename_action">Rename</string>
-    <string name="rename_title">Rename track</string>
     <string name="rename_confirm">Save</string>
-    <string name="rename_failed">Couldn't rename the track</string>
     <string name="delete_action">Delete</string>
     <string name="delete_title">Delete track?</string>
     <string name="delete_message">“%1$s” will be removed from your Homebase drive and from this device.</string>
@@ -198,4 +195,23 @@
     <string name="details_added">Added</string>
     <string name="details_recorded">Recorded</string>
     <string name="details_format_pending">Sample rate, bit depth and bitrate appear once the file has been read.</string>
+    <string name="player_buffering">Buffering…</string>
+    <string name="download_in_progress">Downloading · %1$s</string>
+    <string name="edit_details_action">Edit details</string>
+    <string name="edit_details_title">Edit details</string>
+    <string name="edit_details_save">Save</string>
+    <string name="edit_details_failed">Couldn't save the details</string>
+    <string name="field_title">Title</string>
+    <string name="field_artist">Artist</string>
+    <string name="field_album">Album</string>
+    <string name="field_album_artist">Album artist</string>
+    <string name="field_track">Track</string>
+    <string name="field_disc">Disc</string>
+    <string name="field_of">of</string>
+    <string name="field_year">Year</string>
+    <string name="field_genre">Genre</string>
+    <string name="field_composer">Composer</string>
+    <string name="field_notes">Notes</string>
+    <string name="notes_loading">Loading notes…</string>
+    <string name="number_of_total">%1$d of %2$d</string>
 </resources>

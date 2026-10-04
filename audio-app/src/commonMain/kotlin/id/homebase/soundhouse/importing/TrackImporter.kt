@@ -231,12 +231,14 @@ class TrackImporter(
             fileName = request.fileName,
             origin = request.origin,
             quality = metadata.quality,
+            details = metadata.details,
         )
         val uploaded = target.uploadTrack(
             sourcePath = request.path,
             content = content,
             tags = request.tags.map(Uuid::parse),
             coverArt = if (request.origin == TrackOrigin.Imported) readCover(request.path) else null,
+            notes = metadata.notes,
             onProgress = { progress -> setJob(id) { it.copy(progress = progress) } },
         )
         target.getTrackFile(uploaded.fileId)?.let { onUploaded(it) }

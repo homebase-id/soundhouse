@@ -110,6 +110,7 @@ kotlin {
             implementation(libs.ktor.client.mock)
         }
         androidMain.dependencies {
+            implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.browser)
             api(libs.coil3.video)

@@ -66,6 +66,38 @@ class JvmAudioMetadataTest {
     }
 
     @Test
+    fun `ffprobe reads id3 tags into track details`() = runBlocking {
+        val file = Files.createTempFile("tagged", ".mp3").toFile()
+        try {
+            val encode = ProcessBuilder(
+                FFmpegBinaryManager.ffmpegPath(), "-v", "error", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", "1",
+                "-metadata", "title=Sinnerman", "-metadata", "artist=Nina Simone", "-metadata", "album=Pastel Blues",
+                "-metadata", "album_artist=Nina Simone", "-metadata", "track=3/9", "-metadata", "disc=1/1",
+                "-metadata", "date=1965", "-metadata", "genre=Jazz", "-metadata", "composer=Traditional",
+                "-metadata", "comment=Live take", file.absolutePath,
+            ).redirectErrorStream(true).start()
+            assertEquals(0, encode.waitFor(), encode.inputStream.bufferedReader().readText())
+            val metadata = readAudioMetadata(file.absolutePath)
+            assertEquals("Sinnerman", metadata.title)
+            assertEquals(
+                TrackDetails("Nina Simone", "Pastel Blues", "Nina Simone", 3, 9, 1, 1, "1965", "Jazz", "Traditional"),
+                metadata.details,
+            )
+            assertEquals("Live take", metadata.notes)
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `stream tags count too, container tags win`() {
+        val parsed = parseFfprobeFormat(
+            """{"streams":[{"codec_name":"opus","tags":{"ARTIST":"Stream","GENRE":"Ambient"}}],"format":{"tags":{"ARTIST":"Container"}}}"""
+        )
+        assertEquals(TrackDetails(artist = "Container", genre = "Ambient"), parsed.details)
+    }
+
+    @Test
     fun `unreadable files yield empty metadata`() = runBlocking {
         val file = File.createTempFile("junk", ".mp3").apply { writeText("not audio") }
         try {
@@ -79,7 +111,7 @@ class JvmAudioMetadataTest {
     @Test
     fun `parses ffprobe json with any title key case`() {
         val parsed = parseFfprobeFormat("""{"format":{"duration":"12.5","tags":{"TITLE":"Upper"}}}""")
-        assertEquals(AudioFileMetadata("Upper", 12_500), parsed)
+        assertEquals(AudioFileMetadata("Upper", 12_500, details = TrackDetails()), parsed)
         assertEquals(AudioFileMetadata(null, null), parseFfprobeFormat("garbage"))
     }
 

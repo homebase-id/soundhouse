@@ -1,5 +1,6 @@
 package id.homebase.soundhouse.ui.library
 
+import id.homebase.soundhouse.resources.edit_details_failed
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,7 +59,6 @@ import id.homebase.soundhouse.resources.import_action
 import id.homebase.soundhouse.resources.library_title
 import id.homebase.soundhouse.resources.library_track_count
 import id.homebase.soundhouse.resources.record_open
-import id.homebase.soundhouse.resources.rename_failed
 import id.homebase.soundhouse.resources.sign_out
 import io.github.vinceglb.filekit.dialogs.FileKitMode
 import io.github.vinceglb.filekit.dialogs.FileKitType
@@ -83,7 +83,7 @@ fun LibraryScreen(
             snackbar.showSnackbar(
                 getString(
                     when (event) {
-                        LibraryEvent.RenameFailed -> AR.string.rename_failed
+                        LibraryEvent.EditFailed -> AR.string.edit_details_failed
                         LibraryEvent.DeleteFailed -> AR.string.delete_failed
                         LibraryEvent.CollectionFailed -> AR.string.collection_failed
                     }
@@ -94,9 +94,11 @@ fun LibraryScreen(
     var renaming by remember { mutableStateOf<AudioTrack?>(null) }
     var showingDetails by remember { mutableStateOf<AudioTrack?>(null) }
     showingDetails?.let { shown ->
+        val live = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown
         TrackDetailsSheet(
-            track = uiState.tracks.firstOrNull { it.fileId == shown.fileId } ?: shown,
-            onOpen = viewModel::readQuality,
+            track = live,
+            onOpen = viewModel::readMetadata,
+            loadNotes = { viewModel.loadNotes(live) },
             onDismiss = { showingDetails = null },
         )
     }
@@ -131,10 +133,11 @@ fun LibraryScreen(
         )
     }
     renaming?.let { track ->
-        RenameDialog(
+        EditDetailsSheet(
             track = track,
-            onConfirm = { title ->
-                viewModel.rename(track, title)
+            loadNotes = { viewModel.loadNotes(track) },
+            onSave = { title, details, notes ->
+                viewModel.editDetails(track, title, details, notes)
                 renaming = null
             },
             onDismiss = { renaming = null },
@@ -160,7 +163,7 @@ fun LibraryScreen(
         TrackActions(
             download = viewModel::download,
             removeDownload = viewModel::removeDownload,
-            rename = { renaming = it },
+            editDetails = { renaming = it },
             delete = { deleting = it },
             collections = { choosingCollections = it },
             details = { showingDetails = it },

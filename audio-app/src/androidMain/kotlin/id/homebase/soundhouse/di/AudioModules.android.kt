@@ -26,6 +26,6 @@ actual fun audioPlatformModule(): Module = module {
             .diskCache(null)
             .build()
     }
-    factory<AudioPlayer> { AndroidAudioPlayer() }
+    factory<AudioPlayer> { AndroidAudioPlayer(androidContext()) }
     single<NetworkMonitor> { AndroidNetworkMonitor(androidContext()) }
 }

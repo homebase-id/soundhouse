@@ -194,8 +194,12 @@ open class JvmAudioPlayer : AudioPlayer {
                 return
             }
 
+            // The decoder (re)starts here on play, seek and speed change; until its first bytes reach
+            // the line, playback is waiting on data.
+            observer?.onBufferingChanged(true)
             playbackThread = Thread({
                 val buffer = ByteArray(bufferBytes(output.toAudioFormat()))
+                var waiting = true
                 try {
                     while (!isStopped) {
                         if (isPaused) {
@@ -207,6 +211,10 @@ open class JvmAudioPlayer : AudioPlayer {
                         val bytesRead = input.readNBytes(buffer, 0, buffer.size)
                         val whole = bytesRead - bytesRead % output.frameBytes
                         if (whole > 0) line.write(buffer, 0, whole)
+                        if (waiting) {
+                            waiting = false
+                            observer?.onBufferingChanged(false)
+                        }
                         if (bytesRead < buffer.size) break
                     }
                     if (!isStopped) {
@@ -216,6 +224,8 @@ open class JvmAudioPlayer : AudioPlayer {
                 } catch (_: InterruptedException) {
                 } catch (e: Exception) {
                     Logger.e(e, tag = TAG) { "Playback error" }
+                } finally {
+                    if (waiting) observer?.onBufferingChanged(false)
                 }
             }, "JvmAudioPlayback").apply {
                 isDaemon = true

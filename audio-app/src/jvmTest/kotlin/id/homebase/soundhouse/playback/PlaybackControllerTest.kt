@@ -181,4 +181,20 @@ class PlaybackControllerTest {
         assertEquals("a", state.current?.title)
         assertEquals(null, state.sleepTimer)
     }
+
+    @Test
+    fun `buffering after a seek holds the target until the player catches up`() = runBlocking {
+        controller.playQueue(tracks, 0)
+        awaitState { it.isPlaying }
+        controller.seekTo(30_000)
+        player.observer.onBufferingChanged(true)
+        awaitState { it.isBuffering }
+        // The player still reports where it was before the seek landed.
+        player.observer.onProgressUpdate(1_000, 60_000)
+        assertEquals(30_000, controller.state.value.positionMs)
+        player.observer.onBufferingChanged(false)
+        awaitState { !it.isBuffering }
+        player.observer.onProgressUpdate(30_100, 60_000)
+        assertEquals(30_100, awaitState { it.positionMs == 30_100L }.positionMs)
+    }
 }
