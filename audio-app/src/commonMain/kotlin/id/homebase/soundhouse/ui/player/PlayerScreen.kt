@@ -189,6 +189,17 @@ private fun TrackHeading(uiState: PlayerUiState, title: String) {
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        uiState.credits?.let { credits ->
+            Spacer(Modifier.height(4.dp))
+            Text(
+                credits,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         val date = uiState.dateAddedMs?.let(::formatDate)
         if (date != null) {
             Spacer(Modifier.height(4.dp))

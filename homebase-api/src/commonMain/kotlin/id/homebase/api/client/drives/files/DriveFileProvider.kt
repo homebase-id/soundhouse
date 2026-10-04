@@ -167,9 +167,11 @@ public class DriveFileProvider(
         chunkStart: Long? = null,
         chunkLength: Long? = null,
         onDownloadProgress: ((Float) -> Unit)? = null,
+        // Versions the cache entry: a payload replaced under the same key would otherwise read stale.
+        lastModified: Long? = null,
     ): BytesResponse? {
         return driveCache.getPayloadBytesDecrypted(
-            driveId, fileId, key, keyHeader, chunkStart, chunkLength, onDownloadProgress
+            driveId, fileId, key, keyHeader, chunkStart, chunkLength, onDownloadProgress, lastModified
         )
     }
 
