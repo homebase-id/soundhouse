@@ -57,7 +57,7 @@ rejects them, so `compileTestKotlinIosSimulatorArm64` fails even though JVM is h
 `audio-app/src/jvmTest/.../live/` runs against a real identity using
 `~/.config/homebase-audio-test/session.json`. Never print, log or commit its contents. Never call
 the logout endpoint (`/api/apps/v1/auth/logout`) or anything that revokes the client — that kills the
-session. Only touch the Audio drive. The suite is its own Gradle task (`liveTest`) and is excluded
+session. Only touch the Soundhouse drive. The suite is its own Gradle task (`liveTest`) and is excluded
 from `jvmTest`.
 
 ## Debugging & root cause

@@ -30,12 +30,12 @@ data class LabeledDrive(
  * LoginViewModel (for initial auth) and HomeViewModel (for permission checking).
  */
 object AppConfig {
-    const val APP_ID = "e6a8c403d4da42c49c749b28081f0233"
+    const val APP_ID = "353e9f539c5a4ccc949dca14378ddec4"
 
     const val APP_NAME = "Soundhouse"
 
     // Sent as `as` in the YouAuth permission request.
-    const val APP_SLUG = "audio"
+    const val APP_SLUG = "soundhouse"
 
     // Deep link scheme for returning from permission extension
     const val DEEP_LINK_SCHEME = "homebase-audio"
@@ -97,34 +97,34 @@ const val OWNER_APP_ID = "ac126e09-54cb-4878-a690-856be692da16"
 const val COMMUNITY_APP_ID = "77ed6136-6b33-4654-8088-3d89c91e6065"
 
 // The server requires both slugs on every drive named in a permission request.
-private const val AUDIO_DRIVE_SLUG = "audio"
-private const val AUDIO_DRIVE_TYPE_SLUG = "audio"
+private const val AUDIO_DRIVE_SLUG = "soundhouse"
+private const val AUDIO_DRIVE_TYPE_SLUG = "soundhouse"
 
 val audioLabeledDrive = LabeledDrive(
     drive = TargetDrive(
-        alias = Uuid.parse("7dc6798f-4395-4760-850f-4c447036c2d1"),
-        type = Uuid.parse("9834ff1c-4147-446f-a3fb-483d2b0c3ce0"),
+        alias = Uuid.parse("2da95fb3-19c8-4c50-a8d3-073afda07d4c"),
+        type = Uuid.parse("bfaf50d6-f74d-40d5-bf1e-ecb83e474d76"),
     ),
-    label = "Audio",
+    label = "Soundhouse",
 )
 
 val appPermissions: List<AppPermissionType> = emptyList()
 
-// The sign-in request: Read+Write on the Audio drive only.
+// The sign-in request: Read+Write on the Soundhouse drive only.
 val targetDriveAccessRequest: List<TargetDriveAccessRequest> =
     listOf(
         TargetDriveAccessRequest(
             alias = audioLabeledDrive.drive.alias.toString(),
             type = audioLabeledDrive.drive.type.toString(),
             name = audioLabeledDrive.label,
-            description = "Drive which contains your audio library",
+            description = "Drive which contains your Soundhouse library",
             permissions = listOf(DrivePermission.Read, DrivePermission.Write),
             driveSlug = AUDIO_DRIVE_SLUG,
             driveTypeSlug = AUDIO_DRIVE_TYPE_SLUG,
         ),
     )
 
-// Sign-in asks for the Audio drive only: no circle drives and no circles.
+// Sign-in asks for the Soundhouse drive only: no circle drives and no circles.
 val circleDriveTargetRequest: List<TargetDriveAccessRequest> = emptyList()
 val loginCircleIds: List<String> = emptyList()
 
